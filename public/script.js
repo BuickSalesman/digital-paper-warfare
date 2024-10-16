@@ -8,9 +8,16 @@ const joinButton = document.getElementById("join-button");
 const statusText = document.getElementById("status");
 const gameContainer = document.getElementById("game-container");
 const canvas = document.getElementById("game-canvas");
+const ctx = canvas.getContext("2d");
 
 // Player Number
 let playerNumber = null;
+
+// Game State
+let gameState = {
+  player1: { position: { x: 300, y: 300 }, velocity: { x: 0, y: 0 } },
+  player2: { position: { x: 500, y: 300 }, velocity: { x: 0, y: 0 } },
+};
 
 // Handle Join Button Click
 joinButton.addEventListener("click", () => {
@@ -42,6 +49,12 @@ socket.on("gameFull", () => {
 socket.on("playerDisconnected", (number) => {
   statusText.textContent = `Player ${number} disconnected. Waiting for a new player...`;
   joinButton.disabled = false;
+  // Optionally, stop the game loop or reset the game state
+});
+
+// Handle State Updates from Server
+socket.on("stateUpdate", (state) => {
+  gameState = state;
 });
 
 // Function to Start the Game
@@ -50,58 +63,100 @@ function startGame() {
   landingPage.style.display = "none";
   gameContainer.style.display = "block";
 
-  // Initialize Matter.js
-  const { Engine, Render, Runner, Bodies, World, Events } = Matter;
+  // Set canvas dimensions
+  canvas.width = 800;
+  canvas.height = 600;
 
-  const engine = Engine.create();
-  const world = engine.world;
+  // Start the rendering loop
+  requestAnimationFrame(render);
+}
 
-  const render = Render.create({
-    canvas: canvas,
-    engine: engine,
-    options: {
-      width: 800,
-      height: 600,
-      wireframes: false,
-      background: "#fafafa",
-    },
-  });
+// Function to Render the Game State
+function render() {
+  // Clear the canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  Render.run(render);
-  const runner = Runner.create();
-  Runner.run(runner, engine);
+  // Draw boundaries (optional: for visual reference)
+  drawBoundaries();
 
-  // Add boundaries
-  const ground = Bodies.rectangle(400, 590, 810, 60, { isStatic: true });
-  const ceiling = Bodies.rectangle(400, 10, 810, 60, { isStatic: true });
-  const leftWall = Bodies.rectangle(10, 300, 60, 600, { isStatic: true });
-  const rightWall = Bodies.rectangle(790, 300, 60, 600, { isStatic: true });
-  World.add(world, [ground, ceiling, leftWall, rightWall]);
+  // Draw Player 1's Ball
+  drawBall(gameState.player1.position, "#FF0000");
 
-  // Add a ball
-  const ball = Bodies.circle(400, 300, 30, { restitution: 0.9 });
-  World.add(world, ball);
+  // Draw Player 2's Ball
+  drawBall(gameState.player2.position, "#0000FF");
 
-  // Handle user input (simple example: apply force on click)
-  canvas.addEventListener("mousedown", (event) => {
-    const forceMagnitude = 0.05 * ball.mass;
+  // Continue the loop
+  requestAnimationFrame(render);
+}
 
-    // Apply force in a random direction
+// Function to Draw a Ball
+function drawBall(position, color) {
+  ctx.beginPath();
+  ctx.arc(position.x, position.y, 30, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.closePath();
+}
+
+// Function to Draw Boundaries (Optional)
+function drawBoundaries() {
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = 2;
+
+  // Ground
+  ctx.beginPath();
+  ctx.moveTo(0, 600);
+  ctx.lineTo(800, 600);
+  ctx.stroke();
+  ctx.closePath();
+
+  // Ceiling
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(800, 0);
+  ctx.stroke();
+  ctx.closePath();
+
+  // Left Wall
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 600);
+  ctx.stroke();
+  ctx.closePath();
+
+  // Right Wall
+  ctx.beginPath();
+  ctx.moveTo(800, 0);
+  ctx.lineTo(800, 600);
+  ctx.stroke();
+  ctx.closePath();
+}
+
+// Handle User Input (Mouse Click)
+canvas.addEventListener("mousedown", (event) => {
+  if (!playerNumber) return;
+
+  // Calculate mouse position relative to the canvas
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = event.clientX - rect.left;
+  const mouseY = event.clientY - rect.top;
+
+  // Determine which ball the player can interact with
+  let targetBall = null;
+  if (playerNumber === 1) {
+    targetBall = gameState.player1.position;
+  } else if (playerNumber === 2) {
+    targetBall = gameState.player2.position;
+  }
+
+  if (targetBall) {
+    // Calculate force direction based on mouse position
     const force = {
-      x: (Math.random() - 0.5) * forceMagnitude,
-      y: (Math.random() - 0.5) * forceMagnitude,
+      x: (mouseX - targetBall.x) * 0.0005, // Adjust scaling factor as needed
+      y: (mouseY - targetBall.y) * 0.0005,
     };
 
-    Matter.Body.applyForce(ball, ball.position, force);
-
-    // Optionally, emit the force to the server to synchronize with the other player
-    socket.emit("applyForce", force);
-  });
-
-  // Listen for forces from the other player
-  socket.on("applyForce", (force) => {
-    Matter.Body.applyForce(ball, ball.position, force);
-  });
-
-  // You can expand this to handle more game logic and synchronization
-}
+    // Emit the force to the server with player number
+    socket.emit("applyForce", { playerNumber, force });
+  }
+});
