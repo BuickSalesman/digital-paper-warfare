@@ -1,23 +1,10 @@
 const socket = io();
 
-// DOM Elements
-const landingPage = document.getElementById("landing-page");
-const joinButton = document.getElementById("join-button");
-const statusText = document.getElementById("status");
-const gameAndPowerContainer = document.getElementById("gameAndPowerContainer");
-const gameContainer = document.getElementById("gameContainer");
-const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
 
 // Player and Room Info
 let playerNumber = null;
 let roomID = null;
-
-// Game State
-let gameState = {
-  player1: { position: { x: 300, y: 300 }, velocity: { x: 0, y: 0 } },
-  player2: { position: { x: 500, y: 300 }, velocity: { x: 0, y: 0 } },
-};
 
 // Handle Join Button Click
 joinButton.addEventListener("click", () => {
@@ -48,9 +35,7 @@ socket.on("playerDisconnected", (number) => {
 });
 
 // Handle State Updates from Server
-socket.on("stateUpdate", (state) => {
-  gameState = state;
-});
+socket.on("stateUpdate", (state) => {});
 
 // Function to Start the Game
 function startGame() {
@@ -80,32 +65,13 @@ function render() {
   // Draw boundaries (optional)
   drawBoundaries();
 
-  // Draw Player 1's Ball
-  drawBall(gameState.player1.position, "#FF0000");
-
-  // Draw Player 2's Ball
-  drawBall(gameState.player2.position, "#0000FF");
-
   // Continue the loop
   requestAnimationFrame(render);
 }
 
-// Function to Draw a Ball
-function drawBall(position, color) {
-  // Adjust position based on canvas scaling
-  const scaleX = canvas.width / 800; // Original width is 800
-  const scaleY = canvas.height / 600; // Original height is 600
-
-  ctx.beginPath();
-  ctx.arc(position.x * scaleX, position.y * scaleY, 30 * scaleX, 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.fill();
-  ctx.closePath();
-}
-
 // Function to Draw Boundaries (Optional)
 function drawBoundaries() {
-  ctx.strokeStyle = "#FFFFFF";
+  ctx.strokeStyle = "#000000";
   ctx.lineWidth = 2;
 
   // Adjust scaling
@@ -153,22 +119,6 @@ canvas.addEventListener("mousedown", (event) => {
   const mouseX = (event.clientX - rect.left) * (800 / canvas.width);
   const mouseY = (event.clientY - rect.top) * (600 / canvas.height);
 
-  // Determine which ball the player can interact with
-  let targetBall = null;
-  if (playerNumber === 1) {
-    targetBall = gameState.player1.position;
-  } else if (playerNumber === 2) {
-    targetBall = gameState.player2.position;
-  }
-
-  if (targetBall) {
-    // Calculate force direction based on mouse position
-    const force = {
-      x: (mouseX - targetBall.x) * 0.0005,
-      y: (mouseY - targetBall.y) * 0.0005,
-    };
-
-    // Emit the force to the server with player number
-    socket.emit("applyForce", { playerNumber, force });
-  }
+  // Emit the force to the server with player number
+  // socket.emit("applyForce", { playerNumber, force });
 });
