@@ -1,9 +1,15 @@
-const ReactorModule = {
+// reactor.js
+const Matter = require("matter-js");
+const { Bodies } = Matter;
+
+const { CATEGORY_SHELL, CATEGORY_REACTOR } = require("./collisionCategories");
+
+module.exports = {
   createReactor: function (x, y, reactorSize, playerId) {
-    const reactor = Matter.Bodies.circle(x, y, reactorSize / 2, {
+    const reactor = Bodies.circle(x, y, reactorSize / 2, {
       label: "Reactor",
       playerId: playerId,
-      isStatic: true, // Make the reactor stationary
+      isStatic: true,
       render: {
         fillStyle: "transparent",
         strokeStyle: "black",

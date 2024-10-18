@@ -1,6 +1,12 @@
-const TurretModule = {
+// turret.js
+const Matter = require("matter-js");
+const { Bodies } = Matter;
+
+const { CATEGORY_TANK, CATEGORY_TURRET } = require("./collisionCategories");
+
+module.exports = {
   createTurret: function (x, y, turretSize, playerId) {
-    const turret = Matter.Bodies.circle(x, y, turretSize / 2, {
+    const turret = Bodies.circle(x, y, turretSize / 2, {
       label: "Turret",
       playerId: playerId,
       isStatic: true,

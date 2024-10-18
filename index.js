@@ -74,6 +74,25 @@ const {
 
 //#endregion MATTER SETUP VARIABLES
 
+//#region BODY VARIABLES
+
+const TankModule = require("./objects/tank");
+const ReactorModule = require("./objects/reactor");
+const FortressModule = require("./objects/fortress");
+const TurretModule = require("./objects/turret");
+const ShellModule = require("./objects/shell");
+
+const {
+  CATEGORY_SHELL,
+  CATEGORY_TANK,
+  CATEGORY_TURRET,
+  CATEGORY_FORTRESS,
+  CATEGORY_REACTOR,
+  CATEGORY_SHAPE,
+} = require("./objects/collisionCategories");
+
+//#endregion BODY VARIABLES
+
 //#endregion VARIABLES
 
 //#region WORLD SETUP

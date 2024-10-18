@@ -1,6 +1,12 @@
-const FortressModule = {
+// fortress.js
+const Matter = require("matter-js");
+const { Bodies } = Matter;
+
+const { CATEGORY_TANK, CATEGORY_FORTRESS } = require("./collisionCategories");
+
+module.exports = {
   createFortress: function (x, y, fortressWidth, fortressHeight, playerId) {
-    const fortress = Matter.Bodies.rectangle(x, y, fortressWidth, fortressHeight, {
+    const fortress = Bodies.rectangle(x, y, fortressWidth, fortressHeight, {
       label: "Fortress",
       playerId: playerId,
       isStatic: true,
