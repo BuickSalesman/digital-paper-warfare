@@ -1,18 +1,4 @@
-//#region VARIABLES
-
-//#region GAME AND PLAYER VARIABLES
-
-//#region HTML ELEMENT VARIABLES
-
 const physicsCanvas = document.getElementById("physicsCanvas"); // For Matter.js rendering.
-
-//#endregion HTML ELEMENT VARIABLES
-
-//#region CANVAS AND CONTEXT VARIABLES
-
-//#endregion GAME AND PLAYER VARIABLES
-
-//#region MATTER SETUP VARIABLES
 
 // Declare a mouse input object for capturing interactions on the physics canvas.
 let mouse = Mouse.create(render.canvas);
@@ -33,78 +19,6 @@ let mouseConstraint = MouseConstraint.create(engine, {
 });
 
 //#endregion MATTER SETUP VARIABLES
-
-//#region BODY VARIABLES
-
-//#region TANK VARIABLES
-
-let tankSize = width * 0.02; // Allows tank to scale with the canvas width/height.
-
-let tankHitPoints = 2;
-
-//Player 1's tanks.
-let tank1 = TankModule.createTank(width * 0.3525, height * 0.9, tankSize, PLAYER_ONE);
-let tank2 = TankModule.createTank(width * 0.4275, height * 0.9, tankSize, PLAYER_ONE);
-
-//Player 2's tanks.
-let tank3 = TankModule.createTank(width * 0.6475, height * 0.1, tankSize, PLAYER_TWO);
-let tank4 = TankModule.createTank(width * 0.5725, height * 0.1, tankSize, PLAYER_TWO);
-
-//Store all tanks in an array for easy access.
-let tanks = [tank1, tank2, tank3, tank4];
-
-//#endregion TANK VARIABLES
-
-//#region REACTOR VARIABLES
-let reactorSize = tankSize;
-
-let reactorHitPoints = 1;
-
-//Player 1's reactors.
-const reactor1 = ReactorModule.createReactor(width * 0.3525, height * 0.95, reactorSize, PLAYER_ONE);
-const reactor2 = ReactorModule.createReactor(width * 0.4275, height * 0.95, reactorSize, PLAYER_ONE);
-
-//Player 2's reactors.
-const reactor3 = ReactorModule.createReactor(width * 0.6475, height * 0.05, reactorSize, PLAYER_TWO);
-const reactor4 = ReactorModule.createReactor(width * 0.5725, height * 0.05, reactorSize, PLAYER_TWO);
-
-//Store all reactors in an array for easy access.
-let reactors = [reactor1, reactor2, reactor3, reactor4];
-
-//#endregion REACTOR VARIABLES
-
-//#region FORTRESS VARIABLES
-let fortressWidth = width * 0.1475;
-let fortressHeight = height * 0.0575;
-
-//Player 1's fortress.
-let fortress1 = FortressModule.createFortress(width * 0.39, height * 0.95, fortressWidth, fortressHeight, PLAYER_ONE);
-
-//Player 2's fortress.
-let fortress2 = FortressModule.createFortress(width * 0.61, height * 0.05, fortressWidth, fortressHeight, PLAYER_TWO);
-
-//Store all fortresses in an array for easy access.
-let fortresses = [fortress1, fortress2];
-
-//#endregion FORTRESS VARIABLES
-
-//#region TURRET VARIABLES
-let turretSize = reactorSize * 1.125;
-
-let turretHitPoints = 2;
-
-//Player 1's turrets
-const turret1 = TurretModule.createTurret(width * 0.31625, height * 0.92125, turretSize, PLAYER_ONE);
-const turret2 = TurretModule.createTurret(width * 0.46375, height * 0.92125, turretSize, PLAYER_ONE);
-
-//Player 2's turrets.
-const turret3 = TurretModule.createTurret(width * 0.53625, height * 0.07875, turretSize, PLAYER_TWO);
-const turret4 = TurretModule.createTurret(width * 0.68375, height * 0.07875, turretSize, PLAYER_TWO);
-
-//Store all turrets in an array for easy access.
-let turrets = [turret1, turret2, turret3, turret4];
-
-//#endregion TURRET VARIABLES
 
 //#region SHELL VARIABLES
 let shells = [];

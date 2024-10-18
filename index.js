@@ -41,11 +41,10 @@ const deltaTime = 1000 / FPS; // Time per frame in ms
 
 //#region CANVAS AND CONTEXT VARIABLES
 
-// Define acceptable dimension ranges
-const MIN_WIDTH = 300;
-const MAX_WIDTH = 1920;
-const MIN_HEIGHT = 300;
-const MAX_HEIGHT = 2160; // Increased max height to accommodate larger screens
+// Fixed game world dimensions
+const GAME_WORLD_WIDTH = 1000; // Fixed width in game units
+const ASPECT_RATIO = 1 / 1.4142; // A4 aspect ratio
+const GAME_WORLD_HEIGHT = GAME_WORLD_WIDTH / ASPECT_RATIO; // Calculate height based on aspect ratio
 
 //#endregion CANVAS AND CONTEXT VARIABLES
 
@@ -119,82 +118,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Handle 'clientDimensions' event
-  socket.on("clientDimensions", ({ width, height }) => {
-    // Validate dimensions
-    const validWidth = validateDimension(width, MIN_WIDTH, MAX_WIDTH);
-    const validHeight = validateDimension(height, MIN_HEIGHT, MAX_HEIGHT);
-
-    // Get the room ID associated with this socket
-    const roomID = socket.roomID;
-    if (roomID) {
-      const room = gameRooms[roomID];
-      if (room) {
-        // Initialize clientsDimensions if not already
-        if (!room.clientsDimensions) {
-          room.clientsDimensions = {};
-        }
-
-        // Store the dimensions sent by this client
-        room.clientsDimensions[socket.id] = { width: validWidth, height: validHeight };
-
-        // Check if both clients have sent their dimensions
-        if (Object.keys(room.clientsDimensions).length === 2 && !room.bodiesCreated) {
-          // Both clients have sent dimensions
-
-          // Get dimensions from both clients
-          const dimensionsArray = Object.values(room.clientsDimensions);
-          const firstClientDimensions = dimensionsArray[0];
-          const secondClientDimensions = dimensionsArray[1];
-
-          // Check if dimensions match
-          if (
-            firstClientDimensions.width === secondClientDimensions.width &&
-            firstClientDimensions.height === secondClientDimensions.height
-          ) {
-            // Dimensions match, proceed
-            room.width = firstClientDimensions.width;
-            room.height = firstClientDimensions.height;
-          } else {
-            // Dimensions do not match, send an error or adjust accordingly
-            // For simplicity, we'll use the dimensions from the first client
-            room.width = firstClientDimensions.width;
-            room.height = firstClientDimensions.height;
-
-            // Optionally, inform the second client to adjust their canvas
-            io.to(room.players.player2).emit("adjustCanvas", {
-              width: room.width,
-              height: room.height,
-              message: "Your canvas dimensions have been adjusted to match Player 1.",
-            });
-          }
-
-          // Send confirmation back to the clients with the confirmed dimensions
-          io.to(roomID).emit("dimensionsConfirmed", { width: room.width, height: room.height });
-
-          // Create walls and add them to the room's world
-          const walls = createWalls(room.width, room.height);
-          World.add(room.roomWorld, walls);
-
-          // Create game bodies
-          createGameBodies(room);
-          room.bodiesCreated = true; // Set a flag to prevent recreating bodies
-
-          // Send initial game state to clients
-          io.to(roomID).emit("initialGameState", {
-            tanks: room.tanks.map(bodyToData),
-            reactors: room.reactors.map(bodyToData),
-            fortresses: room.fortresses.map(bodyToData),
-            turrets: room.turrets.map(bodyToData),
-          });
-        } else {
-          // Only send dimensions confirmation to this client if dimensions are not yet confirmed
-          socket.emit("dimensionsPending", { message: "Waiting for the other player to send dimensions." });
-        }
-      }
-    }
-  });
-
   // Handle disconnections
   socket.on("disconnect", () => {
     console.log(`Socket disconnected: ${socket.id}`);
@@ -255,7 +178,21 @@ function joinRoom(socket, room) {
 
   // If two players are connected, start the game
   if (room.players.player1 && room.players.player2) {
-    io.to(room.roomID).emit("startGame", { players: room.players });
+    // Send the fixed game world dimensions to clients
+    io.to(room.roomID).emit("startGame", {
+      players: room.players,
+      gameWorld: { width: GAME_WORLD_WIDTH, height: GAME_WORLD_HEIGHT },
+    });
+    // Create game bodies
+    createGameBodies(room);
+
+    // **Send initial game state to clients**
+    io.to(room.roomID).emit("initialGameState", {
+      tanks: room.tanks.map(bodyToData),
+      reactors: room.reactors.map(bodyToData),
+      fortresses: room.fortresses.map(bodyToData),
+      turrets: room.turrets.map(bodyToData),
+    });
   }
 }
 
@@ -264,7 +201,7 @@ function createNewRoom(roomID, socket) {
   const roomEngine = Matter.Engine.create();
   const roomWorld = roomEngine.world;
 
-  // Disable gravity.
+  // Set gravity if needed.
   roomEngine.world.gravity.y = 0;
   roomEngine.world.gravity.x = 0;
 
@@ -276,9 +213,8 @@ function createNewRoom(roomID, socket) {
     },
     roomEngine: roomEngine,
     roomWorld: roomWorld,
-    width: null,
-    height: null,
-    clientsDimensions: {},
+    width: GAME_WORLD_WIDTH,
+    height: GAME_WORLD_HEIGHT,
     bodiesCreated: false,
   };
 
@@ -294,18 +230,6 @@ function createNewRoom(roomID, socket) {
 }
 
 //#endregion GAME ROOM FUNCTIONS
-
-//#region GAME BOARD FUNCTIONS
-
-function validateDimension(value, min, max) {
-  if (typeof value !== "number" || value < min || value > max) {
-    // Set to default if invalid
-    return (min + max) / 2;
-  }
-  return value;
-}
-
-//#endregion GAME BOARD FUNCTIONS
 
 //#region MATTER RUNNING AND RENDERING FUNCTIONS
 
@@ -350,6 +274,10 @@ function createWalls(width, height) {
 function createGameBodies(room) {
   const { width, height } = room;
   const roomWorld = room.roomWorld;
+
+  // Create walls
+  const walls = createWalls(width, height);
+  World.add(roomWorld, walls);
 
   // Calculate sizes based on width and height
   const tankSize = width * 0.02;

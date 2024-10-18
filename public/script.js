@@ -9,6 +9,14 @@ let playerNumber = null;
 let roomID = null;
 let renderingStarted = false; // Flag to prevent multiple render loops
 
+// Game world dimensions received from the server
+let gameWorldWidth = null;
+let gameWorldHeight = null;
+
+// Scaling factors
+let scaleX = 1;
+let scaleY = 1;
+
 //#endregion GAME AND PLAYER VARIABLES
 
 //#region HTML ELEMENT VARIABLES
@@ -119,6 +127,11 @@ function initializeCanvas() {
   // Optionally, log the dimensions to verify
   console.log("Initial Canvas Width:", drawCanvas.width);
   console.log("Initial Canvas Height:", drawCanvas.height);
+
+  // Update scaling factors if game world dimensions are known
+  if (gameWorldWidth && gameWorldHeight) {
+    updateScalingFactors();
+  }
 }
 
 // If you want the canvas to resize when the window is resized while maintaining aspect ratio
@@ -140,60 +153,30 @@ socket.on("playerInfo", (data) => {
 // Handle Game Start
 socket.on("startGame", (data) => {
   if (playerNumber === 1 || playerNumber === 2) {
+    // Receive game world dimensions from server
+    gameWorldWidth = data.gameWorld.width;
+    gameWorldHeight = data.gameWorld.height;
+
+    // Update scaling factors
+    updateScalingFactors();
+
     startGame();
   }
 });
 
-// Handle dimensions confirmation from the server
-socket.on("dimensionsConfirmed", ({ width, height }) => {
-  // Adjust canvas dimensions to match the confirmed dimensions
-  drawCanvas.width = width;
-  drawCanvas.height = height;
-
-  // Update gameContainer dimensions if necessary
-  gameContainer.style.width = `${width}px`;
-  gameContainer.style.height = `${height}px`;
-
-  // Update dividingLine
-  dividingLine = drawCanvas.height / 2;
-
-  // Log the confirmed dimensions
-  console.log("Confirmed Canvas Width:", drawCanvas.width);
-  console.log("Confirmed Canvas Height:", drawCanvas.height);
+// Handle initial game state
+socket.on("initialGameState", (data) => {
+  console.log("Received initial game state:", data); // Debugging statement
+  tanks = data.tanks;
+  reactors = data.reactors;
+  fortresses = data.fortresses;
+  turrets = data.turrets;
 
   // Start rendering if not already started
   if (!renderingStarted) {
     renderingStarted = true;
     requestAnimationFrame(render);
   }
-});
-
-// Handle adjustCanvas event from server
-socket.on("adjustCanvas", ({ width, height, message }) => {
-  // Adjust canvas dimensions to match the server's dimensions
-  drawCanvas.width = width;
-  drawCanvas.height = height;
-
-  // Update gameContainer dimensions if necessary
-  gameContainer.style.width = `${width}px`;
-  gameContainer.style.height = `${height}px`;
-
-  // Update dividingLine
-  dividingLine = drawCanvas.height / 2;
-
-  // Log the adjustment
-  console.log(message);
-
-  // Optionally, display a message to the user
-  statusText.textContent = message;
-});
-
-// Handle initial game state
-socket.on("initialGameState", (data) => {
-  tanks = data.tanks;
-  reactors = data.reactors;
-  fortresses = data.fortresses;
-  turrets = data.turrets;
 });
 
 // Handle game updates
@@ -253,12 +236,18 @@ function startGame() {
   // Hide Landing Page and Show Game Canvas
   landingPage.style.display = "none";
   gameAndPowerContainer.style.display = "flex";
-
-  // Send your initial dimensions to the server
-  socket.emit("clientDimensions", { width: drawCanvas.width, height: drawCanvas.height });
 }
 
 //#endregion GAME STATE FUNCTIONS
+
+//#region SCALING FUNCTIONS
+
+function updateScalingFactors() {
+  scaleX = drawCanvas.width / gameWorldWidth;
+  scaleY = drawCanvas.height / gameWorldHeight;
+}
+
+//#endregion SCALING FUNCTIONS
 
 //#region RENDERING FUNCTIONS
 
@@ -285,8 +274,10 @@ function resizeCanvas() {
   // Re-initialize canvas dimensions
   initializeCanvas();
 
-  // Send updated dimensions to the server
-  socket.emit("clientDimensions", { width: drawCanvas.width, height: drawCanvas.height });
+  // Update scaling factors
+  if (gameWorldWidth && gameWorldHeight) {
+    updateScalingFactors();
+  }
 }
 
 //#endregion RENDERING FUNCTIONS
@@ -319,19 +310,26 @@ function drawDividingLine() {
 
 function drawTank(tank) {
   const size = tank.size;
+  const x = tank.position.x * scaleX;
+  const y = tank.position.y * scaleY;
+  const scaledSize = size * scaleX; // Assuming uniform scaling
+
   drawCtx.save();
-  drawCtx.translate(tank.position.x, tank.position.y);
+  drawCtx.translate(x, y);
   drawCtx.rotate(tank.angle); // Use the angle directly
   drawCtx.strokeStyle = "black";
   drawCtx.lineWidth = 2;
-  drawCtx.strokeRect(-size / 2, -size / 2, size, size);
+  drawCtx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
   drawCtx.restore();
 }
 
 function drawReactor(reactor) {
-  const radius = reactor.size / 2;
+  const radius = (reactor.size / 2) * scaleX; // Assuming uniform scaling
+  const x = reactor.position.x * scaleX;
+  const y = reactor.position.y * scaleY;
+
   drawCtx.save();
-  drawCtx.translate(reactor.position.x, reactor.position.y);
+  drawCtx.translate(x, y);
   drawCtx.strokeStyle = "black";
   drawCtx.lineWidth = 2;
   drawCtx.beginPath();
@@ -341,10 +339,13 @@ function drawReactor(reactor) {
 }
 
 function drawFortress(fortress) {
-  const width = fortress.width;
-  const height = fortress.height;
+  const width = fortress.width * scaleX;
+  const height = fortress.height * scaleY;
+  const x = fortress.position.x * scaleX;
+  const y = fortress.position.y * scaleY;
+
   drawCtx.save();
-  drawCtx.translate(fortress.position.x, fortress.position.y);
+  drawCtx.translate(x, y);
   drawCtx.rotate(fortress.angle); // Use the angle directly
   drawCtx.strokeStyle = "black";
   drawCtx.lineWidth = 2;
@@ -353,9 +354,12 @@ function drawFortress(fortress) {
 }
 
 function drawTurret(turret) {
-  const radius = turret.size / 2;
+  const radius = (turret.size / 2) * scaleX; // Assuming uniform scaling
+  const x = turret.position.x * scaleX;
+  const y = turret.position.y * scaleY;
+
   drawCtx.save();
-  drawCtx.translate(turret.position.x, turret.position.y);
+  drawCtx.translate(x, y);
   drawCtx.rotate(turret.angle); // Use the angle directly
   drawCtx.strokeStyle = "black";
   drawCtx.lineWidth = 2;
