@@ -384,6 +384,7 @@ function createGameBodies(room) {
 
   // Initialize an array for shells
   room.shells = [];
+}
 //#endregion BODY CREATION FUNCTIONS
 
 //#endregion MATTER BODY FUNCTIONS

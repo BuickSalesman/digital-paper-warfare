@@ -215,6 +215,7 @@ function startGame() {
 //#endregion GAME STATE FUNCTIONS
 
 //#region RENDERING FUNCTIONS
+
 // Function to Render the Game State
 function render() {
   // Clear the canvas
@@ -222,6 +223,18 @@ function render() {
 
   // Draw the dividing line
   drawDividingLine();
+
+  // Draw fortresses
+  fortresses.forEach(drawFortress);
+
+  // Draw reactors
+  reactors.forEach(drawReactor);
+
+  // Draw turrets
+  turrets.forEach(drawTurret);
+
+  // Draw tanks
+  tanks.forEach(drawTank);
 
   // Continue the loop
   requestAnimationFrame(render);
