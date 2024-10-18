@@ -2,10 +2,6 @@ const socket = io();
 
 const ctx = canvas.getContext("2d");
 
-// Player and Room Info
-let playerNumber = null;
-let roomID = null;
-
 // Handle Join Button Click
 joinButton.addEventListener("click", () => {
   socket.emit("joinGame");

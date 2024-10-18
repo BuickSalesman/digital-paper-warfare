@@ -1,6 +1,11 @@
 //#region VARIABLES
 
 //#region GAME AND PLAYER VARIABLES
+
+// Player and Room Info
+let playerNumber = null;
+let roomID = null;
+
 //#endregion GAME AND PLAYER VARIABLES
 
 //#region HTML ELEMENT VARIABLES
@@ -51,8 +56,8 @@ const timerElement = document.getElementById("Timer");
 // Declare height, width, and aspect ratio for the canvas.
 const aspectRatio = 1 / 1.4142;
 const baseHeight = Math.min(window.innerHeight * 0.95);
-const width = baseHeight * aspectRatio;
-const height = baseHeight;
+let width = baseHeight * aspectRatio;
+let height = baseHeight;
 
 // Set up gameContainer dimensions.
 gameContainer.style.width = `${width}px`;
@@ -67,4 +72,37 @@ drawCanvas.height = height;
 
 //#endregion CANVAS AND CONTEXT VARIABLES
 
+//#region BODY VARIABLES
+//#endregion BODY VARIABLES
+
+//#region SOCKET VARIABLES
+const socket = io();
+//#endregion SOCKET VARIABLE
+
 //#endregion VARIABLES
+
+//#region SOCKET EVENTS
+
+// Assuming 'socket' is your Socket.IO client instance
+socket.emit("clientDimensions", { width, height });
+
+//#region SOCKET.ON
+socket.on("dimensionsConfirmed", ({ width: serverWidth, height: serverHeight }) => {
+  // Adjust canvas if necessary
+  if (width !== serverWidth || height !== serverHeight) {
+    // Update local dimensions
+    width = serverWidth;
+    height = serverHeight;
+
+    // Update canvas sizes
+    gameContainer.style.width = `${width}px`;
+    gameContainer.style.height = `${height}px`;
+    drawCanvas.width = width;
+    drawCanvas.height = height;
+  }
+
+  // Start the game
+});
+//#endregion SOCKET.ON
+
+//#endregion SOCKET EVENTS

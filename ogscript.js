@@ -36,51 +36,6 @@ let mouseConstraint = MouseConstraint.create(engine, {
 
 //#region BODY VARIABLES
 
-//Declare walls around the canvas to keep game bodies inside the canvas.
-// prettier-ignore
-const walls = [
-  // Top.
-  Bodies.rectangle(
-    width / 2,
-    -500,
-    width + 1000,
-    1000,
-    {
-      isStatic: true,
-    }
-  ),
-  // Bottom.
-  Bodies.rectangle(
-    width / 2,
-    height + 500,
-    width + 1000,
-    1000,
-    {
-      isStatic: true,
-    }
-  ),
-  // Left.
-  Bodies.rectangle(
-    -500,
-    height / 2,
-    1000,
-    height + 1000,
-    {
-      isStatic: true,
-    }
-  ),
-  // Right.
-  Bodies.rectangle(
-    width + 500,
-    height / 2,
-    1000,
-    height + 1000,
-    {
-      isStatic: true,
-    }
-  ),
-];
-
 //#region TANK VARIABLES
 
 let tankSize = width * 0.02; // Allows tank to scale with the canvas width/height.
