@@ -6,12 +6,20 @@
   font-style: normal;
 }
 
+html,
 body {
   font-family: "DeskScratch";
   text-align: center;
-  background-color: white;
   margin: 0;
   padding: 0;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  flex-direction: column;
 }
 
 #landing-page {
@@ -26,7 +34,11 @@ body {
 
 #status {
   margin-top: 20px;
-  color: red;
+  font-family: "DeskScratch";
+  font-size: 1.5rem;
+  -webkit-text-stroke: 0.005rem rgba(200, 200, 200, 0.9);
+  padding: 0.5rem 0.5rem;
+  background-color: rgba(15, 15, 15, 0);
 }
 
 /* Body Container */
@@ -61,10 +73,12 @@ body {
 }
 
 #game-canvas {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-block;
   border: 1px solid #000;
-  background-color: transparent;
+  background-color: transparent; /* Ensure the background is transparent */
 }
 
 /* Side Container */

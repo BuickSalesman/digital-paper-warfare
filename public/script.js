@@ -46,7 +46,7 @@ const closeButton = document.querySelector(".close-button");
 // Declare the rules modal.
 const rulesModal = document.getElementById("rulesModal");
 
-//Declare the end drawing button.
+// Declare the end drawing button.
 const endDrawButton = document.getElementById("endDrawButton");
 
 // Declare the timer display.
@@ -56,25 +56,11 @@ const timerElement = document.getElementById("Timer");
 
 //#region CANVAS AND CONTEXT VARIABLES
 
-// Declare height, width, and aspect ratio for the canvas.
-const aspectRatio = 1 / 1.4142;
-const baseHeight = Math.min(window.innerHeight * 0.95);
-let width = baseHeight * aspectRatio;
-let height = baseHeight;
-
-// Set up gameContainer dimensions.
-gameContainer.style.width = `${width}px`;
-gameContainer.style.height = `${height}px`;
-
 // Declare contexts for drawing canvas.
 const drawCtx = drawCanvas.getContext("2d");
 
-// Set canvas size.
-drawCanvas.width = width;
-drawCanvas.height = height;
-
 // Declare a dividing line halfway between the top and bottom of the canvas.
-const dividingLine = drawCanvas.height / 2;
+let dividingLine;
 
 //#endregion CANVAS AND CONTEXT VARIABLES
 
@@ -83,14 +69,46 @@ const dividingLine = drawCanvas.height / 2;
 
 //#region SOCKET VARIABLES
 const socket = io();
-//#endregion SOCKET VARIABLE
+//#endregion SOCKET VARIABLES
 
 //#endregion VARIABLES
 
-//#region SOCKET EVENTS
+//#region EVENT HANDLERS
 
-// Assuming 'socket' is your Socket.IO client instance
-socket.emit("clientDimensions", { width, height });
+// Wait for the window to fully load
+window.addEventListener("load", () => {
+  // Declare height, width, and aspect ratio for the canvas.
+  const aspectRatio = 1 / 1.4142; // A4 aspect ratio
+  const baseHeight = Math.min(window.innerHeight * 0.95);
+  let width = baseHeight * aspectRatio;
+  let height = baseHeight;
+
+  // Set up gameContainer dimensions.
+  gameContainer.style.width = `${width}px`;
+  gameContainer.style.height = `${height}px`;
+
+  // Set canvas size.
+  drawCanvas.width = width;
+  drawCanvas.height = height;
+
+  dividingLine = drawCanvas.height / 2;
+
+  // Optionally, log the dimensions to verify
+  console.log("Canvas Width:", drawCanvas.width);
+  console.log("Canvas Height:", drawCanvas.height);
+
+  // If you want the canvas to resize when the window is resized while maintaining aspect ratio
+  window.addEventListener("resize", resizeCanvas);
+
+  // Initialize the game if players have already joined
+  if (playerNumber === 1 || playerNumber === 2) {
+    startGame();
+  }
+});
+
+//#endregion EVENT HANDLERS
+
+//#region SOCKET EVENTS
 
 //#region SOCKET.ON
 // Receive Player Info
@@ -98,20 +116,10 @@ socket.on("playerInfo", (data) => {
   playerNumber = data.playerNumber;
   roomID = data.roomID;
   statusText.textContent = `You are Player ${playerNumber}`;
-});
 
-socket.on("dimensionsConfirmed", ({ width: serverWidth, height: serverHeight }) => {
-  // Adjust canvas if necessary
-  if (width !== serverWidth || height !== serverHeight) {
-    // Update local dimensions
-    width = serverWidth;
-    height = serverHeight;
-
-    // Update canvas sizes
-    gameContainer.style.width = `${width}px`;
-    gameContainer.style.height = `${height}px`;
-    drawCanvas.width = width;
-    drawCanvas.height = height;
+  // Start the game if the window has already loaded
+  if (document.readyState === "complete") {
+    startGame();
   }
 });
 
@@ -135,11 +143,6 @@ socket.on("playerDisconnected", (number) => {
 
 //#region EVENT HANDLERS
 
-//#region WINDOW EVENT HANDLERS
-
-//#endregion WINDOW EVENT HANDLERS
-// Handle Window Resize
-window.addEventListener("resize", resizeCanvas);
 //#region BUTTON EVENT HANDLERS
 
 // Handle Join Button Click
@@ -155,6 +158,13 @@ rulesButton.addEventListener("click", openModal);
 // Close modal when close button is clicked.
 closeButton.addEventListener("click", closeModal);
 
+// Close modal if user clicks outside the modal content
+window.addEventListener("click", function (event) {
+  if (event.target === rulesModal) {
+    closeModal();
+  }
+});
+
 //#endregion BUTTON EVENT HANDLERS
 
 //#endregion EVENT HANDLERS
@@ -168,8 +178,9 @@ function startGame() {
   landingPage.style.display = "none";
   gameAndPowerContainer.style.display = "flex";
 
-  // Adjust canvas dimensions to match the gameContainer
-  resizeCanvas();
+  // Dimensions are already set in window load event
+
+  socket.emit("clientDimensions", { width: drawCanvas.width, height: drawCanvas.height });
 
   // Start the rendering loop
   requestAnimationFrame(render);
@@ -182,16 +193,33 @@ function render() {
   // Clear the canvas
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
+  // Draw the dividing line
+  drawDividingLine();
+
   // Continue the loop
   requestAnimationFrame(render);
 }
 
-// Function to Resize Canvas
+// Function to Resize Canvas while maintaining aspect ratio
 function resizeCanvas() {
-  const rect = gameContainer.getBoundingClientRect();
-  drawCanvas.width = rect.width;
-  drawCanvas.height = rect.height;
+  const aspectRatio = 1 / 1.4142; // A4 aspect ratio
+  const baseHeight = Math.min(window.innerHeight * 0.95);
+  let width = baseHeight * aspectRatio;
+  let height = baseHeight;
+
+  // Update gameContainer dimensions
+  gameContainer.style.width = `${width}px`;
+  gameContainer.style.height = `${height}px`;
+
+  // Update canvas size
+  drawCanvas.width = width;
+  drawCanvas.height = height;
+
+  dividingLine = drawCanvas.height / 2;
+
+  // Optionally, re-draw any static elements
 }
+
 //#endregion RENDERING FUNCTIONS
 
 //#region MODAL HELPER FUNCTIONS
@@ -205,6 +233,7 @@ function openModal() {
 function closeModal() {
   rulesModal.style.display = "none";
 }
+
 //#endregion MODAL HELPER FUNCTIONS
 
 //#region DRAWING FUNCTIONS

@@ -72,21 +72,11 @@ const {
   World,
 } = Matter;
 
-// Declare engine.
-const engine = Engine.create();
-
-// Declare world.
-const world = engine.world;
-
 //#endregion MATTER SETUP VARIABLES
 
 //#endregion VARIABLES
 
 //#region WORLD SETUP
-
-//Disable gravity.
-engine.world.gravity.y = 0;
-engine.world.gravity.x = 0;
 
 //#region BODY CREATION
 
@@ -132,6 +122,36 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Handle 'clientDimensions' event
+  socket.on("clientDimensions", ({ width, height }) => {
+    // Validate dimensions
+    const validWidth = validateDimension(width, MIN_WIDTH, MAX_WIDTH);
+    const validHeight = validateDimension(height, MIN_HEIGHT, MAX_HEIGHT);
+
+    // Get the room ID associated with this socket
+    const roomID = socket.roomID;
+    if (roomID) {
+      const room = gameRooms[roomID];
+      if (room) {
+        // If dimensions are not yet set for the room, set them
+        if (!room.width && !room.height) {
+          room.width = validWidth;
+          room.height = validHeight;
+
+          // Create walls and add them to the room's world
+          const walls = createWalls(validWidth, validHeight);
+          World.add(room.roomWorld, walls);
+
+          // Send confirmation back to the client
+          io.to(roomID).emit("dimensionsConfirmed", { width: validWidth, height: validHeight });
+        } else {
+          // Dimensions are already set, just confirm to client
+          socket.emit("dimensionsConfirmed", { width: room.width, height: room.height });
+        }
+      }
+    }
+  });
+
   // Handle disconnections
   socket.on("disconnect", () => {
     console.log(`Socket disconnected: ${socket.id}`);
@@ -145,12 +165,8 @@ io.on("connection", (socket) => {
 
         if (playerNumber === 1 && room.players.player1 === socket.id) {
           room.players.player1 = null;
-          World.remove(room.world, room.balls.player1);
-          room.balls.player1 = null;
         } else if (playerNumber === 2 && room.players.player2 === socket.id) {
           room.players.player2 = null;
-          World.remove(room.world, room.balls.player2);
-          room.balls.player2 = null;
         }
 
         io.to(roomID).emit("playerDisconnected", disconnectedPlayer);
@@ -201,8 +217,12 @@ function joinRoom(socket, room) {
 
 // Function to create a new room
 function createNewRoom(roomID, socket) {
-  const engine = engine;
-  const world = engine.world;
+  const roomEngine = Matter.Engine.create();
+  const roomWorld = roomEngine.world;
+
+  //Disable gravity.
+  roomEngine.world.gravity.y = 0;
+  roomEngine.world.gravity.x = 0;
 
   const room = {
     roomID: roomID,
@@ -210,9 +230,10 @@ function createNewRoom(roomID, socket) {
       player1: socket.id,
       player2: null,
     },
-
-    engine: engine,
-    world: world,
+    roomEngine: roomEngine,
+    roomWorld: roomWorld,
+    width: null,
+    height: null,
   };
 
   gameRooms[roomID] = room;
@@ -241,7 +262,7 @@ function validateDimension(value, min, max) {
 setInterval(() => {
   for (const roomID in gameRooms) {
     const room = gameRooms[roomID];
-    Engine.update(room.engine, deltaTime);
+    Engine.update(room.roomEngine, deltaTime);
   }
 }, deltaTime);
 //#endregion MATTER RUNNING AND RENDING FUNCTIONS
