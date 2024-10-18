@@ -1,4 +1,4 @@
-// index.js or server.js
+// server.js
 
 //#region VARIABLES
 
@@ -42,7 +42,7 @@ const deltaTime = 1000 / FPS; // Time per frame in ms
 //#region CANVAS AND CONTEXT VARIABLES
 
 // Fixed game world dimensions
-const GAME_WORLD_WIDTH = 1000; // Fixed width in game units
+const GAME_WORLD_WIDTH = 10000; // Fixed width in game units
 const ASPECT_RATIO = 1 / 1.4142; // A4 aspect ratio
 const GAME_WORLD_HEIGHT = GAME_WORLD_WIDTH / ASPECT_RATIO; // Calculate height based on aspect ratio
 
@@ -236,7 +236,7 @@ function createNewRoom(roomID, socket) {
 setInterval(() => {
   for (const roomID in gameRooms) {
     const room = gameRooms[roomID];
-    Engine.update(room.roomEngine, deltaTime);
+    Matter.Engine.update(room.roomEngine, deltaTime);
 
     // Only proceed if the game bodies have been created
     if (room.bodiesCreated) {
@@ -252,7 +252,7 @@ setInterval(() => {
   }
 }, deltaTime);
 
-//#endregion MATTER RUNNING AND RENDING FUNCTIONS
+//#endregion MATTER RUNNING AND RENDERING FUNCTIONS
 
 //#region MATTER BODY FUNCTIONS
 
@@ -277,7 +277,7 @@ function createGameBodies(room) {
 
   // Create walls
   const walls = createWalls(width, height);
-  World.add(roomWorld, walls);
+  Matter.World.add(roomWorld, walls);
 
   // Calculate sizes based on width and height
   const tankSize = width * 0.02;
@@ -339,7 +339,7 @@ function createGameBodies(room) {
   const turrets = [turret1, turret2, turret3, turret4];
 
   // Add bodies to the world
-  World.add(roomWorld, [...tanks, ...reactors, ...fortresses, ...turrets]);
+  Matter.World.add(roomWorld, [...tanks, ...reactors, ...fortresses, ...turrets]);
 
   // Store bodies in the room object
   room.tanks = tanks;

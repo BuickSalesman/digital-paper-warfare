@@ -1,4 +1,4 @@
-// script.js or client.js
+// client.js
 
 //#region VARIABLES
 
@@ -19,6 +19,9 @@ let scaleY = 1;
 
 // Flag to indicate if the canvas should be rotated
 let shouldRotateCanvas = false;
+
+// No-Draw Zones
+let noDrawZones = [];
 
 //#endregion GAME AND PLAYER VARIABLES
 
@@ -107,7 +110,7 @@ window.addEventListener("load", () => {
 function initializeCanvas() {
   // Declare height, width, and aspect ratio for the canvas.
   const aspectRatio = 1 / 1.4142; // A4 aspect ratio (taller than wide)
-  const baseWidth = Math.min(window.innerWidth * 0.95); // Use 95% of window width
+  const baseWidth = Math.min(window.innerWidth * 0.95, 10000); // Use 95% of window width or max 1000px
   let width = baseWidth;
   let height = width / aspectRatio; // Calculate height based on aspect ratio
 
@@ -134,6 +137,11 @@ function initializeCanvas() {
   // Update scaling factors if game world dimensions are known
   if (gameWorldWidth && gameWorldHeight) {
     updateScalingFactors();
+  }
+
+  // Redraw no-draw zones if they exist
+  if (noDrawZones.length > 0) {
+    drawNoDrawZones();
   }
 }
 
@@ -180,6 +188,9 @@ socket.on("initialGameState", (data) => {
   fortresses = data.fortresses;
   turrets = data.turrets;
 
+  // Create no-draw zones around fortresses
+  fortressNoDrawZone();
+
   // Start rendering if not already started
   if (!renderingStarted) {
     renderingStarted = true;
@@ -194,6 +205,9 @@ socket.on("gameUpdate", (data) => {
   fortresses = data.fortresses;
   turrets = data.turrets;
   shells = data.shells || []; // If shells are sent
+
+  // Update no-draw zones in case fortresses have moved
+  fortressNoDrawZone();
 });
 
 // Handle Player Disconnection
@@ -281,6 +295,9 @@ function render() {
   tanks.forEach(drawTank);
   // Draw shells if applicable
   // shells.forEach(drawShell);
+
+  // Draw no-draw zones
+  drawNoDrawZones();
 
   drawCtx.restore();
 
@@ -425,5 +442,69 @@ function drawTurret(turret) {
 }
 
 //#endregion DRAWING FUNCTIONS
+
+//#region NO-DRAW ZONE FUNCTIONS
+
+// Creates no-draw zones around fortresses to prevent overlapping drawings.
+function fortressNoDrawZone() {
+  noDrawZones = []; // Reset the noDrawZones array
+
+  fortresses.forEach((fortress) => {
+    const zone = createRectangularZone(
+      fortress.position.x,
+      fortress.position.y,
+      fortress.width,
+      fortress.height,
+      gameWorldHeight * 0.05 // Padding as 5% of game world height
+    );
+    // Add the no-draw zone to the array
+    noDrawZones.push(zone);
+  });
+}
+
+// Creates a rectangular no-drawn-zone with padding.
+function createRectangularZone(centerX, centerY, width, height, padding) {
+  const halfWidth = (width / 2 + padding) * scaleX;
+  const halfHeight = (height / 2 + padding) * scaleY;
+
+  return [
+    { x: centerX * scaleX - halfWidth, y: centerY * scaleY - halfHeight }, // Top-Left
+    { x: centerX * scaleX + halfWidth, y: centerY * scaleY - halfHeight }, // Top-Right
+    { x: centerX * scaleX + halfWidth, y: centerY * scaleY + halfHeight }, // Bottom-Right
+    { x: centerX * scaleX - halfWidth, y: centerY * scaleY + halfHeight }, // Bottom-Left
+  ];
+}
+
+// Draw all no-draw zones on the drawing canvas.
+function drawNoDrawZones() {
+  drawCtx.strokeStyle = "rgba(255, 0, 0, 0.7)";
+  drawCtx.lineWidth = 2;
+  drawCtx.fillStyle = "rgba(255, 0, 0, 0.1)"; // Semi-transparent fill
+
+  noDrawZones.forEach((zone) => {
+    drawCtx.beginPath();
+    drawCtx.moveTo(zone[0].x, zone[0].y);
+    for (let i = 1; i < zone.length; i++) {
+      drawCtx.lineTo(zone[i].x, zone[i].y);
+    }
+    drawCtx.closePath();
+    drawCtx.fill();
+    drawCtx.stroke();
+
+    // Draw the X inside the rectangle.
+    drawCtx.beginPath();
+    // Diagonal from Top-Left to Bottom-Right.
+    drawCtx.moveTo(zone[0].x, zone[0].y);
+    drawCtx.lineTo(zone[2].x, zone[2].y);
+    // Diagonal from Top-Right to Bottom-Left.
+    drawCtx.moveTo(zone[1].x, zone[1].y);
+    drawCtx.lineTo(zone[3].x, zone[3].y);
+    drawCtx.strokeStyle = "rgba(255, 0, 0, 0.7)";
+    drawCtx.lineWidth = 2;
+    drawCtx.stroke();
+  });
+}
+
+//#endregion NO-DRAW ZONE FUNCTIONS
 
 //#endregion FUNCTIONS
