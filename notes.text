@@ -1,0 +1,21 @@
+notes on steps needed to render digital paper warfare in a multiplayer environment. 
+
+1) players land on a landing page that is a waiting room, from this room you can join and game and view the rules. Once two players join the game, the html for the landing page is hidden, and the html for the game board is displayed and the game starts. A new waiting room is then created for two additional players to land on, continously, so that many games can be played at once. 
+
+2) Upon game start, the game state is set to PRE_GAME on the server, and the Matter world and components are created on the server. Both players game boards are oriented so that their tanks and side of the board is at the bottom of the screen. For simplicities sake, player 2 will have the mirrored game board. All Matter bodies exist on the server, and are rendered to the game board. 
+
+3) players draw up to five shapes on the html canvas. At the time of end draw phase, either via timer expiration or by both players hitting the end draw phase button, the drawing paths that they have created will be pushed to the server, and the server will create a small matter body on every point of the drawing path. The drawings on the html canvas can then be erased. The html for the drawing button will be hidden, and the html for the power meter and move shoot buttons will be displayed. 
+
+4) a coin is flipped on the serve side, designating which of the players will go first. 
+
+5) the first player selects their action mode (move/shoot), which is stored internally on the server as to prevet any change to the acition mode variable other than by button presses.
+
+6) the player clicks on their tank, which calls the wobble function from the server
+
+7) the payer holds their mouse and drags to create a vector and increase the power meter. The mouse position for start and release is stored client side, and pushed to the server, where the server creates the vector and caluclates direction of the move/shoot. The power meter position is stored client side a variable of 1 - 100, and that is pushed to the server which calculates power and force to apply in the calculated direction. 
+
+8) the matter body is moved on the server, where the server checks for collisions with any other objects. if it is a shell, the shell is created and flung, with it's position rendered at 60 fps on the client side. If it is a tank, it's constraint is removed, and then flung. It's position is rendered at 60 fps client side.
+
+9) collisions are detected on the server side. If it is a shell colliding with a tank or reactor, hit point calculations are done server side, and explosion animations are done on the client side. 
+
+10) when the game is won, the game state changes to the end game phase, at which point both players can choose to play against each other again, or join a new game room with a new opponent. 
