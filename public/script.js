@@ -17,6 +17,9 @@ let gameWorldHeight = null;
 let scaleX = 1;
 let scaleY = 1;
 
+// Flag to indicate if the canvas should be rotated
+let shouldRotateCanvas = false;
+
 //#endregion GAME AND PLAYER VARIABLES
 
 //#region HTML ELEMENT VARIABLES
@@ -148,6 +151,11 @@ socket.on("playerInfo", (data) => {
   playerNumber = data.playerNumber;
   roomID = data.roomID;
   statusText.textContent = `You are Player ${playerNumber}`;
+
+  // Determine if the canvas should be rotated
+  if (playerNumber === 2) {
+    shouldRotateCanvas = true;
+  }
 });
 
 // Handle Game Start
@@ -256,6 +264,15 @@ function render() {
   // Clear the canvas
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
+  drawCtx.save();
+
+  // Apply 180-degree rotation around the center if player is Player 2
+  if (shouldRotateCanvas) {
+    drawCtx.translate(drawCanvas.width / 2, drawCanvas.height / 2);
+    drawCtx.rotate(Math.PI);
+    drawCtx.translate(-drawCanvas.width / 2, -drawCanvas.height / 2);
+  }
+
   // Now draw everything using the original positions
   drawDividingLine();
   fortresses.forEach(drawFortress);
@@ -264,6 +281,8 @@ function render() {
   tanks.forEach(drawTank);
   // Draw shells if applicable
   // shells.forEach(drawShell);
+
+  drawCtx.restore();
 
   // Continue the loop
   requestAnimationFrame(render);
@@ -317,7 +336,16 @@ function drawTank(tank) {
   drawCtx.save();
   drawCtx.translate(x, y);
   drawCtx.rotate(tank.angle); // Use the angle directly
-  drawCtx.strokeStyle = "black";
+
+  // Set color based on playerId
+  if (tank.playerId === 1) {
+    drawCtx.strokeStyle = "blue";
+  } else if (tank.playerId === 2) {
+    drawCtx.strokeStyle = "red";
+  } else {
+    drawCtx.strokeStyle = "black";
+  }
+
   drawCtx.lineWidth = 2;
   drawCtx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
   drawCtx.restore();
@@ -330,7 +358,16 @@ function drawReactor(reactor) {
 
   drawCtx.save();
   drawCtx.translate(x, y);
-  drawCtx.strokeStyle = "black";
+
+  // Set color based on playerId
+  if (reactor.playerId === 1) {
+    drawCtx.strokeStyle = "blue";
+  } else if (reactor.playerId === 2) {
+    drawCtx.strokeStyle = "red";
+  } else {
+    drawCtx.strokeStyle = "black";
+  }
+
   drawCtx.lineWidth = 2;
   drawCtx.beginPath();
   drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
@@ -347,7 +384,16 @@ function drawFortress(fortress) {
   drawCtx.save();
   drawCtx.translate(x, y);
   drawCtx.rotate(fortress.angle); // Use the angle directly
-  drawCtx.strokeStyle = "black";
+
+  // Set color based on playerId
+  if (fortress.playerId === 1) {
+    drawCtx.strokeStyle = "blue";
+  } else if (fortress.playerId === 2) {
+    drawCtx.strokeStyle = "red";
+  } else {
+    drawCtx.strokeStyle = "black";
+  }
+
   drawCtx.lineWidth = 2;
   drawCtx.strokeRect(-width / 2, -height / 2, width, height);
   drawCtx.restore();
@@ -361,7 +407,16 @@ function drawTurret(turret) {
   drawCtx.save();
   drawCtx.translate(x, y);
   drawCtx.rotate(turret.angle); // Use the angle directly
-  drawCtx.strokeStyle = "black";
+
+  // Set color based on playerId
+  if (turret.playerId === 1) {
+    drawCtx.strokeStyle = "blue";
+  } else if (turret.playerId === 2) {
+    drawCtx.strokeStyle = "red";
+  } else {
+    drawCtx.strokeStyle = "black";
+  }
+
   drawCtx.lineWidth = 2;
   drawCtx.beginPath();
   drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
