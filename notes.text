@@ -1,6 +1,6 @@
 notes on steps needed to render digital paper warfare in a multiplayer environment. 
 
-1) players land on a landing page that is a waiting room, from this room you can join and game and view the rules. Once two players join the game, the html for the landing page is hidden, and the html for the game board is displayed and the game starts. A new waiting room is then created for two additional players to land on, continously, so that many games can be played at once. 
+1) players land on a landing page that is a waiting room, from this room you can join and game and view the rules. Once two players join the game, the html for the landing page is hidden, and the html for the game board is displayed and the game starts. A new waiting room is then created for two additional players to land on, continously, so that many games can be played at once. -- COMPLETE
 
 2) Upon game start, the game state is set to PRE_GAME on the server, and the Matter world and components are created on the server. Both players game boards are oriented so that their tanks and side of the board is at the bottom of the screen. For simplicities sake, player 2 will have the mirrored game board. All Matter bodies exist on the server, and are rendered to the game board. 
 
