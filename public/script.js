@@ -1,5 +1,3 @@
-// client.js
-
 //#region VARIABLES
 
 //#region GAME AND PLAYER VARIABLES
@@ -29,7 +27,6 @@ const GameState = {
   GAME_RUNNING: "GAME_RUNNING",
   POST_GAME: "POST_GAME",
 };
-
 let currentGameState = GameState.PRE_GAME;
 let isDrawing = false;
 let isDrawingBelow = true;
@@ -42,13 +39,18 @@ const drawingMarginX = 20;
 const drawingMarginY = 20;
 
 // Shape Counters (for UI feedback)
-let totalShapesDrawn = 0;
+let shapeCountPlayer1 = 0;
+let shapeCountPlayer2 = 0;
 const maxTotalShapes = 10;
 const maxShapesPerPlayer = 5;
 
 // Canvas dimensions (will be set dynamically)
 let width = 1000; // Placeholder, will be updated
 let height = 1414; // Placeholder, will be updated
+
+// Define Player Constants
+const PLAYER_ONE = 1;
+const PLAYER_TWO = 2;
 
 //#endregion GAME AND PLAYER VARIABLES
 
@@ -140,7 +142,7 @@ window.addEventListener("load", () => {
 function initializeCanvas() {
   // Declare height, width, and aspect ratio for the canvas.
   const aspectRatio = 1 / 1.4142; // A4 aspect ratio (taller than wide)
-  const baseWidth = Math.min(window.innerWidth * 0.95, 10000); // Use 95% of window width or max 1000px
+  const baseWidth = Math.min(window.innerWidth * 0.95, 10000); // Use 95% of window width or max 10000px
   let canvasWidth = baseWidth;
   let canvasHeight = canvasWidth / aspectRatio; // Calculate height based on aspect ratio
 
@@ -195,7 +197,7 @@ socket.on("playerInfo", (data) => {
   statusText.textContent = `You are Player ${playerNumber}`;
 
   // Determine if the canvas should be rotated
-  if (playerNumber === 2) {
+  if (playerNumber === PLAYER_TWO) {
     shouldRotateCanvas = true;
   }
 
@@ -205,7 +207,7 @@ socket.on("playerInfo", (data) => {
 
 // Handle Game Start
 socket.on("startGame", (data) => {
-  if (playerNumber === 1 || playerNumber === 2) {
+  if (playerNumber === PLAYER_ONE || playerNumber === PLAYER_TWO) {
     // Receive game world dimensions from server
     gameWorldWidth = data.gameWorld.width;
     gameWorldHeight = data.gameWorld.height;
@@ -319,25 +321,39 @@ endDrawButton.addEventListener("click", () => {
 // Function to add mouse event listeners for drawing
 function addDrawingEventListeners() {
   drawCanvas.addEventListener("mousedown", (event) => {
-    if (currentGameState !== GameState.PRE_GAME) return;
+    if (currentGameState !== GameState.PRE_GAME) {
+      return;
+    }
     startDrawing(event);
   });
 
   drawCanvas.addEventListener("mousemove", (event) => {
-    if (currentGameState !== GameState.PRE_GAME) return;
-    if (!isDrawing) return;
+    if (currentGameState !== GameState.PRE_GAME) {
+      return;
+    }
+    if (!isDrawing) {
+      return;
+    }
     draw(event);
   });
 
   drawCanvas.addEventListener("mouseup", () => {
-    if (currentGameState !== GameState.PRE_GAME) return;
-    if (!isDrawing) return;
+    if (currentGameState !== GameState.PRE_GAME) {
+      return;
+    }
+    if (!isDrawing) {
+      return;
+    }
     endDrawing();
   });
 
   drawCanvas.addEventListener("mouseleave", () => {
-    if (currentGameState !== GameState.PRE_GAME) return;
-    if (!isDrawing) return;
+    if (currentGameState !== GameState.PRE_GAME) {
+      return;
+    }
+    if (!isDrawing) {
+      return;
+    }
     endDrawing();
   });
 }
@@ -405,9 +421,9 @@ function render() {
   // Draw the current user's drawingPath
   if (isDrawing && drawingPath.length > 1) {
     drawCtx.beginPath();
-    drawCtx.moveTo(drawingPath[0].x, drawingPath[0].y);
+    drawCtx.moveTo(drawingPath[0].x * scaleX, drawingPath[0].y * scaleY);
     for (let i = 1; i < drawingPath.length; i++) {
-      drawCtx.lineTo(drawingPath[i].x, drawingPath[i].y);
+      drawCtx.lineTo(drawingPath[i].x * scaleX, drawingPath[i].y * scaleY);
     }
 
     // Change color based on ink usage
@@ -432,18 +448,20 @@ function render() {
 
 // Function to Draw a Drawing Path from Server
 function drawServerDrawing(path, drawingPlayerNumber) {
-  if (path.length < 2) return;
+  if (path.length < 2) {
+    return;
+  }
 
   drawCtx.beginPath();
-  drawCtx.moveTo(path[0].x, path[0].y);
+  drawCtx.moveTo(path[0].x * scaleX, path[0].y * scaleY);
   for (let i = 1; i < path.length; i++) {
-    drawCtx.lineTo(path[i].x, path[i].y);
+    drawCtx.lineTo(path[i].x * scaleX, path[i].y * scaleY);
   }
 
   // Change color based on player number
-  if (drawingPlayerNumber === 1) {
+  if (drawingPlayerNumber === PLAYER_ONE) {
     drawCtx.strokeStyle = "blue";
-  } else if (drawingPlayerNumber === 2) {
+  } else if (drawingPlayerNumber === PLAYER_TWO) {
     drawCtx.strokeStyle = "red";
   } else {
     drawCtx.strokeStyle = "black";
@@ -486,9 +504,9 @@ function redrawCanvas() {
   // Draw the current user's drawingPath
   if (isDrawing && drawingPath.length > 1) {
     drawCtx.beginPath();
-    drawCtx.moveTo(drawingPath[0].x, drawingPath[0].y);
+    drawCtx.moveTo(drawingPath[0].x * scaleX, drawingPath[0].y * scaleY);
     for (let i = 1; i < drawingPath.length; i++) {
-      drawCtx.lineTo(drawingPath[i].x, drawingPath[i].y);
+      drawCtx.lineTo(drawingPath[i].x * scaleX, drawingPath[i].y * scaleY);
     }
 
     // Change color based on ink usage
@@ -558,9 +576,9 @@ function drawTank(tank) {
   drawCtx.rotate(tank.angle); // Use the angle directly
 
   // Set color based on playerId
-  if (tank.playerId === 1) {
+  if (tank.playerId === PLAYER_ONE) {
     drawCtx.strokeStyle = "blue";
-  } else if (tank.playerId === 2) {
+  } else if (tank.playerId === PLAYER_TWO) {
     drawCtx.strokeStyle = "red";
   } else {
     drawCtx.strokeStyle = "black";
@@ -580,9 +598,9 @@ function drawReactor(reactor) {
   drawCtx.translate(x, y);
 
   // Set color based on playerId
-  if (reactor.playerId === 1) {
+  if (reactor.playerId === PLAYER_ONE) {
     drawCtx.strokeStyle = "blue";
-  } else if (reactor.playerId === 2) {
+  } else if (reactor.playerId === PLAYER_TWO) {
     drawCtx.strokeStyle = "red";
   } else {
     drawCtx.strokeStyle = "black";
@@ -606,9 +624,9 @@ function drawFortress(fortress) {
   drawCtx.rotate(fortress.angle); // Use the angle directly
 
   // Set color based on playerId
-  if (fortress.playerId === 1) {
+  if (fortress.playerId === PLAYER_ONE) {
     drawCtx.strokeStyle = "blue";
-  } else if (fortress.playerId === 2) {
+  } else if (fortress.playerId === PLAYER_TWO) {
     drawCtx.strokeStyle = "red";
   } else {
     drawCtx.strokeStyle = "black";
@@ -629,9 +647,9 @@ function drawTurret(turret) {
   drawCtx.rotate(turret.angle); // Use the angle directly
 
   // Set color based on playerId
-  if (turret.playerId === 1) {
+  if (turret.playerId === PLAYER_ONE) {
     drawCtx.strokeStyle = "blue";
-  } else if (turret.playerId === 2) {
+  } else if (turret.playerId === PLAYER_TWO) {
     drawCtx.strokeStyle = "red";
   } else {
     drawCtx.strokeStyle = "black";
@@ -711,33 +729,146 @@ function drawNoDrawZones() {
 
 //#region DRAWING PROCESS FUNCTIONS
 
-// Begins drawing process when mouse is pressed.
+// Handles completion of a drawing action.
+function endDrawing() {
+  // End drawing.
+  isDrawing = false;
+
+  // Proceed only if the drawing path has more than one point.
+  if (drawingPath.length > 1) {
+    const firstPoint = drawingPath[0]; // Starting point.
+    const lastPoint = drawingPath[drawingPath.length - 1]; // Ending point.
+
+    // Calculate the distance between first and last points.
+    const distance = Math.hypot(lastPoint.x - firstPoint.x, lastPoint.y - firstPoint.y);
+
+    // Threshold to determine if the shape should be closed.
+    // Adjusted based on game units. Assuming scaleX and scaleY convert to game units.
+    const snapThreshold = 10; // 10 game units
+
+    if (distance <= snapThreshold) {
+      // Snap the last point to the first point to close the shape.
+      drawingPath[drawingPath.length - 1] = { x: firstPoint.x, y: firstPoint.y };
+    } else {
+      // Close the shape by connecting the last point to the first point.
+      drawingPath.push({ x: firstPoint.x, y: firstPoint.y });
+    }
+
+    // Initialize overlap flag.
+    let overlaps = false;
+
+    // Check for overlaps with existing shapes in allPaths.
+    for (let i = 0; i < allPaths.length; i++) {
+      if (polygonsOverlap(drawingPath, allPaths[i].path)) {
+        overlaps = true;
+        break;
+      }
+    }
+
+    // Check overlap with no-draw zones.
+    if (!overlaps) {
+      for (let i = 0; i < noDrawZones.length; i++) {
+        if (polygonsOverlap(drawingPath, noDrawZones[i])) {
+          overlaps = true;
+          break;
+        }
+      }
+    }
+
+    if (overlaps) {
+      // Alert the user about the invalid shape
+      alert("Shapes cannot overlap, or be in no draw zones. Try drawing again.");
+
+      // Clear the drawing.
+      redrawCanvas();
+
+      // Reset the drawingPath
+      drawingPath = [];
+      totalInkUsed = 0;
+    } else {
+      // Shape is valid, add it to allPaths.
+      allPaths.push({ path: [...drawingPath], playerNumber });
+
+      // Emit the valid shape to the server
+      // The path is already in game units
+      socket.emit("endDrawing", {
+        roomID,
+        playerNumber,
+        path: drawingPath,
+      });
+
+      // Increment shape count for current player.
+      if (playerNumber === PLAYER_ONE) {
+        shapeCountPlayer1++;
+        if (shapeCountPlayer1 >= maxShapesPerPlayer) {
+          console.log(`Player ${PLAYER_ONE} has reached the maximum number of shapes.`);
+        }
+      } else if (playerNumber === PLAYER_TWO) {
+        shapeCountPlayer2++;
+        if (shapeCountPlayer2 >= maxShapesPerPlayer) {
+          console.log(`Player ${PLAYER_TWO} has reached the maximum number of shapes.`);
+        }
+      }
+
+      // Optionally update UI with shape counts
+      updatePlayerShapeCount();
+
+      // Clear the drawingPath for the next drawing
+      drawingPath = [];
+      totalInkUsed = 0;
+
+      // Check if maximum total shapes have been drawn
+      if (allPaths.length >= maxTotalShapes) {
+        finalizeDrawingPhase();
+      }
+
+      // Redraw all shapes including the new one
+      redrawCanvas();
+    }
+  }
+}
+
+// Function to start drawing process when mouse is pressed.
 function startDrawing(event) {
   if (currentGameState !== GameState.PRE_GAME) {
     return;
   }
 
   const rect = drawCanvas.getBoundingClientRect();
-  const mouseX = event.clientX - rect.left;
-  const mouseY = event.clientY - rect.top;
-  const mousePosition = { x: mouseX, y: mouseY };
+  let mouseX = event.clientX - rect.left;
+  let mouseY = event.clientY - rect.top;
+
+  // Adjust mouse coordinates for player 2
+  if (shouldRotateCanvas) {
+    mouseX = drawCanvas.width - mouseX;
+    mouseY = drawCanvas.height - mouseY;
+  }
+
+  // Convert mouse position from pixels to game units
+  const mousePosition = { x: mouseX / scaleX, y: mouseY / scaleY };
 
   // Enforce drawing area per player.
-  if (playerNumber === 1) {
+  if (playerNumber === PLAYER_ONE) {
     // Player one draws below the dividing line.
     isDrawingBelow = true;
-    mousePosition.y = Math.max(mousePosition.y, dividingLine + dividingLineMargin);
-  } else if (playerNumber === 2) {
+    mousePosition.y = Math.max(mousePosition.y, dividingLine / scaleY + dividingLineMargin / scaleY);
+  } else if (playerNumber === PLAYER_TWO) {
     // Player two draws above the dividing line.
     isDrawingBelow = false;
-    mousePosition.y = Math.min(mousePosition.y, dividingLine - dividingLineMargin);
+    mousePosition.y = Math.min(mousePosition.y, dividingLine / scaleY - dividingLineMargin / scaleY);
   }
 
   // Clamp mouse position within drawable area horizontally.
-  mousePosition.x = Math.max(drawingMarginX, Math.min(mousePosition.x, drawCanvas.width - drawingMarginX));
+  mousePosition.x = Math.max(
+    drawingMarginX / scaleX,
+    Math.min(mousePosition.x, (drawCanvas.width - drawingMarginX) / scaleX)
+  );
 
   // Clamp mouse position within drawable area vertically.
-  mousePosition.y = Math.max(drawingMarginY, Math.min(mousePosition.y, drawCanvas.height - drawingMarginY));
+  mousePosition.y = Math.max(
+    drawingMarginY / scaleY,
+    Math.min(mousePosition.y, (drawCanvas.height - drawingMarginY) / scaleY)
+  );
 
   // Reset the total ink for the new drawing session.
   totalInkUsed = 0;
@@ -767,22 +898,36 @@ function draw(event) {
   }
 
   const rect = drawCanvas.getBoundingClientRect();
-  const mouseX = event.clientX - rect.left;
-  const mouseY = event.clientY - rect.top;
-  const mousePosition = { x: mouseX, y: mouseY };
+  let mouseX = event.clientX - rect.left;
+  let mouseY = event.clientY - rect.top;
+
+  // Adjust mouse coordinates for player 2
+  if (shouldRotateCanvas) {
+    mouseX = drawCanvas.width - mouseX;
+    mouseY = drawCanvas.height - mouseY;
+  }
+
+  // Convert mouse position from pixels to game units
+  const mousePosition = { x: mouseX / scaleX, y: mouseY / scaleY };
 
   // Enforce drawing area per player.
-  if (playerNumber === 1) {
-    mousePosition.y = Math.max(mousePosition.y, dividingLine + dividingLineMargin);
-  } else if (playerNumber === 2) {
-    mousePosition.y = Math.min(mousePosition.y, dividingLine - dividingLineMargin);
+  if (playerNumber === PLAYER_ONE) {
+    mousePosition.y = Math.max(mousePosition.y, dividingLine / scaleY + dividingLineMargin / scaleY);
+  } else if (playerNumber === PLAYER_TWO) {
+    mousePosition.y = Math.min(mousePosition.y, dividingLine / scaleY - dividingLineMargin / scaleY);
   }
 
   // Clamp mouse position within drawable area horizontally.
-  mousePosition.x = Math.max(drawingMarginX, Math.min(mousePosition.x, drawCanvas.width - drawingMarginX));
+  mousePosition.x = Math.max(
+    drawingMarginX / scaleX,
+    Math.min(mousePosition.x, (drawCanvas.width - drawingMarginX) / scaleX)
+  );
 
   // Clamp mouse position within drawable area vertically.
-  mousePosition.y = Math.max(drawingMarginY, Math.min(mousePosition.y, drawCanvas.height - drawingMarginY));
+  mousePosition.y = Math.max(
+    drawingMarginY / scaleY,
+    Math.min(mousePosition.y, (drawCanvas.height - drawingMarginY) / scaleY)
+  );
 
   // Grab the last point in the current drawing path.
   const lastPoint = drawingPath[drawingPath.length - 1];
@@ -811,51 +956,13 @@ function draw(event) {
   redrawCanvas();
 }
 
-// Handles completion of a drawing action.
-function endDrawing() {
-  // End drawing.
-  isDrawing = false;
-
-  // Proceed only if the drawing path has more than one point.
-  if (drawingPath.length > 1) {
-    const firstPoint = drawingPath[0]; // Starting point.
-    const lastPoint = drawingPath[drawingPath.length - 1]; // Ending point.
-
-    // Calculate the distance between first and last points.
-    const distance = Math.hypot(lastPoint.x - firstPoint.x, lastPoint.y - firstPoint.y);
-
-    // Threshold to determine if the shape should be closed.
-    const snapThreshold = 10; // Adjusted for better usability
-
-    if (distance <= snapThreshold) {
-      // Snap the last point to the first point to close the shape.
-      drawingPath[drawingPath.length - 1] = { x: firstPoint.x, y: firstPoint.y };
-    } else {
-      // Close the shape by connecting the last point to the first point.
-      drawingPath.push({ x: firstPoint.x, y: firstPoint.y });
-    }
-
-    // Emit endDrawing to server with the complete path
-    socket.emit("endDrawing", {
-      roomID,
-      playerNumber,
-      path: drawingPath,
-    });
-
-    // Clear the drawingPath for the next drawing
-    drawingPath = [];
-    totalInkUsed = 0;
-  }
-}
-
 //#endregion DRAWING PROCESS FUNCTIONS
 
 //#region UTILITY FUNCTIONS
 
 // Get the current player's shape count
 function getPlayerShapeCount() {
-  // Count shapes drawn by the current player
-  return allPaths.filter((path) => path.playerNumber === playerNumber).length;
+  return playerNumber === PLAYER_ONE ? shapeCountPlayer1 : playerNumber === PLAYER_TWO ? shapeCountPlayer2 : 0;
 }
 
 // Update player shape count UI or other elements if needed
@@ -868,6 +975,81 @@ function updatePlayerShapeCount() {
     // Optionally disable drawing
     alert("You have reached the maximum number of shapes.");
   }
+}
+
+// Function to validate polygon overlap using the Separating Axis Theorem (SAT).
+function polygonsOverlap(polygonA, polygonB) {
+  // Helper function to project a polygon onto an axis and return the min and max projections
+  function project(polygon, axis) {
+    let min = dotProduct(polygon[0], axis);
+    let max = min;
+    for (let i = 1; i < polygon.length; i++) {
+      const p = dotProduct(polygon[i], axis);
+      if (p < min) {
+        min = p;
+      }
+      if (p > max) {
+        max = p;
+      }
+    }
+    return { min, max };
+  }
+
+  // Helper function to calculate the dot product of two vectors
+  function dotProduct(point, axis) {
+    return point.x * axis.x + point.y * axis.y;
+  }
+
+  // Helper function to get the edges of a polygon
+  function getEdges(polygon) {
+    const edges = [];
+    for (let i = 0; i < polygon.length; i++) {
+      const p1 = polygon[i];
+      const p2 = polygon[(i + 1) % polygon.length];
+      edges.push({ x: p2.x - p1.x, y: p2.y - p1.y });
+    }
+    return edges;
+  }
+
+  // Helper function to get the perpendicular (normal) of an edge
+  function getNormal(edge) {
+    return { x: -edge.y, y: edge.x };
+  }
+
+  // Get all edges from both polygons
+  const edgesA = getEdges(polygonA);
+  const edgesB = getEdges(polygonB);
+  const allEdges = [...edgesA, ...edgesB];
+
+  // For each edge, compute the axis perpendicular to the edge
+  for (const edge of allEdges) {
+    const axis = getNormal(edge);
+
+    // Normalize the axis
+    const length = Math.hypot(axis.x, axis.y);
+    const normalizedAxis = { x: axis.x / length, y: axis.y / length };
+
+    // Project both polygons onto the axis
+    const projectionA = project(polygonA, normalizedAxis);
+    const projectionB = project(polygonB, normalizedAxis);
+
+    // Check for overlap between projections
+    if (projectionA.max < projectionB.min || projectionB.max < projectionA.min) {
+      // No overlap on this axis, so polygons do not intersect
+      return false;
+    }
+  }
+
+  // Overlap on all axes, so polygons intersect
+  return true;
+}
+
+// Function to finalize the drawing phase
+function finalizeDrawingPhase() {
+  currentGameState = GameState.GAME_RUNNING;
+  socket.emit("finalizeDrawingPhase", { roomID });
+  console.log("Drawing phase finalized. Game is now running.");
+  // Additional logic to transition to game running can be added here
 }
 
 //#endregion UTILITY FUNCTIONS

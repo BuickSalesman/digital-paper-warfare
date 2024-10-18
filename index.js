@@ -1,5 +1,3 @@
-// server.js
-
 //#region VARIABLES
 
 //#region GAME AND PLAYER VARIABLES
@@ -159,7 +157,9 @@ io.on("connection", (socket) => {
   socket.on("startDrawing", (data) => {
     const { roomID, playerNumber, position } = data;
     const room = gameRooms[roomID];
-    if (!room) return;
+    if (!room) {
+      return;
+    }
 
     // Initialize drawing session for the player
     if (!room.drawingSessions) {
@@ -175,7 +175,9 @@ io.on("connection", (socket) => {
   socket.on("drawing", (data) => {
     const { roomID, playerNumber, position } = data;
     const room = gameRooms[roomID];
-    if (!room || !room.drawingSessions || !room.drawingSessions[playerNumber]) return;
+    if (!room || !room.drawingSessions || !room.drawingSessions[playerNumber]) {
+      return;
+    }
 
     const session = room.drawingSessions[playerNumber];
     const lastPoint = session.path[session.path.length - 1];
@@ -233,7 +235,9 @@ io.on("connection", (socket) => {
   socket.on("endDrawing", (data) => {
     const { roomID, playerNumber, path } = data;
     const room = gameRooms[roomID];
-    if (!room || !room.drawingSessions || !room.drawingSessions[playerNumber]) return;
+    if (!room || !room.drawingSessions || !room.drawingSessions[playerNumber]) {
+      return;
+    }
 
     const session = room.drawingSessions[playerNumber];
     session.path = path;
@@ -242,7 +246,7 @@ io.on("connection", (socket) => {
     const firstPoint = session.path[0];
     const lastPoint = session.path[session.path.length - 1];
     const distance = Math.hypot(lastPoint.x - firstPoint.x, lastPoint.y - firstPoint.y);
-    const snapThreshold = 10; // Adjust as needed
+    const snapThreshold = 10; // 10 game units
 
     if (distance > snapThreshold) {
       session.path.push({ x: firstPoint.x, y: firstPoint.y });
@@ -250,21 +254,40 @@ io.on("connection", (socket) => {
       session.path[session.path.length - 1] = { x: firstPoint.x, y: firstPoint.y };
     }
 
-    // Validate the shape
-    if (validateDrawing(room, session.path, playerNumber)) {
-      // Check shape counters
-      if (room.shapeCounts[playerNumber] >= MAX_SHAPES_PER_PLAYER || room.totalShapesDrawn >= MAX_TOTAL_SHAPES) {
-        // Exceeded shape limits
-        socket.emit("invalidShape", { message: "Shape limit reached." });
-        // Optionally, remove the last path
-        return;
-      }
+    // Initialize overlap flag.
+    let overlaps = false;
 
-      // Add the valid path to allPaths
-      if (!room.allPaths) {
-        room.allPaths = [];
+    // Check for overlaps with existing shapes in allPaths.
+    for (let i = 0; i < room.allPaths.length; i++) {
+      if (polygonsOverlap(session.path, room.allPaths[i].path)) {
+        overlaps = true;
+        break;
       }
-      room.allPaths.push({ path: session.path, playerNumber });
+    }
+
+    // Check overlap with no-draw zones.
+    if (!overlaps) {
+      for (let i = 0; i < room.noDrawZones.length; i++) {
+        if (polygonsOverlap(session.path, room.noDrawZones[i])) {
+          overlaps = true;
+          break;
+        }
+      }
+    }
+
+    if (overlaps) {
+      // Invalid shape, notify the player
+      socket.emit("invalidShape", { message: "Shapes cannot overlap, or be in no draw zones. Try drawing again." });
+      console.log(`Player ${playerNumber} attempted to draw an invalid shape in room ${roomID}.`);
+
+      // Optionally, remove the last path or handle accordingly
+      // For example, you might want to inform other clients or take corrective actions
+    } else {
+      // Shape is valid, add it to allPaths
+      room.allPaths.push({ path: [...session.path], playerNumber });
+
+      // Increment shape counts and handle game state transitions
+      handleShapeCount(room, playerNumber);
 
       // Broadcast the valid shape to all clients
       io.to(roomID).emit("drawingData", {
@@ -272,15 +295,22 @@ io.on("connection", (socket) => {
         playerNumber,
       });
 
-      // Increment shape counts and handle game state transitions
-      handleShapeCount(room, playerNumber);
-    } else {
-      // Invalid shape, notify the player (optional)
-      socket.emit("invalidShape", { message: "Invalid drawing. Please try again." });
+      console.log(`Player ${playerNumber} successfully drew a shape in room ${roomID}.`);
     }
 
     // Remove the drawing session
     delete room.drawingSessions[playerNumber];
+  });
+
+  // Handle Finalize Drawing Phase from Client (if needed)
+  socket.on("finalizeDrawingPhase", (data) => {
+    const { roomID } = data;
+    const room = gameRooms[roomID];
+    if (!room) {
+      return;
+    }
+
+    finalizeDrawingPhase(room);
   });
 });
 
@@ -621,9 +651,16 @@ function polygonsOverlap(polygonA, polygonB) {
   for (const edge of allEdges) {
     const axis = getNormal(edge);
 
+    // Normalize the axis
+    const length = Math.hypot(axis.x, axis.y);
+    if (length === 0) {
+      continue;
+    } // Prevent division by zero
+    const normalizedAxis = { x: axis.x / length, y: axis.y / length };
+
     // Project both polygons onto the axis
-    const projectionA = project(polygonA, axis);
-    const projectionB = project(polygonB, axis);
+    const projectionA = project(polygonA, normalizedAxis);
+    const projectionB = project(polygonB, normalizedAxis);
 
     // Check for overlap between projections
     if (projectionA.max < projectionB.min || projectionB.max < projectionA.min) {
