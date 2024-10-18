@@ -152,19 +152,47 @@ io.on("connection", (socket) => {
     if (roomID) {
       const room = gameRooms[roomID];
       if (room) {
+        // Initialize clientsDimensions if not already
+        if (!room.clientsDimensions) {
+          room.clientsDimensions = {};
+        }
+
+        // Store the dimensions sent by this client
+        room.clientsDimensions[socket.id] = { width: validWidth, height: validHeight };
+
         // If dimensions are not yet set for the room, set them
         if (!room.width && !room.height) {
           room.width = validWidth;
           room.height = validHeight;
+        }
+
+        // Check if both clients have sent their dimensions
+        if (Object.keys(room.clientsDimensions).length === 2 && !room.bodiesCreated) {
+          // Both clients have sent dimensions
+
+          // You can decide whether to average the dimensions or use the first client's dimensions
+          // For simplicity, we'll use the dimensions already set in room.width and room.height
 
           // Create walls and add them to the room's world
-          const walls = createWalls(validWidth, validHeight);
+          const walls = createWalls(room.width, room.height);
           World.add(room.roomWorld, walls);
 
-          // Send confirmation back to the client
-          io.to(roomID).emit("dimensionsConfirmed", { width: validWidth, height: validHeight });
+          // Create game bodies
+          createGameBodies(room);
+          room.bodiesCreated = true; // Set a flag to prevent recreating bodies
+
+          // Send initial game state to clients
+          io.to(roomID).emit("initialGameState", {
+            tanks: room.tanks.map(bodyToData),
+            reactors: room.reactors.map(bodyToData),
+            fortresses: room.fortresses.map(bodyToData),
+            turrets: room.turrets.map(bodyToData),
+          });
+
+          // Send confirmation back to the clients
+          io.to(roomID).emit("dimensionsConfirmed", { width: room.width, height: room.height });
         } else {
-          // Dimensions are already set, just confirm to client
+          // Only send dimensions confirmation to this client
           socket.emit("dimensionsConfirmed", { width: room.width, height: room.height });
         }
       }
@@ -282,8 +310,18 @@ setInterval(() => {
   for (const roomID in gameRooms) {
     const room = gameRooms[roomID];
     Engine.update(room.roomEngine, deltaTime);
+
+    // Send updated positions to clients
+    io.to(roomID).emit("gameUpdate", {
+      tanks: room.tanks.map(bodyToData),
+      reactors: room.reactors.map(bodyToData),
+      fortresses: room.fortresses.map(bodyToData),
+      turrets: room.turrets.map(bodyToData),
+      shells: room.shells.map(bodyToData), // Include shells if applicable
+    });
   }
 }, deltaTime);
+
 //#endregion MATTER RUNNING AND RENDING FUNCTIONS
 
 //#region MATTER BODY FUNTIONS
@@ -385,6 +423,24 @@ function createGameBodies(room) {
   // Initialize an array for shells
   room.shells = [];
 }
+
+function bodyToData(body) {
+  const width = body.bounds.max.x - body.bounds.min.x;
+  const height = body.bounds.max.y - body.bounds.min.y;
+  const size = body.circleRadius ? body.circleRadius * 2 : width; // For circles, use diameter
+
+  return {
+    id: body.id,
+    label: body.label,
+    position: { x: body.position.x, y: body.position.y },
+    angle: body.angle,
+    size: size,
+    width: width,
+    height: height,
+    playerId: body.playerId,
+  };
+}
+
 //#endregion BODY CREATION FUNCTIONS
 
 //#endregion MATTER BODY FUNCTIONS

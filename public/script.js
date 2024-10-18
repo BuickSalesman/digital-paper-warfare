@@ -124,11 +124,6 @@ socket.on("playerInfo", (data) => {
   playerNumber = data.playerNumber;
   roomID = data.roomID;
   statusText.textContent = `You are Player ${playerNumber}`;
-
-  // Start the game if the window has already loaded
-  if (document.readyState === "complete") {
-    startGame();
-  }
 });
 
 // Handle Game Start
@@ -144,7 +139,7 @@ socket.on("initialGameState", (data) => {
   reactors = data.reactors;
   fortresses = data.fortresses;
   turrets = data.turrets;
-  // Start rendering
+  // Start rendering.
   requestAnimationFrame(render);
 });
 
@@ -205,12 +200,7 @@ function startGame() {
   landingPage.style.display = "none";
   gameAndPowerContainer.style.display = "flex";
 
-  // Dimensions are already set in window load event
-
   socket.emit("clientDimensions", { width: drawCanvas.width, height: drawCanvas.height });
-
-  // Start the rendering loop
-  requestAnimationFrame(render);
 }
 //#endregion GAME STATE FUNCTIONS
 
