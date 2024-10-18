@@ -65,6 +65,14 @@ let dividingLine;
 //#endregion CANVAS AND CONTEXT VARIABLES
 
 //#region BODY VARIABLES
+
+// Variables to store game objects
+let tanks = [];
+let reactors = [];
+let fortresses = [];
+let turrets = [];
+let shells = []; // If shells are sent from the server
+
 //#endregion BODY VARIABLES
 
 //#region SOCKET VARIABLES
@@ -128,6 +136,25 @@ socket.on("startGame", (data) => {
   if (playerNumber === 1 || playerNumber === 2) {
     startGame();
   }
+});
+
+// Handle initial game state
+socket.on("initialGameState", (data) => {
+  tanks = data.tanks;
+  reactors = data.reactors;
+  fortresses = data.fortresses;
+  turrets = data.turrets;
+  // Start rendering
+  requestAnimationFrame(render);
+});
+
+// Handle game updates
+socket.on("gameUpdate", (data) => {
+  tanks = data.tanks;
+  reactors = data.reactors;
+  fortresses = data.fortresses;
+  turrets = data.turrets;
+  shells = data.shells || []; // If shells are sent
 });
 
 // Handle Player Disconnection
@@ -246,6 +273,53 @@ function drawDividingLine() {
   drawCtx.lineWidth = 2;
   drawCtx.stroke();
 }
+
+function drawTank(tank) {
+  const size = tank.size; // Use size from server data
+  drawCtx.save();
+  drawCtx.translate(tank.position.x, tank.position.y);
+  drawCtx.rotate(tank.angle);
+  drawCtx.strokeStyle = "black";
+  drawCtx.lineWidth = 2;
+  drawCtx.strokeRect(-size / 2, -size / 2, size, size);
+  drawCtx.restore();
+}
+
+function drawReactor(reactor) {
+  const radius = reactor.size / 2;
+  drawCtx.save();
+  drawCtx.translate(reactor.position.x, reactor.position.y);
+  drawCtx.strokeStyle = "black";
+  drawCtx.lineWidth = 2;
+  drawCtx.beginPath();
+  drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
+  drawCtx.stroke();
+  drawCtx.restore();
+}
+
+function drawFortress(fortress) {
+  const width = fortress.width;
+  const height = fortress.height;
+  drawCtx.save();
+  drawCtx.translate(fortress.position.x, fortress.position.y);
+  drawCtx.strokeStyle = "black";
+  drawCtx.lineWidth = 2;
+  drawCtx.strokeRect(-width / 2, -height / 2, width, height);
+  drawCtx.restore();
+}
+
+function drawTurret(turret) {
+  const radius = turret.size / 2;
+  drawCtx.save();
+  drawCtx.translate(turret.position.x, turret.position.y);
+  drawCtx.strokeStyle = "black";
+  drawCtx.lineWidth = 2;
+  drawCtx.beginPath();
+  drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
+  drawCtx.stroke();
+  drawCtx.restore();
+}
+
 //#endregion DRAWING FUNCTIONS
 
 //#endregion FUNCTIONS

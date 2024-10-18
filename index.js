@@ -302,6 +302,88 @@ function createWalls(width, height) {
     Bodies.rectangle(width + 500, height / 2, 1000, height + 1000, { isStatic: true }),
   ];
 }
+
+function createGameBodies(room) {
+  const { width, height } = room;
+  const roomWorld = room.roomWorld;
+
+  // Calculate sizes based on width and height
+  const tankSize = width * 0.02;
+  const reactorSize = tankSize;
+  const fortressWidth = width * 0.1475;
+  const fortressHeight = height * 0.0575;
+  const turretSize = reactorSize * 1.125;
+
+  // Define player IDs
+  const PLAYER_ONE = 1;
+  const PLAYER_TWO = 2;
+
+  // Create tanks for Player One
+  const tank1 = TankModule.createTank(width * 0.3525, height * 0.9, tankSize, PLAYER_ONE);
+  const tank2 = TankModule.createTank(width * 0.4275, height * 0.9, tankSize, PLAYER_ONE);
+
+  // Create tanks for Player Two
+  const tank3 = TankModule.createTank(width * 0.6475, height * 0.1, tankSize, PLAYER_TWO);
+  const tank4 = TankModule.createTank(width * 0.5725, height * 0.1, tankSize, PLAYER_TWO);
+
+  const tanks = [tank1, tank2, tank3, tank4];
+
+  // Create reactors for Player One
+  const reactor1 = ReactorModule.createReactor(width * 0.3525, height * 0.95, reactorSize, PLAYER_ONE);
+  const reactor2 = ReactorModule.createReactor(width * 0.4275, height * 0.95, reactorSize, PLAYER_ONE);
+
+  // Create reactors for Player Two
+  const reactor3 = ReactorModule.createReactor(width * 0.6475, height * 0.05, reactorSize, PLAYER_TWO);
+  const reactor4 = ReactorModule.createReactor(width * 0.5725, height * 0.05, reactorSize, PLAYER_TWO);
+
+  const reactors = [reactor1, reactor2, reactor3, reactor4];
+
+  // Create fortresses
+  const fortress1 = FortressModule.createFortress(
+    width * 0.39,
+    height * 0.95,
+    fortressWidth,
+    fortressHeight,
+    PLAYER_ONE
+  );
+  const fortress2 = FortressModule.createFortress(
+    width * 0.61,
+    height * 0.05,
+    fortressWidth,
+    fortressHeight,
+    PLAYER_TWO
+  );
+
+  const fortresses = [fortress1, fortress2];
+
+  // Create turrets for Player One
+  const turret1 = TurretModule.createTurret(width * 0.31625, height * 0.92125, turretSize, PLAYER_ONE);
+  const turret2 = TurretModule.createTurret(width * 0.46375, height * 0.92125, turretSize, PLAYER_ONE);
+
+  // Create turrets for Player Two
+  const turret3 = TurretModule.createTurret(width * 0.53625, height * 0.07875, turretSize, PLAYER_TWO);
+  const turret4 = TurretModule.createTurret(width * 0.68375, height * 0.07875, turretSize, PLAYER_TWO);
+
+  const turrets = [turret1, turret2, turret3, turret4];
+
+  // Add bodies to the world
+  World.add(roomWorld, [...tanks, ...reactors, ...fortresses, ...turrets]);
+
+  // Store bodies in the room object
+  room.tanks = tanks;
+  room.reactors = reactors;
+  room.fortresses = fortresses;
+  room.turrets = turrets;
+
+  // Store sizes if needed later
+  room.tankSize = tankSize;
+  room.reactorSize = reactorSize;
+  room.fortressWidth = fortressWidth;
+  room.fortressHeight = fortressHeight;
+  room.turretSize = turretSize;
+
+  // Initialize an array for shells
+  room.shells = [];
 //#endregion BODY CREATION FUNCTIONS
 
 //#endregion MATTER BODY FUNCTIONS
