@@ -1,17 +1,17 @@
-// public/script.js
-
 const socket = io();
 
 // DOM Elements
 const landingPage = document.getElementById("landing-page");
 const joinButton = document.getElementById("join-button");
 const statusText = document.getElementById("status");
-const gameContainer = document.getElementById("game-container");
+const gameAndPowerContainer = document.getElementById("gameAndPowerContainer");
+const gameContainer = document.getElementById("gameContainer");
 const canvas = document.getElementById("game-canvas");
 const ctx = canvas.getContext("2d");
 
-// Player Number
+// Player and Room Info
 let playerNumber = null;
+let roomID = null;
 
 // Game State
 let gameState = {
@@ -26,9 +26,10 @@ joinButton.addEventListener("click", () => {
   joinButton.disabled = true;
 });
 
-// Receive Player Number
-socket.on("playerNumber", (number) => {
-  playerNumber = number;
+// Receive Player Info
+socket.on("playerInfo", (data) => {
+  playerNumber = data.playerNumber;
+  roomID = data.roomID;
   statusText.textContent = `You are Player ${playerNumber}`;
 });
 
@@ -37,12 +38,6 @@ socket.on("startGame", (data) => {
   if (playerNumber === 1 || playerNumber === 2) {
     startGame();
   }
-});
-
-// Handle Game Full
-socket.on("gameFull", () => {
-  statusText.textContent = "Game is full. Please try again later.";
-  joinButton.disabled = true;
 });
 
 // Handle Player Disconnection
@@ -61,14 +56,20 @@ socket.on("stateUpdate", (state) => {
 function startGame() {
   // Hide Landing Page and Show Game Canvas
   landingPage.style.display = "none";
-  gameContainer.style.display = "block";
+  gameAndPowerContainer.style.display = "flex";
 
-  // Set canvas dimensions
-  canvas.width = 800;
-  canvas.height = 600;
+  // Adjust canvas dimensions to match the gameContainer
+  resizeCanvas();
 
   // Start the rendering loop
   requestAnimationFrame(render);
+}
+
+// Function to Resize Canvas
+function resizeCanvas() {
+  const rect = gameContainer.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
 }
 
 // Function to Render the Game State
@@ -76,7 +77,7 @@ function render() {
   // Clear the canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Draw boundaries (optional: for visual reference)
+  // Draw boundaries (optional)
   drawBoundaries();
 
   // Draw Player 1's Ball
@@ -91,8 +92,12 @@ function render() {
 
 // Function to Draw a Ball
 function drawBall(position, color) {
+  // Adjust position based on canvas scaling
+  const scaleX = canvas.width / 800; // Original width is 800
+  const scaleY = canvas.height / 600; // Original height is 600
+
   ctx.beginPath();
-  ctx.arc(position.x, position.y, 30, 0, Math.PI * 2);
+  ctx.arc(position.x * scaleX, position.y * scaleY, 30 * scaleX, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
   ctx.closePath();
@@ -100,37 +105,44 @@ function drawBall(position, color) {
 
 // Function to Draw Boundaries (Optional)
 function drawBoundaries() {
-  ctx.strokeStyle = "#000000";
+  ctx.strokeStyle = "#FFFFFF";
   ctx.lineWidth = 2;
+
+  // Adjust scaling
+  const scaleX = canvas.width / 800;
+  const scaleY = canvas.height / 600;
 
   // Ground
   ctx.beginPath();
-  ctx.moveTo(0, 600);
-  ctx.lineTo(800, 600);
+  ctx.moveTo(0, 600 * scaleY);
+  ctx.lineTo(800 * scaleX, 600 * scaleY);
   ctx.stroke();
   ctx.closePath();
 
   // Ceiling
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.lineTo(800, 0);
+  ctx.lineTo(800 * scaleX, 0);
   ctx.stroke();
   ctx.closePath();
 
   // Left Wall
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.lineTo(0, 600);
+  ctx.lineTo(0, 600 * scaleY);
   ctx.stroke();
   ctx.closePath();
 
   // Right Wall
   ctx.beginPath();
-  ctx.moveTo(800, 0);
-  ctx.lineTo(800, 600);
+  ctx.moveTo(800 * scaleX, 0);
+  ctx.lineTo(800 * scaleX, 600 * scaleY);
   ctx.stroke();
   ctx.closePath();
 }
+
+// Handle Window Resize
+window.addEventListener("resize", resizeCanvas);
 
 // Handle User Input (Mouse Click)
 canvas.addEventListener("mousedown", (event) => {
@@ -138,8 +150,8 @@ canvas.addEventListener("mousedown", (event) => {
 
   // Calculate mouse position relative to the canvas
   const rect = canvas.getBoundingClientRect();
-  const mouseX = event.clientX - rect.left;
-  const mouseY = event.clientY - rect.top;
+  const mouseX = (event.clientX - rect.left) * (800 / canvas.width);
+  const mouseY = (event.clientY - rect.top) * (600 / canvas.height);
 
   // Determine which ball the player can interact with
   let targetBall = null;
@@ -152,7 +164,7 @@ canvas.addEventListener("mousedown", (event) => {
   if (targetBall) {
     // Calculate force direction based on mouse position
     const force = {
-      x: (mouseX - targetBall.x) * 0.0005, // Adjust scaling factor as needed
+      x: (mouseX - targetBall.x) * 0.0005,
       y: (mouseY - targetBall.y) * 0.0005,
     };
 

@@ -1,9 +1,15 @@
-/* public/styles.css */
+/* General Styles */
+@font-face {
+  font-family: "DeskScratch";
+  src: url("/assets/fonts/DeskScratch.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+}
 
 body {
-  font-family: Arial, sans-serif;
+  font-family: "DeskScratch";
   text-align: center;
-  background-color: #f0f0f0;
+  background-color: white;
   margin: 0;
   padding: 0;
 }
@@ -23,14 +29,203 @@ body {
   color: red;
 }
 
-#game-container {
+/* Body Container */
+#bodyContainer {
+  background-image: url("assets/desk.jpg");
+  background-size: cover;
+  background-position: center;
+}
+
+/* Game and Power Container */
+#gameAndPowerContainer {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+}
+
+/* Game Container */
+#gameContainer {
+  position: relative;
+  --aspect-ratio: 0.7071; /* A4 paper ratio */
+  height: 95vh;
+  width: calc(var(--aspect-ratio) * 95vh);
+  background-color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 2px solid #000;
+  margin: 2rem;
+  background-image: url("assets/paper.jpg");
+  background-size: cover;
+  background-position: center;
 }
 
 #game-canvas {
+  width: 100%;
+  height: 100%;
+  border: 1px solid #000;
+  background-color: transparent;
+}
+
+/* Side Container */
+#sideContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Power Meter */
+#powerMeterContainer {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  width: 3rem;
+  height: 60vh;
   border: 2px solid #000;
-  background-color: #fff;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+#powerMeterFill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background-color: red;
+  height: 0%;
+  z-index: 1;
+}
+
+#rewardZone {
+  position: absolute;
+  bottom: 85%;
+  width: 100%;
+  height: 10%;
+  background-color: rgba(0, 255, 0, 0.5);
+  z-index: 2;
+}
+
+#punishmentZone {
+  position: absolute;
+  bottom: 95%;
+  width: 100%;
+  height: 5%;
+  background-color: rgba(255, 0, 0, 0.5);
+  z-index: 2;
+}
+
+/* Buttons */
+.button-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.button {
+  font-family: "DeskScratch", Arial, sans-serif;
+  font-size: 1.5rem;
+  padding: 0.5rem 0.5rem;
+  background-color: rgba(15, 15, 15, 0);
+  border: none;
+  margin: 0 0.5 rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  border-top-left-radius: 255px 15px;
+  border-top-right-radius: 15px 225px;
+  border-bottom-right-radius: 225px 15px;
+  border-bottom-left-radius: 15px 255px;
+}
+
+.button:hover {
+  background-color: rgba(15, 15, 15, 0.2);
+}
+
+.button:active {
+  transform: scale(0.98);
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+  background-color: rgba(15, 15, 15, 0.3);
+}
+
+/* Timer */
+#turnTimerContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#Timer {
+  font-family: "DeskScratch", Arial, sans-serif;
+  font-size: 3.2rem;
+  color: rgba(15, 15, 15, 0.9);
+  text-align: center;
+}
+
+/* Modal */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+.modal-content {
+  background-color: #fefefe;
+  margin: 5% auto;
+  padding: 20px;
+  border: 2px solid #888;
+  width: 80%;
+  max-width: 800px;
+  border-radius: 10px;
+  position: relative;
+  animation: fadeIn 0.3s;
+}
+
+.close-button {
+  color: #aaa;
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  position: absolute;
+  top: 10px;
+  right: 20px;
+}
+
+.close-button:hover,
+.close-button:focus {
+  color: #000;
+  text-decoration: none;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Rules Button */
+#rulzButton {
+  margin-top: 1rem;
+  font-family: "DeskScratch", Arial, sans-serif;
+  font-size: 1.5rem;
+  padding: 0.5rem 1rem;
+  background-color: rgba(15, 15, 15, 0.8);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+#rulzButton:hover {
+  background-color: rgba(15, 15, 15, 1);
 }
