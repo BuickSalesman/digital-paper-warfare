@@ -127,9 +127,6 @@ const explosionFrames = Array.from({ length: 25 }, (_, i) => {
 });
 //#endregion EXPLOSIONS!!!
 
-// Declare a dividing line halfway between the top and bottom of the canvas.
-const dividingLine = drawCanvas.height / 2;
-
 // Declare variable to store the which player is currently drawing, starting with player 1.
 let currentPlayerDrawing = PLAYER_ONE;
 
@@ -400,12 +397,6 @@ shootButton.addEventListener("click", function () {
   actionMode = "shoot";
 });
 
-// Open rules modal when rules button is clicked.
-rulesButton.addEventListener("click", openModal);
-
-// Close modal when close button is clicked.
-closeButton.addEventListener("click", closeModal);
-
 // Close modal if user clicks outside the children of the rules modal.
 window.addEventListener("click", function (event) {
   if (event.target === rulesModal) {
@@ -517,19 +508,6 @@ Events.on(mouseConstraint, "mouseup", function (event) {
 //#endregion MOUSE EVENTS
 
 //#region FUNCTIONS
-
-//#region MODAL HELPER FUNCTIONS
-
-// Function to open the rules modal.
-function openModal() {
-  rulesModal.style.display = "block";
-}
-
-// Function to close the rules modal.
-function closeModal() {
-  rulesModal.style.display = "none";
-}
-//#endregion MODAL HELPER FUNCTIONS
 
 //#region TURN AND TIMER FUNCTIONS
 
