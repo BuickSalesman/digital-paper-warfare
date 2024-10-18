@@ -210,41 +210,6 @@ class Timer {
 
 //#region WORLD SETUP
 
-//Disable gravity.
-engine.world.gravity.y = 0;
-engine.world.gravity.x = 0;
-
-//Run renderer.
-Render.run(render);
-
-//Run the runner, this allows the engine to be updated for dynamic use within the browser.
-Runner.run(runner, engine);
-
-//Add the ability for mouse input into the physics world.
-World.add(world, mouseConstraint);
-
-//#region BODY CREATION
-
-// Add boundary walls to the game world.
-World.add(world, walls);
-
-// Add tank(s) to the game world.
-World.add(world, tanks);
-
-// Add reactor(s) to the game world.
-World.add(world, reactors);
-
-// Add fortress(es) to the game world.
-World.add(world, fortresses);
-
-// Add turret(s) to the game world.
-World.add(world, turrets);
-
-//#endregion BODY CREATIONS
-
-// Add the fortres no draw zones to the drawing canvas.
-fortressNoDrawZone();
-
 // Start the game with the draw phase!
 initializeDrawPhase();
 
@@ -502,61 +467,6 @@ function coinFlip() {
 //#endregion COIN FLIP FUNCTIONS
 
 //#region DRAWING FUNCTIONS
-
-//#region NO-DRAW ZONES FUNCTIONS
-
-// Creates no-draw zones around fortresses to prevent overlapping drawings.
-function fortressNoDrawZone() {
-  fortresses.forEach((fortress) => {
-    const zone = createRectangularZone(
-      fortress.position.x,
-      fortress.position.y,
-      fortressWidth,
-      fortressHeight,
-      baseHeight * 0.05
-    );
-    // Add both player's no draw zones into the noDrawZones array.
-    noDrawZones.push(zone);
-  });
-}
-
-// Creates a rectangular no-drawn-zone with padding.
-function createRectangularZone(centerX, centerY, width, height, padding) {
-  const halfWidth = width / 2 + padding;
-  const halfHeight = height / 2 + padding;
-
-  return [
-    { x: centerX - halfWidth, y: centerY - halfHeight }, // Top-Left
-    { x: centerX + halfWidth, y: centerY - halfHeight }, // Top-Right
-    { x: centerX + halfWidth, y: centerY + halfHeight }, // Bottom-Right
-    { x: centerX - halfWidth, y: centerY + halfHeight }, // Bottom-Left
-  ];
-}
-
-// Draw all no draw zones on the drawing canvas.
-function drawNoDrawZones() {
-  drawCtx.strokeStyle = "red";
-  drawCtx.lineWidth = 2;
-  noDrawZones.forEach((zone) => {
-    drawCtx.beginPath();
-    drawCtx.moveTo(zone[0].x, zone[0].y);
-    for (let i = 1; i < zone.length; i++) {
-      drawCtx.lineTo(zone[i].x, zone[i].y);
-    }
-    drawCtx.closePath();
-    drawCtx.stroke();
-
-    // Draw the X inside the rectangle.
-    drawCtx.beginPath();
-    // Diagonal from Top-Left to Bottom-Right.
-    drawCtx.moveTo(zone[0].x, zone[0].y);
-    drawCtx.lineTo(zone[2].x, zone[2].y);
-    // Diagonal from Top-Right to Bottom-Left.
-    drawCtx.moveTo(zone[1].x, zone[1].y);
-    drawCtx.lineTo(zone[3].x, zone[3].y);
-    drawCtx.stroke();
-  });
-}
 
 // Clears any no draw zones from the drawing canvas.
 function removeFortressNoDrawZones() {

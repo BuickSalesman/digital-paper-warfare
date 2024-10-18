@@ -19,3 +19,64 @@ notes on steps needed to render digital paper warfare in a multiplayer environme
 9) collisions are detected on the server side. If it is a shell colliding with a tank or reactor, hit point calculations are done server side, and explosion animations are done on the client side. 
 
 10) when the game is won, the game state changes to the end game phase, at which point both players can choose to play against each other again, or join a new game room with a new opponent. 
+
+
+
+function fortressNoDrawZone() {
+  noDrawZones = []; // Reset the noDrawZones array
+
+  fortresses.forEach((fortress) => {
+    const zone = createRectangularZone(
+      fortress.position.x,
+      fortress.position.y,
+      fortress.width,
+      fortress.height,
+      gameWorldHeight * 0.05 // Padding as 5% of game world height
+    );
+    // Add the no-draw zone to the array
+    noDrawZones.push(zone);
+  });
+}
+
+// Creates a rectangular no-drawn-zone with padding.
+function createRectangularZone(centerX, centerY, width, height, padding) {
+  const halfWidth = (width / 2 + padding) * scaleX;
+  const halfHeight = (height / 2 + padding) * scaleY;
+
+  return [
+    { x: centerX * scaleX - halfWidth, y: centerY * scaleY - halfHeight }, // Top-Left
+    { x: centerX * scaleX + halfWidth, y: centerY * scaleY - halfHeight }, // Top-Right
+    { x: centerX * scaleX + halfWidth, y: centerY * scaleY + halfHeight }, // Bottom-Right
+    { x: centerX * scaleX - halfWidth, y: centerY * scaleY + halfHeight }, // Bottom-Left
+  ];
+}
+
+// Draw all no-draw zones on the drawing canvas.
+function drawNoDrawZones() {
+  drawCtx.strokeStyle = "rgba(255, 0, 0, 0.7)";
+  drawCtx.lineWidth = 2;
+  drawCtx.fillStyle = "rgba(255, 0, 0, 0.1)"; // Semi-transparent fill
+
+  noDrawZones.forEach((zone) => {
+    drawCtx.beginPath();
+    drawCtx.moveTo(zone[0].x, zone[0].y);
+    for (let i = 1; i < zone.length; i++) {
+      drawCtx.lineTo(zone[i].x, zone[i].y);
+    }
+    drawCtx.closePath();
+    drawCtx.fill();
+    drawCtx.stroke();
+
+    // Draw the X inside the rectangle.
+    drawCtx.beginPath();
+    // Diagonal from Top-Left to Bottom-Right.
+    drawCtx.moveTo(zone[0].x, zone[0].y);
+    drawCtx.lineTo(zone[2].x, zone[2].y);
+    // Diagonal from Top-Right to Bottom-Left.
+    drawCtx.moveTo(zone[1].x, zone[1].y);
+    drawCtx.lineTo(zone[3].x, zone[3].y);
+    drawCtx.strokeStyle = "rgba(255, 0, 0, 0.7)";
+    drawCtx.lineWidth = 2;
+    drawCtx.stroke();
+  });
+}

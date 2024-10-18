@@ -25,8 +25,6 @@ const GameState = Object.freeze({
   POST_GAME: "POST_GAME",
 });
 
-let currentGameState = GameState.PRE_GAME;
-
 // Declare player IDs.
 const PLAYER_ONE = 1;
 const PLAYER_TWO = 2;
@@ -34,6 +32,15 @@ const PLAYER_TWO = 2;
 // Game Rooms Object
 let gameRooms = {};
 
+// Game constants
+const MAX_INK_PER_SHAPE = 1000; // Maximum ink per shape
+const DIVIDING_LINE_MARGIN = 10; // Dividing line margin
+const DRAWING_MARGIN_X = 20; // Drawing margin X
+const DRAWING_MARGIN_Y = 20; // Drawing margin Y
+const MAX_TOTAL_SHAPES = 10; // Maximum total shapes
+const MAX_SHAPES_PER_PLAYER = 5; // Maximum shapes per player
+
+// FPS and deltaTime for Matter.js engine
 const FPS = 60;
 const deltaTime = 1000 / FPS; // Time per frame in ms
 
@@ -67,6 +74,7 @@ const FortressModule = require("./objects/fortress");
 const TurretModule = require("./objects/turret");
 const ShellModule = require("./objects/shell");
 
+// Assuming collisionCategories.js exports these constants
 const {
   CATEGORY_SHELL,
   CATEGORY_TANK,
@@ -129,9 +137,9 @@ io.on("connection", (socket) => {
       if (room) {
         let disconnectedPlayer = playerNumber;
 
-        if (playerNumber === 1 && room.players.player1 === socket.id) {
+        if (playerNumber === PLAYER_ONE && room.players.player1 === socket.id) {
           room.players.player1 = null;
-        } else if (playerNumber === 2 && room.players.player2 === socket.id) {
+        } else if (playerNumber === PLAYER_TWO && room.players.player2 === socket.id) {
           room.players.player2 = null;
         }
 
@@ -146,9 +154,138 @@ io.on("connection", (socket) => {
       }
     }
   });
+
+  // Handle Drawing Events
+  socket.on("startDrawing", (data) => {
+    const { roomID, playerNumber, position } = data;
+    const room = gameRooms[roomID];
+    if (!room) return;
+
+    // Initialize drawing session for the player
+    if (!room.drawingSessions) {
+      room.drawingSessions = {};
+    }
+
+    room.drawingSessions[playerNumber] = {
+      path: [position],
+      totalInkUsed: 0,
+    };
+  });
+
+  socket.on("drawing", (data) => {
+    const { roomID, playerNumber, position } = data;
+    const room = gameRooms[roomID];
+    if (!room || !room.drawingSessions || !room.drawingSessions[playerNumber]) return;
+
+    const session = room.drawingSessions[playerNumber];
+    const lastPoint = session.path[session.path.length - 1];
+
+    // Calculate the difference in X and Y between the current and last points.
+    const dx = position.x - lastPoint.x;
+    const dy = position.y - lastPoint.y;
+
+    // Calculate the segment length.
+    const segmentLength = Math.hypot(dx, dy);
+
+    // Check if adding this segment would exceed max ink.
+    if (session.totalInkUsed + segmentLength > MAX_INK_PER_SHAPE) {
+      // Calculate the remaining ink available for drawing.
+      const remainingInk = MAX_INK_PER_SHAPE - session.totalInkUsed;
+
+      // Determine the ratio of segment length to remaining ink.
+      const ratio = remainingInk / segmentLength;
+
+      if (ratio > 0) {
+        // Calculate the X and Y coordinates where the ink limit is reached using the remaining ink ratio.
+        const limitedX = lastPoint.x + dx * ratio;
+        const limitedY = lastPoint.y + dy * ratio;
+
+        const limitedPoint = { x: limitedX, y: limitedY };
+
+        // Add the constrained point to the drawing path.
+        session.path.push(limitedPoint);
+        session.totalInkUsed = MAX_INK_PER_SHAPE;
+
+        // Emit the limited drawing point to all clients in the room.
+        io.to(roomID).emit("drawingData", {
+          path: [lastPoint, limitedPoint],
+          playerNumber,
+        });
+
+        // End the drawing session for the player.
+        endDrawingSession(room, playerNumber);
+      }
+    } else {
+      // Increment total ink used by the length of the new segment.
+      session.totalInkUsed += segmentLength;
+
+      // Add the current mouse position to the drawing path.
+      session.path.push(position);
+
+      // Emit the drawing point to all clients in the room.
+      io.to(roomID).emit("drawingData", {
+        path: [lastPoint, position],
+        playerNumber,
+      });
+    }
+  });
+
+  socket.on("endDrawing", (data) => {
+    const { roomID, playerNumber, path } = data;
+    const room = gameRooms[roomID];
+    if (!room || !room.drawingSessions || !room.drawingSessions[playerNumber]) return;
+
+    const session = room.drawingSessions[playerNumber];
+    session.path = path;
+
+    // Close the shape by connecting the last point to the first point if necessary.
+    const firstPoint = session.path[0];
+    const lastPoint = session.path[session.path.length - 1];
+    const distance = Math.hypot(lastPoint.x - firstPoint.x, lastPoint.y - firstPoint.y);
+    const snapThreshold = 10; // Adjust as needed
+
+    if (distance > snapThreshold) {
+      session.path.push({ x: firstPoint.x, y: firstPoint.y });
+    } else {
+      session.path[session.path.length - 1] = { x: firstPoint.x, y: firstPoint.y };
+    }
+
+    // Validate the shape
+    if (validateDrawing(room, session.path, playerNumber)) {
+      // Check shape counters
+      if (room.shapeCounts[playerNumber] >= MAX_SHAPES_PER_PLAYER || room.totalShapesDrawn >= MAX_TOTAL_SHAPES) {
+        // Exceeded shape limits
+        socket.emit("invalidShape", { message: "Shape limit reached." });
+        // Optionally, remove the last path
+        return;
+      }
+
+      // Add the valid path to allPaths
+      if (!room.allPaths) {
+        room.allPaths = [];
+      }
+      room.allPaths.push({ path: session.path, playerNumber });
+
+      // Broadcast the valid shape to all clients
+      io.to(roomID).emit("drawingData", {
+        path: session.path,
+        playerNumber,
+      });
+
+      // Increment shape counts and handle game state transitions
+      handleShapeCount(room, playerNumber);
+    } else {
+      // Invalid shape, notify the player (optional)
+      socket.emit("invalidShape", { message: "Invalid drawing. Please try again." });
+    }
+
+    // Remove the drawing session
+    delete room.drawingSessions[playerNumber];
+  });
 });
 
 //#endregion IO.ON
+
 //#endregion SOCKET EVENTS
 
 //#region FUNCTIONS
@@ -160,10 +297,10 @@ function joinRoom(socket, room) {
   let playerNumber;
   if (!room.players.player1) {
     room.players.player1 = socket.id;
-    playerNumber = 1;
+    playerNumber = PLAYER_ONE;
   } else if (!room.players.player2) {
     room.players.player2 = socket.id;
-    playerNumber = 2;
+    playerNumber = PLAYER_TWO;
   } else {
     // Room is full
     socket.emit("gameFull");
@@ -186,7 +323,7 @@ function joinRoom(socket, room) {
     // Create game bodies
     createGameBodies(room);
 
-    // **Send initial game state to clients**
+    // Send initial game state to clients
     io.to(room.roomID).emit("initialGameState", {
       tanks: room.tanks.map(bodyToData),
       reactors: room.reactors.map(bodyToData),
@@ -216,15 +353,24 @@ function createNewRoom(roomID, socket) {
     width: GAME_WORLD_WIDTH,
     height: GAME_WORLD_HEIGHT,
     bodiesCreated: false,
+    allPaths: [], // Store all valid drawing paths
+    drawingSessions: {}, // Store ongoing drawing sessions
+    shapeCounts: {
+      [PLAYER_ONE]: 0,
+      [PLAYER_TWO]: 0,
+    },
+    noDrawZones: [], // Initialize no-draw zones
+    totalShapesDrawn: 0,
+    currentGameState: GameState.PRE_GAME,
   };
 
   gameRooms[roomID] = room;
 
   socket.join(roomID);
-  socket.playerNumber = 1;
+  socket.playerNumber = PLAYER_ONE;
   socket.roomID = roomID;
-  socket.emit("playerInfo", { playerNumber: 1, roomID });
-  console.log(`Socket ${socket.id} created and joined ${roomID} as Player 1`);
+  socket.emit("playerInfo", { playerNumber: PLAYER_ONE, roomID });
+  console.log(`Socket ${socket.id} created and joined ${roomID} as Player ${PLAYER_ONE}`);
 
   // Wait for another player to join
 }
@@ -287,26 +433,26 @@ function createGameBodies(room) {
   const turretSize = reactorSize * 1.125;
 
   // Define player IDs
-  const PLAYER_ONE = 1;
-  const PLAYER_TWO = 2;
+  const PLAYER_ONE_ID = PLAYER_ONE;
+  const PLAYER_TWO_ID = PLAYER_TWO;
 
   // Create tanks for Player One
-  const tank1 = TankModule.createTank(width * 0.3525, height * 0.9, tankSize, PLAYER_ONE);
-  const tank2 = TankModule.createTank(width * 0.4275, height * 0.9, tankSize, PLAYER_ONE);
+  const tank1 = TankModule.createTank(width * 0.3525, height * 0.9, tankSize, PLAYER_ONE_ID);
+  const tank2 = TankModule.createTank(width * 0.4275, height * 0.9, tankSize, PLAYER_ONE_ID);
 
   // Create tanks for Player Two
-  const tank3 = TankModule.createTank(width * 0.6475, height * 0.1, tankSize, PLAYER_TWO);
-  const tank4 = TankModule.createTank(width * 0.5725, height * 0.1, tankSize, PLAYER_TWO);
+  const tank3 = TankModule.createTank(width * 0.6475, height * 0.1, tankSize, PLAYER_TWO_ID);
+  const tank4 = TankModule.createTank(width * 0.5725, height * 0.1, tankSize, PLAYER_TWO_ID);
 
   const tanks = [tank1, tank2, tank3, tank4];
 
   // Create reactors for Player One
-  const reactor1 = ReactorModule.createReactor(width * 0.3525, height * 0.95, reactorSize, PLAYER_ONE);
-  const reactor2 = ReactorModule.createReactor(width * 0.4275, height * 0.95, reactorSize, PLAYER_ONE);
+  const reactor1 = ReactorModule.createReactor(width * 0.3525, height * 0.95, reactorSize, PLAYER_ONE_ID);
+  const reactor2 = ReactorModule.createReactor(width * 0.4275, height * 0.95, reactorSize, PLAYER_ONE_ID);
 
   // Create reactors for Player Two
-  const reactor3 = ReactorModule.createReactor(width * 0.6475, height * 0.05, reactorSize, PLAYER_TWO);
-  const reactor4 = ReactorModule.createReactor(width * 0.5725, height * 0.05, reactorSize, PLAYER_TWO);
+  const reactor3 = ReactorModule.createReactor(width * 0.6475, height * 0.05, reactorSize, PLAYER_TWO_ID);
+  const reactor4 = ReactorModule.createReactor(width * 0.5725, height * 0.05, reactorSize, PLAYER_TWO_ID);
 
   const reactors = [reactor1, reactor2, reactor3, reactor4];
 
@@ -316,25 +462,25 @@ function createGameBodies(room) {
     height * 0.95,
     fortressWidth,
     fortressHeight,
-    PLAYER_ONE
+    PLAYER_ONE_ID
   );
   const fortress2 = FortressModule.createFortress(
     width * 0.61,
     height * 0.05,
     fortressWidth,
     fortressHeight,
-    PLAYER_TWO
+    PLAYER_TWO_ID
   );
 
   const fortresses = [fortress1, fortress2];
 
   // Create turrets for Player One
-  const turret1 = TurretModule.createTurret(width * 0.31625, height * 0.92125, turretSize, PLAYER_ONE);
-  const turret2 = TurretModule.createTurret(width * 0.46375, height * 0.92125, turretSize, PLAYER_ONE);
+  const turret1 = TurretModule.createTurret(width * 0.31625, height * 0.92125, turretSize, PLAYER_ONE_ID);
+  const turret2 = TurretModule.createTurret(width * 0.46375, height * 0.92125, turretSize, PLAYER_ONE_ID);
 
   // Create turrets for Player Two
-  const turret3 = TurretModule.createTurret(width * 0.68375, height * 0.07875, turretSize, PLAYER_TWO);
-  const turret4 = TurretModule.createTurret(width * 0.53625, height * 0.07875, turretSize, PLAYER_TWO);
+  const turret3 = TurretModule.createTurret(width * 0.68375, height * 0.07875, turretSize, PLAYER_TWO_ID);
+  const turret4 = TurretModule.createTurret(width * 0.53625, height * 0.07875, turretSize, PLAYER_TWO_ID);
 
   const turrets = [turret1, turret2, turret3, turret4];
 
@@ -357,6 +503,9 @@ function createGameBodies(room) {
   // Initialize an array for shells
   room.shells = [];
 
+  // Initialize no-draw zones around fortresses
+  fortressNoDrawZone(room);
+
   room.bodiesCreated = true;
 }
 
@@ -375,6 +524,193 @@ function bodyToData(body) {
 
 //#endregion BODY CREATION FUNCTIONS
 
-//#endregion MATTER BODY FUNCTIONS
+//#region DRAWING VALIDATION FUNCTIONS
+
+// Function to validate the drawing path
+function validateDrawing(room, path, playerNumber) {
+  // Enforce drawing area per player.
+  // Player 1 draws below the dividing line.
+  // Player 2 draws above the dividing line.
+  const dividingLine = room.height / 2;
+
+  for (const point of path) {
+    if (playerNumber === PLAYER_ONE) {
+      if (point.y < dividingLine + DIVIDING_LINE_MARGIN) {
+        return false;
+      }
+    } else if (playerNumber === PLAYER_TWO) {
+      if (point.y > dividingLine - DIVIDING_LINE_MARGIN) {
+        return false;
+      }
+    }
+  }
+
+  // Clamp mouse position within drawable area horizontally.
+  for (const point of path) {
+    if (point.x < DRAWING_MARGIN_X || point.x > room.width - DRAWING_MARGIN_X) {
+      return false;
+    }
+    if (point.y < DRAWING_MARGIN_Y || point.y > room.height - DRAWING_MARGIN_Y) {
+      return false;
+    }
+  }
+
+  // Check for overlaps with existing shapes in allPaths.
+  for (const existingPath of room.allPaths) {
+    if (polygonsOverlap(path, existingPath.path)) {
+      return false;
+    }
+  }
+
+  // Check overlap with no-draw zones.
+  for (const zone of room.noDrawZones) {
+    if (polygonsOverlap(path, zone)) {
+      return false;
+    }
+  }
+
+  // If all checks pass, the drawing is valid.
+  return true;
+}
+
+// Implements polygon overlap detection using the Separating Axis Theorem (SAT).
+function polygonsOverlap(polygonA, polygonB) {
+  // Helper function to project a polygon onto an axis and return the min and max projections
+  function project(polygon, axis) {
+    let min = dotProduct(polygon[0], axis);
+    let max = min;
+    for (let i = 1; i < polygon.length; i++) {
+      const p = dotProduct(polygon[i], axis);
+      if (p < min) {
+        min = p;
+      }
+      if (p > max) {
+        max = p;
+      }
+    }
+    return { min, max };
+  }
+
+  // Helper function to calculate the dot product of two vectors
+  function dotProduct(point, axis) {
+    return point.x * axis.x + point.y * axis.y;
+  }
+
+  // Helper function to get the edges of a polygon
+  function getEdges(polygon) {
+    const edges = [];
+    for (let i = 0; i < polygon.length; i++) {
+      const p1 = polygon[i];
+      const p2 = polygon[(i + 1) % polygon.length];
+      edges.push({ x: p2.x - p1.x, y: p2.y - p1.y });
+    }
+    return edges;
+  }
+
+  // Helper function to get the perpendicular (normal) of an edge
+  function getNormal(edge) {
+    return { x: -edge.y, y: edge.x };
+  }
+
+  // Get all edges from both polygons
+  const edgesA = getEdges(polygonA);
+  const edgesB = getEdges(polygonB);
+  const allEdges = [...edgesA, ...edgesB];
+
+  // For each edge, compute the axis perpendicular to the edge
+  for (const edge of allEdges) {
+    const axis = getNormal(edge);
+
+    // Project both polygons onto the axis
+    const projectionA = project(polygonA, axis);
+    const projectionB = project(polygonB, axis);
+
+    // Check for overlap between projections
+    if (projectionA.max < projectionB.min || projectionB.max < projectionA.min) {
+      // No overlap on this axis, so polygons do not intersect
+      return false;
+    }
+  }
+
+  // Overlap on all axes, so polygons intersect
+  return true;
+}
+
+//#endregion DRAWING VALIDATION FUNCTIONS
+
+//#region DRAWING HANDLING FUNCTIONS
+
+// Function to handle the end of a drawing session
+function endDrawingSession(room, playerNumber) {
+  // You can implement additional logic here if needed
+  // For example, automatically finalize the drawing phase after certain conditions
+}
+
+// Function to handle shape counts and game state transitions
+function handleShapeCount(room, playerNumber) {
+  // Implement shape count tracking per player
+  room.shapeCounts[playerNumber] += 1;
+  room.totalShapesDrawn += 1;
+
+  const maxShapeCountPlayer1 = MAX_SHAPES_PER_PLAYER;
+  const maxShapeCountPlayer2 = MAX_SHAPES_PER_PLAYER;
+
+  if (playerNumber === PLAYER_ONE && room.shapeCounts[playerNumber] >= maxShapeCountPlayer1) {
+    // Player 1 has finished drawing
+    console.log(`Player ${PLAYER_ONE} has finished drawing.`);
+  } else if (playerNumber === PLAYER_TWO && room.shapeCounts[playerNumber] >= maxShapeCountPlayer2) {
+    // Player 2 has finished drawing
+    console.log(`Player ${PLAYER_TWO} has finished drawing.`);
+  }
+
+  // Check if both players have finished drawing
+  if (room.shapeCounts[PLAYER_ONE] >= maxShapeCountPlayer1 && room.shapeCounts[PLAYER_TWO] >= maxShapeCountPlayer2) {
+    finalizeDrawingPhase(room);
+  }
+}
+
+// Function to finalize the drawing phase
+function finalizeDrawingPhase(room) {
+  room.currentGameState = GameState.GAME_RUNNING;
+  io.to(room.roomID).emit("finalizeDrawingPhase");
+  console.log(`Drawing phase finalized for room ${room.roomID}. Game is now running.`);
+  // Implement additional game start logic here
+}
+
+//#endregion DRAWING HANDLING FUNCTIONS
+
+//#region GAME ROOM FUNCTIONS
+
+// Initialize no-draw zones around fortresses
+function fortressNoDrawZone(room) {
+  room.noDrawZones = []; // Reset the noDrawZones array
+
+  room.fortresses.forEach((fortress) => {
+    const zone = createRectangularZone(
+      fortress.position.x,
+      fortress.position.y,
+      fortress.width,
+      fortress.height,
+      DIVIDING_LINE_MARGIN // Padding as per dividing line margin
+    );
+    // Add the no-draw zone to the array
+    room.noDrawZones.push(zone);
+  });
+}
+
+// Creates a rectangular no-draw zone with padding.
+function createRectangularZone(centerX, centerY, width, height, padding) {
+  const halfWidth = width / 2 + padding;
+  const halfHeight = height / 2 + padding;
+
+  return [
+    { x: centerX - halfWidth, y: centerY - halfHeight }, // Top-Left
+    { x: centerX + halfWidth, y: centerY - halfHeight }, // Top-Right
+    { x: centerX + halfWidth, y: centerY + halfHeight }, // Bottom-Right
+    { x: centerX - halfWidth, y: centerY + halfHeight }, // Bottom-Left
+  ];
+}
+
+//#endregion GAME ROOM FUNCTIONS
 
 //#endregion FUNCTIONS

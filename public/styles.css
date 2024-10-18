@@ -27,9 +27,20 @@ body {
 }
 
 #join-button {
-  padding: 10px 20px;
-  font-size: 16px;
+  font-family: "DeskScratch";
+  font-size: 1.5rem;
+  -webkit-text-stroke: 0.005rem rgba(200, 200, 200, 0.9);
+  padding: 0.5rem 0.5rem;
+  background-color: rgba(15, 15, 15, 0);
+  border: none;
+  margin: 0 0.5 rem;
+  border-radius: 0.5rem;
   cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  border-top-left-radius: 255px 15px;
+  border-top-right-radius: 15px 225px;
+  border-bottom-right-radius: 225px 15px;
+  border-bottom-left-radius: 15px 255px;
 }
 
 #status {
