@@ -12,8 +12,8 @@ const {
 
 module.exports = {
   createTank: function (x, y, tankSize, playerId) {
-    const area = tankSize * tankSize; // Assuming a square tank
-    const desiredMass = 100; // Set your desired mass
+    const area = tankSize * tankSize;
+    const desiredMass = 100;
     const density = desiredMass / area;
 
     const tank = Bodies.rectangle(x, y, tankSize, tankSize, {
@@ -38,6 +38,9 @@ module.exports = {
 
     tank.hitPoints = 2;
     tank.fixedConstraint = null;
+
+    // Set explicit size property
+    tank.size = tankSize;
 
     return tank;
   },

@@ -22,6 +22,9 @@ module.exports = {
       },
     });
 
+    // Set explicit size property (diameter)
+    turret.size = turretSize;
+
     return turret;
   },
 };

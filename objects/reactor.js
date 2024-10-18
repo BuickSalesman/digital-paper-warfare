@@ -24,6 +24,9 @@ module.exports = {
 
     reactor.hitPoints = 1;
 
+    // Set explicit size property (diameter)
+    reactor.size = reactorSize;
+
     return reactor;
   },
 };

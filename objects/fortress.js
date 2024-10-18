@@ -22,6 +22,10 @@ module.exports = {
       },
     });
 
+    // Set explicit width and height properties
+    fortress.width = fortressWidth;
+    fortress.height = fortressHeight;
+
     return fortress;
   },
 };

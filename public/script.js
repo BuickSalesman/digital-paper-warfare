@@ -1,3 +1,5 @@
+// script.js or client.js
+
 //#region VARIABLES
 
 //#region GAME AND PLAYER VARIABLES
@@ -5,6 +7,7 @@
 // Player and Room Info
 let playerNumber = null;
 let roomID = null;
+let renderingStarted = false; // Flag to prevent multiple render loops
 
 //#endregion GAME AND PLAYER VARIABLES
 
@@ -25,7 +28,7 @@ const gameAndPowerContainer = document.getElementById("gameAndPowerContainer");
 // Declare gameContainer element.
 const gameContainer = document.getElementById("gameContainer");
 
-// Declare both canvases.
+// Declare the canvas.
 const drawCanvas = document.getElementById("drawCanvas"); // For drawing.
 
 // Declare the power meter.
@@ -85,11 +88,23 @@ const socket = io();
 
 // Wait for the window to fully load
 window.addEventListener("load", () => {
+  // Initialize canvas dimensions
+  initializeCanvas();
+});
+
+// Function to initialize canvas dimensions
+function initializeCanvas() {
   // Declare height, width, and aspect ratio for the canvas.
-  const aspectRatio = 1 / 1.4142; // A4 aspect ratio
-  const baseHeight = Math.min(window.innerHeight * 0.95);
-  let width = baseHeight * aspectRatio;
-  let height = baseHeight;
+  const aspectRatio = 1 / 1.4142; // A4 aspect ratio (taller than wide)
+  const baseWidth = Math.min(window.innerWidth * 0.95); // Use 95% of window width
+  let width = baseWidth;
+  let height = width / aspectRatio; // Calculate height based on aspect ratio
+
+  // Ensure height doesn't exceed window height
+  if (height > window.innerHeight * 0.95) {
+    height = window.innerHeight * 0.95;
+    width = height * aspectRatio;
+  }
 
   // Set up gameContainer dimensions.
   gameContainer.style.width = `${width}px`;
@@ -102,23 +117,19 @@ window.addEventListener("load", () => {
   dividingLine = drawCanvas.height / 2;
 
   // Optionally, log the dimensions to verify
-  console.log("Canvas Width:", drawCanvas.width);
-  console.log("Canvas Height:", drawCanvas.height);
+  console.log("Initial Canvas Width:", drawCanvas.width);
+  console.log("Initial Canvas Height:", drawCanvas.height);
+}
 
-  // If you want the canvas to resize when the window is resized while maintaining aspect ratio
-  window.addEventListener("resize", resizeCanvas);
-
-  // Initialize the game if players have already joined
-  if (playerNumber === 1 || playerNumber === 2) {
-    startGame();
-  }
-});
+// If you want the canvas to resize when the window is resized while maintaining aspect ratio
+window.addEventListener("resize", resizeCanvas);
 
 //#endregion EVENT HANDLERS
 
 //#region SOCKET EVENTS
 
 //#region SOCKET.ON
+
 // Receive Player Info
 socket.on("playerInfo", (data) => {
   playerNumber = data.playerNumber;
@@ -133,14 +144,56 @@ socket.on("startGame", (data) => {
   }
 });
 
+// Handle dimensions confirmation from the server
+socket.on("dimensionsConfirmed", ({ width, height }) => {
+  // Adjust canvas dimensions to match the confirmed dimensions
+  drawCanvas.width = width;
+  drawCanvas.height = height;
+
+  // Update gameContainer dimensions if necessary
+  gameContainer.style.width = `${width}px`;
+  gameContainer.style.height = `${height}px`;
+
+  // Update dividingLine
+  dividingLine = drawCanvas.height / 2;
+
+  // Log the confirmed dimensions
+  console.log("Confirmed Canvas Width:", drawCanvas.width);
+  console.log("Confirmed Canvas Height:", drawCanvas.height);
+
+  // Start rendering if not already started
+  if (!renderingStarted) {
+    renderingStarted = true;
+    requestAnimationFrame(render);
+  }
+});
+
+// Handle adjustCanvas event from server
+socket.on("adjustCanvas", ({ width, height, message }) => {
+  // Adjust canvas dimensions to match the server's dimensions
+  drawCanvas.width = width;
+  drawCanvas.height = height;
+
+  // Update gameContainer dimensions if necessary
+  gameContainer.style.width = `${width}px`;
+  gameContainer.style.height = `${height}px`;
+
+  // Update dividingLine
+  dividingLine = drawCanvas.height / 2;
+
+  // Log the adjustment
+  console.log(message);
+
+  // Optionally, display a message to the user
+  statusText.textContent = message;
+});
+
 // Handle initial game state
 socket.on("initialGameState", (data) => {
   tanks = data.tanks;
   reactors = data.reactors;
   fortresses = data.fortresses;
   turrets = data.turrets;
-  // Start rendering.
-  requestAnimationFrame(render);
 });
 
 // Handle game updates
@@ -194,14 +247,17 @@ window.addEventListener("click", function (event) {
 //#region FUNCTIONS
 
 //#region GAME STATE FUNCTIONS
+
 // Function to Start the Game
 function startGame() {
   // Hide Landing Page and Show Game Canvas
   landingPage.style.display = "none";
   gameAndPowerContainer.style.display = "flex";
 
+  // Send your initial dimensions to the server
   socket.emit("clientDimensions", { width: drawCanvas.width, height: drawCanvas.height });
 }
+
 //#endregion GAME STATE FUNCTIONS
 
 //#region RENDERING FUNCTIONS
@@ -211,20 +267,14 @@ function render() {
   // Clear the canvas
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
-  // Draw the dividing line
+  // Now draw everything using the original positions
   drawDividingLine();
-
-  // Draw fortresses
   fortresses.forEach(drawFortress);
-
-  // Draw reactors
   reactors.forEach(drawReactor);
-
-  // Draw turrets
   turrets.forEach(drawTurret);
-
-  // Draw tanks
   tanks.forEach(drawTank);
+  // Draw shells if applicable
+  // shells.forEach(drawShell);
 
   // Continue the loop
   requestAnimationFrame(render);
@@ -232,22 +282,11 @@ function render() {
 
 // Function to Resize Canvas while maintaining aspect ratio
 function resizeCanvas() {
-  const aspectRatio = 1 / 1.4142; // A4 aspect ratio
-  const baseHeight = Math.min(window.innerHeight * 0.95);
-  let width = baseHeight * aspectRatio;
-  let height = baseHeight;
+  // Re-initialize canvas dimensions
+  initializeCanvas();
 
-  // Update gameContainer dimensions
-  gameContainer.style.width = `${width}px`;
-  gameContainer.style.height = `${height}px`;
-
-  // Update canvas size
-  drawCanvas.width = width;
-  drawCanvas.height = height;
-
-  dividingLine = drawCanvas.height / 2;
-
-  // Optionally, re-draw any static elements
+  // Send updated dimensions to the server
+  socket.emit("clientDimensions", { width: drawCanvas.width, height: drawCanvas.height });
 }
 
 //#endregion RENDERING FUNCTIONS
@@ -267,6 +306,7 @@ function closeModal() {
 //#endregion MODAL HELPER FUNCTIONS
 
 //#region DRAWING FUNCTIONS
+
 // Draws the dividing line on the canvas.
 function drawDividingLine() {
   drawCtx.beginPath();
@@ -278,10 +318,10 @@ function drawDividingLine() {
 }
 
 function drawTank(tank) {
-  const size = tank.size; // Use size from server data
+  const size = tank.size;
   drawCtx.save();
   drawCtx.translate(tank.position.x, tank.position.y);
-  drawCtx.rotate(tank.angle);
+  drawCtx.rotate(tank.angle); // Use the angle directly
   drawCtx.strokeStyle = "black";
   drawCtx.lineWidth = 2;
   drawCtx.strokeRect(-size / 2, -size / 2, size, size);
@@ -305,6 +345,7 @@ function drawFortress(fortress) {
   const height = fortress.height;
   drawCtx.save();
   drawCtx.translate(fortress.position.x, fortress.position.y);
+  drawCtx.rotate(fortress.angle); // Use the angle directly
   drawCtx.strokeStyle = "black";
   drawCtx.lineWidth = 2;
   drawCtx.strokeRect(-width / 2, -height / 2, width, height);
@@ -315,6 +356,7 @@ function drawTurret(turret) {
   const radius = turret.size / 2;
   drawCtx.save();
   drawCtx.translate(turret.position.x, turret.position.y);
+  drawCtx.rotate(turret.angle); // Use the angle directly
   drawCtx.strokeStyle = "black";
   drawCtx.lineWidth = 2;
   drawCtx.beginPath();
