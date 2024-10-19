@@ -1,3 +1,5 @@
+// client.js
+
 //#region VARIABLES
 
 //#region GAME AND PLAYER VARIABLES
@@ -32,7 +34,7 @@ let isDrawing = false;
 let isDrawingBelow = true;
 let drawingPath = [];
 let allPaths = []; // All drawing paths from all players
-const maxInkPerShape = 1000; // For user feedback; server enforces actual limit
+const maxInkPerShape = 10000; // For user feedback; server enforces actual limit
 let totalInkUsed = 0;
 const dividingLineMargin = 10; // For UI purposes; server enforces actual margin
 const drawingMarginX = 20;
@@ -321,39 +323,25 @@ endDrawButton.addEventListener("click", () => {
 // Function to add mouse event listeners for drawing
 function addDrawingEventListeners() {
   drawCanvas.addEventListener("mousedown", (event) => {
-    if (currentGameState !== GameState.PRE_GAME) {
-      return;
-    }
+    if (currentGameState !== GameState.PRE_GAME) return;
     startDrawing(event);
   });
 
   drawCanvas.addEventListener("mousemove", (event) => {
-    if (currentGameState !== GameState.PRE_GAME) {
-      return;
-    }
-    if (!isDrawing) {
-      return;
-    }
+    if (currentGameState !== GameState.PRE_GAME) return;
+    if (!isDrawing) return;
     draw(event);
   });
 
   drawCanvas.addEventListener("mouseup", () => {
-    if (currentGameState !== GameState.PRE_GAME) {
-      return;
-    }
-    if (!isDrawing) {
-      return;
-    }
+    if (currentGameState !== GameState.PRE_GAME) return;
+    if (!isDrawing) return;
     endDrawing();
   });
 
   drawCanvas.addEventListener("mouseleave", () => {
-    if (currentGameState !== GameState.PRE_GAME) {
-      return;
-    }
-    if (!isDrawing) {
-      return;
-    }
+    if (currentGameState !== GameState.PRE_GAME) return;
+    if (!isDrawing) return;
     endDrawing();
   });
 }
@@ -448,9 +436,7 @@ function render() {
 
 // Function to Draw a Drawing Path from Server
 function drawServerDrawing(path, drawingPlayerNumber) {
-  if (path.length < 2) {
-    return;
-  }
+  if (path.length < 2) return;
 
   drawCtx.beginPath();
   drawCtx.moveTo(path[0].x * scaleX, path[0].y * scaleY);
@@ -682,16 +668,16 @@ function fortressNoDrawZone() {
   });
 }
 
-// Creates a rectangular no-drawn-zone with padding.
+// Creates a rectangular no-draw zone with padding.
 function createRectangularZone(centerX, centerY, width, height, padding) {
-  const halfWidth = (width / 2 + padding) * scaleX;
-  const halfHeight = (height / 2 + padding) * scaleY;
+  const halfWidth = width / 2 + padding;
+  const halfHeight = height / 2 + padding;
 
   return [
-    { x: centerX * scaleX - halfWidth, y: centerY * scaleY - halfHeight }, // Top-Left
-    { x: centerX * scaleX + halfWidth, y: centerY * scaleY - halfHeight }, // Top-Right
-    { x: centerX * scaleX + halfWidth, y: centerY * scaleY + halfHeight }, // Bottom-Right
-    { x: centerX * scaleX - halfWidth, y: centerY * scaleY + halfHeight }, // Bottom-Left
+    { x: centerX - halfWidth, y: centerY - halfHeight }, // Top-Left
+    { x: centerX + halfWidth, y: centerY - halfHeight }, // Top-Right
+    { x: centerX + halfWidth, y: centerY + halfHeight }, // Bottom-Right
+    { x: centerX - halfWidth, y: centerY + halfHeight }, // Bottom-Left
   ];
 }
 
@@ -703,9 +689,9 @@ function drawNoDrawZones() {
 
   noDrawZones.forEach((zone) => {
     drawCtx.beginPath();
-    drawCtx.moveTo(zone[0].x, zone[0].y);
+    drawCtx.moveTo(zone[0].x * scaleX, zone[0].y * scaleY);
     for (let i = 1; i < zone.length; i++) {
-      drawCtx.lineTo(zone[i].x, zone[i].y);
+      drawCtx.lineTo(zone[i].x * scaleX, zone[i].y * scaleY);
     }
     drawCtx.closePath();
     drawCtx.fill();
@@ -714,11 +700,11 @@ function drawNoDrawZones() {
     // Draw the X inside the rectangle.
     drawCtx.beginPath();
     // Diagonal from Top-Left to Bottom-Right.
-    drawCtx.moveTo(zone[0].x, zone[0].y);
-    drawCtx.lineTo(zone[2].x, zone[2].y);
+    drawCtx.moveTo(zone[0].x * scaleX, zone[0].y * scaleY);
+    drawCtx.lineTo(zone[2].x * scaleX, zone[2].y * scaleY);
     // Diagonal from Top-Right to Bottom-Left.
-    drawCtx.moveTo(zone[1].x, zone[1].y);
-    drawCtx.lineTo(zone[3].x, zone[3].y);
+    drawCtx.moveTo(zone[1].x * scaleX, zone[1].y * scaleY);
+    drawCtx.lineTo(zone[3].x * scaleX, zone[3].y * scaleY);
     drawCtx.strokeStyle = "rgba(255, 0, 0, 0.7)";
     drawCtx.lineWidth = 2;
     drawCtx.stroke();
@@ -730,29 +716,19 @@ function drawNoDrawZones() {
 //#region DRAWING PROCESS FUNCTIONS
 
 // Handles completion of a drawing action.
+// Handles completion of a drawing action.
 function endDrawing() {
   // End drawing.
   isDrawing = false;
 
   // Proceed only if the drawing path has more than one point.
   if (drawingPath.length > 1) {
-    const firstPoint = drawingPath[0]; // Starting point.
-    const lastPoint = drawingPath[drawingPath.length - 1]; // Ending point.
+    // Define the snap threshold
+    // Dynamically calculate snapThreshold based on canvas size
+    const snapThreshold = Math.min(gameWorldWidth, gameWorldHeight) * 0.005; // 0.5% of the smaller dimension
 
-    // Calculate the distance between first and last points.
-    const distance = Math.hypot(lastPoint.x - firstPoint.x, lastPoint.y - firstPoint.y);
-
-    // Threshold to determine if the shape should be closed.
-    // Adjusted based on game units. Assuming scaleX and scaleY convert to game units.
-    const snapThreshold = 10; // 10 game units
-
-    if (distance <= snapThreshold) {
-      // Snap the last point to the first point to close the shape.
-      drawingPath[drawingPath.length - 1] = { x: firstPoint.x, y: firstPoint.y };
-    } else {
-      // Close the shape by connecting the last point to the first point.
-      drawingPath.push({ x: firstPoint.x, y: firstPoint.y });
-    }
+    // Use the snapShape helper function to close the shape
+    drawingPath = snapShape(drawingPath, snapThreshold);
 
     // Initialize overlap flag.
     let overlaps = false;
@@ -851,24 +827,18 @@ function startDrawing(event) {
   if (playerNumber === PLAYER_ONE) {
     // Player one draws below the dividing line.
     isDrawingBelow = true;
-    mousePosition.y = Math.max(mousePosition.y, dividingLine / scaleY + dividingLineMargin / scaleY);
+    mousePosition.y = Math.max(mousePosition.y, gameWorldHeight / 2 + dividingLineMargin);
   } else if (playerNumber === PLAYER_TWO) {
     // Player two draws above the dividing line.
     isDrawingBelow = false;
-    mousePosition.y = Math.min(mousePosition.y, dividingLine / scaleY - dividingLineMargin / scaleY);
+    mousePosition.y = Math.min(mousePosition.y, gameWorldHeight / 2 - dividingLineMargin);
   }
 
   // Clamp mouse position within drawable area horizontally.
-  mousePosition.x = Math.max(
-    drawingMarginX / scaleX,
-    Math.min(mousePosition.x, (drawCanvas.width - drawingMarginX) / scaleX)
-  );
+  mousePosition.x = Math.max(drawingMarginX, Math.min(mousePosition.x, gameWorldWidth - drawingMarginX));
 
   // Clamp mouse position within drawable area vertically.
-  mousePosition.y = Math.max(
-    drawingMarginY / scaleY,
-    Math.min(mousePosition.y, (drawCanvas.height - drawingMarginY) / scaleY)
-  );
+  mousePosition.y = Math.max(drawingMarginY, Math.min(mousePosition.y, gameWorldHeight - drawingMarginY));
 
   // Reset the total ink for the new drawing session.
   totalInkUsed = 0;
@@ -912,22 +882,16 @@ function draw(event) {
 
   // Enforce drawing area per player.
   if (playerNumber === PLAYER_ONE) {
-    mousePosition.y = Math.max(mousePosition.y, dividingLine / scaleY + dividingLineMargin / scaleY);
+    mousePosition.y = Math.max(mousePosition.y, gameWorldHeight / 2 + dividingLineMargin);
   } else if (playerNumber === PLAYER_TWO) {
-    mousePosition.y = Math.min(mousePosition.y, dividingLine / scaleY - dividingLineMargin / scaleY);
+    mousePosition.y = Math.min(mousePosition.y, gameWorldHeight / 2 - dividingLineMargin);
   }
 
   // Clamp mouse position within drawable area horizontally.
-  mousePosition.x = Math.max(
-    drawingMarginX / scaleX,
-    Math.min(mousePosition.x, (drawCanvas.width - drawingMarginX) / scaleX)
-  );
+  mousePosition.x = Math.max(drawingMarginX, Math.min(mousePosition.x, gameWorldWidth - drawingMarginX));
 
   // Clamp mouse position within drawable area vertically.
-  mousePosition.y = Math.max(
-    drawingMarginY / scaleY,
-    Math.min(mousePosition.y, (drawCanvas.height - drawingMarginY) / scaleY)
-  );
+  mousePosition.y = Math.max(drawingMarginY, Math.min(mousePosition.y, gameWorldHeight - drawingMarginY));
 
   // Grab the last point in the current drawing path.
   const lastPoint = drawingPath[drawingPath.length - 1];
@@ -1050,6 +1014,33 @@ function finalizeDrawingPhase() {
   socket.emit("finalizeDrawingPhase", { roomID });
   console.log("Drawing phase finalized. Game is now running.");
   // Additional logic to transition to game running can be added here
+}
+
+function snapShape(drawingPath, snapThreshold) {
+  if (drawingPath.length < 2) {
+    // Not enough points to form a shape
+    return drawingPath;
+  }
+
+  const firstPoint = drawingPath[0];
+  const lastPoint = drawingPath[drawingPath.length - 1];
+
+  // Calculate the distance between the first and last points
+  const distance = Math.hypot(lastPoint.x - firstPoint.x, lastPoint.y - firstPoint.y);
+
+  if (distance <= snapThreshold) {
+    // Snap the last point to the first point
+    drawingPath[drawingPath.length - 1] = { x: firstPoint.x, y: firstPoint.y };
+  } else {
+    // Close the shape by connecting the last point to the first point
+    // Ensure not to duplicate the first point
+    const secondLastPoint = drawingPath[drawingPath.length - 2];
+    if (!(secondLastPoint.x === firstPoint.x && secondLastPoint.y === firstPoint.y)) {
+      drawingPath.push({ x: firstPoint.x, y: firstPoint.y });
+    }
+  }
+
+  return drawingPath;
 }
 
 //#endregion UTILITY FUNCTIONS

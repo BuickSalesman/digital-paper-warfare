@@ -31,7 +31,7 @@ const PLAYER_TWO = 2;
 let gameRooms = {};
 
 // Game constants
-const MAX_INK_PER_SHAPE = 1000; // Maximum ink per shape
+const MAX_INK_PER_SHAPE = 10000; // Maximum ink per shape
 const DIVIDING_LINE_MARGIN = 10; // Dividing line margin
 const DRAWING_MARGIN_X = 20; // Drawing margin X
 const DRAWING_MARGIN_Y = 20; // Drawing margin Y
