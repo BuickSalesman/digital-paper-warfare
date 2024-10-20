@@ -20,7 +20,7 @@ const GameState = {
   GAME_RUNNING: "GAME_RUNNING",
   POST_GAME: "POST_GAME",
 };
-let currentGameState = GameState.PRE_GAME;
+let currentGameState = GameState.LOBBY; // Initialize to LOBBY
 
 // Shape Counters (for UI feedback)
 let shapeCountPlayer1 = 0;
@@ -102,16 +102,22 @@ let currentDrawingStart = null; // { x, y }
 
 // Event Listeners for Window Load and Resize
 window.addEventListener("load", () => {
-  console.log("Window loaded. Initializing canvas.");
-  initializeCanvas();
+  console.log("Window loaded. Awaiting playerInfo.");
+  // Wait for 'playerInfo' before initializing canvas
 });
 
 window.addEventListener("resize", resizeCanvas);
 
 // Function to initialize canvas dimensions
 function initializeCanvas() {
+  // Check if gameWorldWidth and gameWorldHeight are set
+  if (!gameWorldWidth || !gameWorldHeight) {
+    console.error("Game world dimensions are not set.");
+    return;
+  }
+
   // Declare height, width, and aspect ratio for the canvas.
-  const aspectRatio = 1 / 1.4142; // A4 aspect ratio (taller than wide)
+  const aspectRatio = gameWorldWidth / gameWorldHeight; // Maintain aspect ratio based on game world
   const baseWidth = Math.min(window.innerWidth * 0.95, 10000); // Use 95% of window width or max 10000px
   let canvasWidth = baseWidth;
   let canvasHeight = canvasWidth / aspectRatio; // Calculate height based on aspect ratio
@@ -140,11 +146,11 @@ function initializeCanvas() {
   console.log("Initial Canvas Width:", drawCanvas.width);
   console.log("Initial Canvas Height:", drawCanvas.height);
 
-  // Update scaling factors if game world dimensions are known
-  if (gameWorldWidth && gameWorldHeight) {
-    updateScalingFactors();
-    redrawAllDrawings();
-  }
+  // Update scaling factors
+  updateScalingFactors();
+
+  // Redraw existing drawings
+  redrawAllDrawings();
 }
 
 // Receive Player Info
@@ -152,44 +158,36 @@ socket.on("playerInfo", (data) => {
   console.log("Received 'playerInfo' from server:", data);
   playerNumber = data.playerNumber;
   roomID = data.roomID;
+  gameWorldWidth = data.gameWorldWidth;
+  gameWorldHeight = data.gameWorldHeight;
   statusText.textContent = `You are Player ${playerNumber}`;
 
   console.log(`Player ${playerNumber} joined room ${roomID}`);
+  // Now that we have game world dimensions, initialize the canvas
+  initializeCanvas();
 });
 
-// Handle Game Start
-socket.on("startGame", (data) => {
-  console.log("Received 'startGame' from server:", data);
-  if (playerNumber === PLAYER_ONE || playerNumber === PLAYER_TWO) {
-    // Receive game world dimensions from server
-    gameWorldWidth = data.gameWorld.width;
-    gameWorldHeight = data.gameWorld.height;
-    console.log(`Game World Dimensions - Width: ${gameWorldWidth}, Height: ${gameWorldHeight}`);
+// Handle Pre-Game Preparation
+socket.on("preGame", (data) => {
+  console.log("Received 'preGame' from server:", data);
 
-    // Update scaling factors
-    updateScalingFactors();
+  // Hide landing page and show game container
+  landingPage.style.display = "none";
+  gameAndPowerContainer.style.display = "flex";
 
-    startGame();
-  }
+  statusText.textContent = "Preparing to start the game...";
+
+  // Emit 'ready' to server indicating the client is ready
+  socket.emit("ready");
+  console.log("Emitted 'ready' to server.");
 });
 
-// Handle initial game state
-socket.on("initialGameState", (data) => {
-  console.log("Received 'initialGameState' from server:", data); // Debugging statement
-
-  // Start rendering if not already started
-  if (!renderingStarted) {
-    renderingStarted = true;
-    console.log("Starting rendering loop.");
-    // Removed render loop to prevent canvas from being continuously cleared
-    // Instead, manage drawings directly
-  }
-});
-
-// Handle game updates
-socket.on("gameUpdate", (data) => {
-  console.log("Received 'gameUpdate' from server:", data);
-  // Implement game update logic here
+// Handle Start of Pre-Game
+socket.on("startPreGame", (data) => {
+  console.log("Received 'startPreGame' from server:", data);
+  currentGameState = GameState.PRE_GAME;
+  statusText.textContent = "Game is starting!";
+  // Update UI to reflect PRE_GAME state, e.g., hide waiting message
 });
 
 // Handle Player Disconnection
@@ -205,13 +203,15 @@ socket.on("playerDisconnected", (number) => {
   joinButton.disabled = false;
 
   // Reset game state variables
-  currentGameState = GameState.PRE_GAME;
+  currentGameState = GameState.LOBBY;
   drawingHistory = [];
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
   // Clear roomID and playerNumber to allow rejoining
   roomID = null;
   playerNumber = null;
+  gameWorldWidth = null;
+  gameWorldHeight = null;
 
   console.log("UI has been reset to the landing page due to player disconnection.");
 });
@@ -228,8 +228,8 @@ socket.on("drawing", (data) => {
   console.log("Received 'drawing' from server:", data);
   const { playerNumber: senderPlayer, from, to, color, lineWidth } = data;
 
-  // Only draw if the sender is the other player
-  if (senderPlayer !== playerNumber) {
+  // Only draw if the sender is the other player and game is in PRE_GAME
+  if (senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME) {
     console.log(`Drawing from Player ${senderPlayer}: from (${from.x}, ${from.y}) to (${to.x}, ${to.y})`);
 
     // Determine if the drawing should be mirrored
@@ -253,7 +253,7 @@ socket.on("drawing", (data) => {
     // Draw the line segment
     drawLine(canvasFrom, canvasTo, color, lineWidth);
   } else {
-    console.log("Received own 'drawing' data. Ignoring.");
+    console.log("Received own 'drawing' data or game not in PRE_GAME. Ignoring.");
   }
 });
 
@@ -262,8 +262,8 @@ socket.on("snapClose", (data) => {
   console.log("Received 'snapClose' from server:", data);
   const { playerNumber: senderPlayer, from, to, color, lineWidth } = data;
 
-  // Only draw if the sender is the other player
-  if (senderPlayer !== playerNumber) {
+  // Only draw if the sender is the other player and game is in PRE_GAME
+  if (senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME) {
     console.log(`Snap close from Player ${senderPlayer}: from (${from.x}, ${from.y}) to (${to.x}, ${to.y})`);
 
     // Determine if the snapping line should be mirrored
@@ -290,7 +290,7 @@ socket.on("snapClose", (data) => {
       `Drew snapping line from (${canvasFrom.x}, ${canvasFrom.y}) to (${canvasTo.x}, ${canvasTo.y}) with color ${color} and lineWidth ${lineWidth}`
     );
   } else {
-    console.log("Received own 'snapClose' data. Ignoring.");
+    console.log("Received own 'snapClose' data or game not in PRE_GAME. Ignoring.");
   }
 });
 
@@ -300,16 +300,8 @@ joinButton.addEventListener("click", () => {
   socket.emit("joinGame");
   statusText.textContent = "Waiting for another player...";
   joinButton.disabled = true;
+  currentGameState = GameState.LOBBY; // Remain in LOBBY until PRE_GAME
 });
-
-// Function to Start the Game
-function startGame() {
-  console.log("Starting game. Updating UI.");
-  // Hide Landing Page and Show Game Canvas
-  landingPage.style.display = "none";
-  gameAndPowerContainer.style.display = "flex";
-  currentGameState = GameState.GAME_RUNNING;
-}
 
 // Function to Redraw All Drawings from History
 function redrawAllDrawings() {
@@ -340,12 +332,6 @@ function resizeCanvas() {
   console.log("Window resized. Resizing canvas.");
   // Re-initialize canvas dimensions
   initializeCanvas();
-
-  // Update scaling factors
-  if (gameWorldWidth && gameWorldHeight) {
-    updateScalingFactors();
-    redrawAllDrawings();
-  }
 }
 
 // Function to Update Scaling Factors
@@ -400,8 +386,8 @@ function getTouchPos(touch) {
 
 // Function to handle mouse down event
 function handleMouseDown(evt) {
-  if (currentGameState !== GameState.GAME_RUNNING) {
-    console.log("Game not running. Ignoring mouse down.");
+  if (currentGameState !== GameState.PRE_GAME && currentGameState !== GameState.GAME_RUNNING) {
+    console.log("Game not in PRE_GAME or GAME_RUNNING state. Ignoring mouse down.");
     return;
   }
 
@@ -469,8 +455,8 @@ function handleMouseUpOut() {
 
 // Function to handle touch start event
 function handleTouchStart(evt) {
-  if (currentGameState !== GameState.GAME_RUNNING) {
-    console.log("Game not running. Ignoring touch start.");
+  if (currentGameState !== GameState.PRE_GAME && currentGameState !== GameState.GAME_RUNNING) {
+    console.log("Game not in PRE_GAME or GAME_RUNNING state. Ignoring touch start.");
     return;
   }
 
@@ -571,7 +557,7 @@ function snapCloseDrawing() {
   const endX = lastX;
   const endY = lastY;
 
-  console.log(`Snapping drawing closed from (${endX}, ${endY}) to (${startX}, ${startY}).`), currentGameState;
+  console.log(`Snapping drawing closed from (${endX}, ${endY}) to (${startX}, ${startY}).`, currentGameState);
 
   // Draw the closing line locally
   drawLine({ x: endX, y: endY }, { x: startX, y: startY }, "#000000", 2); // Using default color for snapping

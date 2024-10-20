@@ -33,6 +33,9 @@ const PLAYER_TWO = 2;
 // Game Rooms Object
 let gameRooms = {};
 
+// Variable to keep track of the next room number
+let nextRoomNumber = 1;
+
 // FPS and deltaTime for Matter.js engine
 const FPS = 60;
 const deltaTime = 1000 / FPS; // Time per frame in ms
@@ -68,14 +71,14 @@ io.on("connection", (socket) => {
     console.log(`Received 'joinGame' from socket ${socket.id}`);
     let roomFound = false;
 
-    // Search for a room with less than 2 players and in PRE_GAME state
+    // Search for a room with less than 2 players and in LOBBY state
     for (const roomID in gameRooms) {
       const room = gameRooms[roomID];
       console.log(
         `Checking room ${roomID}: Player1=${room.players.player1}, Player2=${room.players.player2}, State=${room.currentGameState}`
       );
 
-      if (room.currentGameState === GameState.PRE_GAME && (!room.players.player1 || !room.players.player2)) {
+      if (room.currentGameState === GameState.LOBBY && (!room.players.player1 || !room.players.player2)) {
         // Assign player to this room
         roomFound = true;
         console.log(`Joining existing room ${roomID}`);
@@ -86,9 +89,37 @@ io.on("connection", (socket) => {
 
     if (!roomFound) {
       // Create a new room
-      const newRoomID = `room${Object.keys(gameRooms).length + 1}`;
+      const newRoomID = `room${nextRoomNumber}`;
+      nextRoomNumber += 1;
       console.log(`Creating new room ${newRoomID}`);
       createNewRoom(newRoomID, socket);
+    }
+  });
+
+  // Handle 'ready' event
+  socket.on("ready", () => {
+    console.log(`Received 'ready' from socket ${socket.id} in room ${socket.roomID}`);
+    const roomID = socket.roomID;
+    if (roomID) {
+      const room = gameRooms[roomID];
+      if (room) {
+        room.readyPlayers += 1;
+        console.log(`Room ${roomID} has ${room.readyPlayers} ready player(s).`);
+
+        // Check if all players are ready
+        const totalPlayers = room.players.player1 && room.players.player2 ? 2 : 1;
+        if (room.readyPlayers === totalPlayers) {
+          // Transition to PRE_GAME
+          room.currentGameState = GameState.PRE_GAME;
+          console.log(`Room ${roomID} transitioning to PRE_GAME.`);
+
+          // Emit 'startPreGame' to all clients in the room
+          io.to(roomID).emit("startPreGame", {
+            message: "Both players are ready. Starting the game...",
+          });
+          console.log(`Emitted 'startPreGame' to room ${roomID}`);
+        }
+      }
     }
   });
 
@@ -115,17 +146,9 @@ io.on("connection", (socket) => {
         io.to(roomID).emit("playerDisconnected", disconnectedPlayer);
         console.log(`Notified room ${roomID} about disconnection of Player ${disconnectedPlayer}`);
 
-        // Reset room state to PRE_GAME if one player is still connected
-        if (room.currentGameState === GameState.GAME_RUNNING) {
-          room.currentGameState = GameState.PRE_GAME;
-          console.log(`Room ${roomID} state reset to PRE_GAME due to disconnection.`);
-        }
-
-        // If both players are disconnected, remove the room
-        if (!room.players.player1 && !room.players.player2) {
-          delete gameRooms[roomID];
-          console.log(`Room ${roomID} has been removed.`);
-        }
+        // Delete the room as per new requirement
+        delete gameRooms[roomID];
+        console.log(`Room ${roomID} has been deleted due to player disconnection.`);
       }
     }
   });
@@ -136,7 +159,7 @@ io.on("connection", (socket) => {
     const roomID = socket.roomID;
     if (roomID) {
       const room = gameRooms[roomID];
-      if (room && room.currentGameState === GameState.GAME_RUNNING) {
+      if (room && room.currentGameState === GameState.PRE_GAME) {
         // Broadcast the drawing data to other players in the room
         socket.to(roomID).emit("drawing", {
           playerNumber: socket.playerNumber,
@@ -147,7 +170,7 @@ io.on("connection", (socket) => {
         });
         console.log(`Broadcasted 'drawing' to room ${roomID}`);
       } else {
-        console.log(`Room ${roomID} is not in GAME_RUNNING state. Ignoring 'drawing' event.`);
+        console.log(`Room ${roomID} is not in PRE_GAME state. Ignoring 'drawing' event.`);
       }
     } else {
       console.log(`Socket ${socket.id} is not in a room. Cannot broadcast 'drawing'.`);
@@ -160,7 +183,7 @@ io.on("connection", (socket) => {
     const roomID = socket.roomID;
     if (roomID) {
       const room = gameRooms[roomID];
-      if (room && room.currentGameState === GameState.GAME_RUNNING) {
+      if (room && room.currentGameState === GameState.PRE_GAME) {
         // Broadcast the snapClose data to other players in the room
         socket.to(roomID).emit("snapClose", {
           playerNumber: socket.playerNumber,
@@ -171,7 +194,7 @@ io.on("connection", (socket) => {
         });
         console.log(`Broadcasted 'snapClose' to room ${roomID}`);
       } else {
-        console.log(`Room ${roomID} is not in GAME_RUNNING state. Ignoring 'snapClose' event.`);
+        console.log(`Room ${roomID} is not in PRE_GAME state. Ignoring 'snapClose' event.`);
       }
     } else {
       console.log(`Socket ${socket.id} is not in a room. Cannot broadcast 'snapClose'.`);
@@ -204,26 +227,22 @@ function joinRoom(socket, room) {
   socket.join(room.roomID);
   socket.playerNumber = playerNumber;
   socket.roomID = room.roomID;
-  socket.emit("playerInfo", { playerNumber, roomID: room.roomID });
+  socket.emit("playerInfo", {
+    playerNumber,
+    roomID: room.roomID,
+    gameWorldWidth: GAME_WORLD_WIDTH,
+    gameWorldHeight: GAME_WORLD_HEIGHT,
+  });
   console.log(`Socket ${socket.id} joined ${room.roomID} as Player ${playerNumber}`);
 
-  // If two players are connected, start the game
+  // Check if room now has two players
   if (room.players.player1 && room.players.player2) {
-    console.log(`Room ${room.roomID} is now full. Starting game.`);
-    room.currentGameState = GameState.GAME_RUNNING;
-
-    // Send the fixed game world dimensions to clients
-    io.to(room.roomID).emit("startGame", {
-      players: room.players,
-      gameWorld: { width: GAME_WORLD_WIDTH, height: GAME_WORLD_HEIGHT },
+    console.log(`Room ${room.roomID} is now full. Emitting 'preGame' to room.`);
+    // Emit 'preGame' to both clients to prepare the game
+    io.to(room.roomID).emit("preGame", {
+      message: "Two players have joined. Prepare to start the game.",
     });
-    // Optionally, send initial game state
-    io.to(room.roomID).emit("initialGameState", {
-      // Add any initial game state data here
-      message: "Game has started.",
-    });
-    console.log(`Sent 'startGame' and 'initialGameState' to room ${room.roomID}`);
-    // Create game bodies if necessary
+    console.log(`Emitted 'preGame' to room ${room.roomID}`);
   }
 }
 
@@ -255,7 +274,8 @@ function createNewRoom(roomID, socket) {
     },
     noDrawZones: [], // Initialize no-draw zones
     totalShapesDrawn: 0,
-    currentGameState: GameState.PRE_GAME,
+    currentGameState: GameState.LOBBY, // Start with LOBBY
+    readyPlayers: 1, // The creator is ready by default
   };
 
   gameRooms[roomID] = room;
@@ -264,7 +284,12 @@ function createNewRoom(roomID, socket) {
   socket.join(roomID);
   socket.playerNumber = PLAYER_ONE;
   socket.roomID = roomID;
-  socket.emit("playerInfo", { playerNumber: PLAYER_ONE, roomID });
+  socket.emit("playerInfo", {
+    playerNumber: PLAYER_ONE,
+    roomID,
+    gameWorldWidth: GAME_WORLD_WIDTH,
+    gameWorldHeight: GAME_WORLD_HEIGHT,
+  });
   console.log(`Socket ${socket.id} created and joined ${roomID} as Player ${PLAYER_ONE}`);
 
   // Wait for another player to join
