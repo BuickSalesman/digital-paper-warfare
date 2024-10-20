@@ -401,7 +401,9 @@ function handleMouseDown(evt) {
 
 // Function to handle mouse move event
 function handleMouseMove(evt) {
-  if (!isDrawing) return;
+  if (!isDrawing) {
+    return;
+  }
   const pos = getMousePos(evt);
   const currentX = pos.x;
   const currentY = pos.y;
@@ -447,7 +449,9 @@ function handleMouseMove(evt) {
 
 // Function to handle mouse up and mouse out events
 function handleMouseUpOut() {
-  if (!isDrawing) return;
+  if (!isDrawing) {
+    return;
+  }
   isDrawing = false;
   console.log("Mouse up or out. Stopped drawing.");
   snapCloseDrawing(); // Automatically snap close the drawing
@@ -473,7 +477,9 @@ function handleTouchStart(evt) {
 
 // Function to handle touch move event
 function handleTouchMove(evt) {
-  if (!isDrawing) return;
+  if (!isDrawing) {
+    return;
+  }
   evt.preventDefault();
   if (evt.touches.length > 0) {
     const pos = getTouchPos(evt.touches[0]);
@@ -522,7 +528,9 @@ function handleTouchMove(evt) {
 
 // Function to handle touch end and touch cancel events
 function handleTouchEndCancel() {
-  if (!isDrawing) return;
+  if (!isDrawing) {
+    return;
+  }
   isDrawing = false;
   console.log("Touch end or cancel. Stopped drawing.");
   snapCloseDrawing(); // Automatically snap close the drawing
