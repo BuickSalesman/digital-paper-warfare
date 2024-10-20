@@ -20,6 +20,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // Game state setup.
 const GameState = Object.freeze({
+  LOBBY: "LOBBY",
   PRE_GAME: "PRE_GAME",
   GAME_RUNNING: "GAME_RUNNING",
   POST_GAME: "POST_GAME",
@@ -67,12 +68,14 @@ io.on("connection", (socket) => {
     console.log(`Received 'joinGame' from socket ${socket.id}`);
     let roomFound = false;
 
-    // Search for a room with less than 2 players
+    // Search for a room with less than 2 players and in PRE_GAME state
     for (const roomID in gameRooms) {
       const room = gameRooms[roomID];
-      console.log(`Checking room ${roomID}: Player1=${room.players.player1}, Player2=${room.players.player2}`);
+      console.log(
+        `Checking room ${roomID}: Player1=${room.players.player1}, Player2=${room.players.player2}, State=${room.currentGameState}`
+      );
 
-      if (!room.players.player1 || !room.players.player2) {
+      if (room.currentGameState === GameState.PRE_GAME && (!room.players.player1 || !room.players.player2)) {
         // Assign player to this room
         roomFound = true;
         console.log(`Joining existing room ${roomID}`);
@@ -108,8 +111,15 @@ io.on("connection", (socket) => {
           console.log(`Player 2 (${socket.id}) disconnected from ${roomID}`);
         }
 
+        // Emit 'playerDisconnected' to all clients in the room
         io.to(roomID).emit("playerDisconnected", disconnectedPlayer);
         console.log(`Notified room ${roomID} about disconnection of Player ${disconnectedPlayer}`);
+
+        // Reset room state to PRE_GAME if one player is still connected
+        if (room.currentGameState === GameState.GAME_RUNNING) {
+          room.currentGameState = GameState.PRE_GAME;
+          console.log(`Room ${roomID} state reset to PRE_GAME due to disconnection.`);
+        }
 
         // If both players are disconnected, remove the room
         if (!room.players.player1 && !room.players.player2) {
@@ -125,15 +135,20 @@ io.on("connection", (socket) => {
     console.log(`Received 'drawing' from socket ${socket.id} in room ${socket.roomID}:`, data);
     const roomID = socket.roomID;
     if (roomID) {
-      // Broadcast the drawing data to other players in the room
-      socket.to(roomID).emit("drawing", {
-        playerNumber: socket.playerNumber,
-        from: data.from,
-        to: data.to,
-        color: data.color || "#000000", // Default color
-        lineWidth: data.lineWidth || 2, // Default line width
-      });
-      console.log(`Broadcasted 'drawing' to room ${roomID}`);
+      const room = gameRooms[roomID];
+      if (room && room.currentGameState === GameState.GAME_RUNNING) {
+        // Broadcast the drawing data to other players in the room
+        socket.to(roomID).emit("drawing", {
+          playerNumber: socket.playerNumber,
+          from: data.from,
+          to: data.to,
+          color: data.color || "#000000", // Default color
+          lineWidth: data.lineWidth || 2, // Default line width
+        });
+        console.log(`Broadcasted 'drawing' to room ${roomID}`);
+      } else {
+        console.log(`Room ${roomID} is not in GAME_RUNNING state. Ignoring 'drawing' event.`);
+      }
     } else {
       console.log(`Socket ${socket.id} is not in a room. Cannot broadcast 'drawing'.`);
     }
@@ -144,15 +159,20 @@ io.on("connection", (socket) => {
     console.log(`Received 'snapClose' from socket ${socket.id} in room ${socket.roomID}:`, data);
     const roomID = socket.roomID;
     if (roomID) {
-      // Broadcast the snapClose data to other players in the room
-      socket.to(roomID).emit("snapClose", {
-        playerNumber: socket.playerNumber,
-        from: data.from,
-        to: data.to,
-        color: data.color || "#000000", // Default color
-        lineWidth: data.lineWidth || 2, // Default line width
-      });
-      console.log(`Broadcasted 'snapClose' to room ${roomID}`);
+      const room = gameRooms[roomID];
+      if (room && room.currentGameState === GameState.GAME_RUNNING) {
+        // Broadcast the snapClose data to other players in the room
+        socket.to(roomID).emit("snapClose", {
+          playerNumber: socket.playerNumber,
+          from: data.from,
+          to: data.to,
+          color: data.color || "#000000", // Default color
+          lineWidth: data.lineWidth || 2, // Default line width
+        });
+        console.log(`Broadcasted 'snapClose' to room ${roomID}`);
+      } else {
+        console.log(`Room ${roomID} is not in GAME_RUNNING state. Ignoring 'snapClose' event.`);
+      }
     } else {
       console.log(`Socket ${socket.id} is not in a room. Cannot broadcast 'snapClose'.`);
     }
@@ -190,6 +210,8 @@ function joinRoom(socket, room) {
   // If two players are connected, start the game
   if (room.players.player1 && room.players.player2) {
     console.log(`Room ${room.roomID} is now full. Starting game.`);
+    room.currentGameState = GameState.GAME_RUNNING;
+
     // Send the fixed game world dimensions to clients
     io.to(room.roomID).emit("startGame", {
       players: room.players,

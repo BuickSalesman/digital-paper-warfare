@@ -15,6 +15,7 @@ let scaleY = 1;
 
 // Drawing Variables
 const GameState = {
+  LOBBY: "LOBBY",
   PRE_GAME: "PRE_GAME",
   GAME_RUNNING: "GAME_RUNNING",
   POST_GAME: "POST_GAME",
@@ -194,9 +195,32 @@ socket.on("gameUpdate", (data) => {
 // Handle Player Disconnection
 socket.on("playerDisconnected", (number) => {
   console.log(`Received 'playerDisconnected' from server: Player ${number}`);
-  statusText.textContent = `Player ${number} disconnected. Waiting for a new player...`;
+  statusText.textContent = `Player ${number} disconnected. Returning to landing page...`;
+
+  // Reset UI to landing page
+  landingPage.style.display = "block";
+  gameAndPowerContainer.style.display = "none";
+
+  // Enable the join button
   joinButton.disabled = false;
-  // Optionally, stop the game loop or reset the game state
+
+  // Reset game state variables
+  currentGameState = GameState.PRE_GAME;
+  drawingHistory = [];
+  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+
+  // Clear roomID and playerNumber to allow rejoining
+  roomID = null;
+  playerNumber = null;
+
+  console.log("UI has been reset to the landing page due to player disconnection.");
+});
+
+// Handle 'gameFull' event
+socket.on("gameFull", () => {
+  console.log("Received 'gameFull' from server.");
+  statusText.textContent = "All game rooms are full. Please try again later.";
+  joinButton.disabled = false;
 });
 
 // Handle Drawing Data from Other Player
@@ -407,7 +431,7 @@ function handleMouseMove(evt) {
   // Draw the line locally
   drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
 
-  // Add to drawing history in game world coordinates without playerNumber since it's local
+  // Add to drawing history in game world coordinates with playerNumber
   drawingHistory.push({
     from: gwFrom,
     to: gwTo,
@@ -481,7 +505,7 @@ function handleTouchMove(evt) {
     // Draw the line locally
     drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
 
-    // Add to drawing history in game world coordinates without playerNumber since it's local
+    // Add to drawing history in game world coordinates with playerNumber
     drawingHistory.push({
       from: gwFrom,
       to: gwTo,
@@ -547,7 +571,7 @@ function snapCloseDrawing() {
   const endX = lastX;
   const endY = lastY;
 
-  console.log(`Snapping drawing closed from (${endX}, ${endY}) to (${startX}, ${startY}).`);
+  console.log(`Snapping drawing closed from (${endX}, ${endY}) to (${startX}, ${startY}).`), currentGameState;
 
   // Draw the closing line locally
   drawLine({ x: endX, y: endY }, { x: startX, y: startY }, "#000000", 2); // Using default color for snapping
@@ -556,7 +580,7 @@ function snapCloseDrawing() {
   const gwFrom = canvasToGameWorld(endX, endY);
   const gwTo = canvasToGameWorld(startX, startY);
 
-  // Add the snapping line to drawing history without playerNumber since it's local
+  // Add the snapping line to drawing history with playerNumber
   drawingHistory.push({
     from: gwFrom,
     to: gwTo,
