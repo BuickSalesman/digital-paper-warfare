@@ -1,5 +1,6 @@
-// HTML ELEMENT VARIABLES
+// CLIENT SIDE:
 
+// HTML ELEMENT VARIABLES
 let playerNumber = null;
 let roomID = null;
 let renderingStarted = false;
@@ -91,7 +92,6 @@ let dividingLine;
 const socket = io();
 
 // DRAWING STATE VARIABLES
-
 let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
@@ -99,10 +99,16 @@ let lastY = 0;
 // Drawing history to persist drawings
 let drawingHistory = [];
 
+// Variables to track drawing sessions
+let currentDrawingStart = null; // { x, y }
+
+// Event Listeners for Window Load and Resize
 window.addEventListener("load", () => {
   console.log("Window loaded. Initializing canvas.");
   initializeCanvas();
 });
+
+window.addEventListener("resize", resizeCanvas);
 
 // Function to initialize canvas dimensions
 function initializeCanvas() {
@@ -142,8 +148,6 @@ function initializeCanvas() {
     redrawAllDrawings();
   }
 }
-
-window.addEventListener("resize", resizeCanvas);
 
 // Receive Player Info
 socket.on("playerInfo", (data) => {
@@ -196,7 +200,7 @@ socket.on("initialGameState", (data) => {
 // Handle game updates
 socket.on("gameUpdate", (data) => {
   console.log("Received 'gameUpdate' from server:", data);
-  //code
+  // Implement game update logic here
 });
 
 // Handle Player Disconnection
@@ -216,18 +220,6 @@ socket.on("drawing", (data) => {
   if (senderPlayer !== playerNumber) {
     console.log(`Drawing from Player ${senderPlayer}: from (${from.x}, ${from.y}) to (${to.x}, ${to.y})`);
 
-    // If this client should rotate the canvas, transform the coordinates
-    let transformedFrom = { ...from };
-    let transformedTo = { ...to };
-
-    if (shouldRotateCanvas) {
-      transformedFrom = rotatePoint(from);
-      transformedTo = rotatePoint(to);
-      console.log(
-        `Transformed Coordinates for Rotation: from (${transformedFrom.x}, ${transformedFrom.y}) to (${transformedTo.x}, ${transformedTo.y})`
-      );
-    }
-
     // Add to drawing history in game world coordinates
     drawingHistory.push({
       from: from, // Store in game world coordinates
@@ -244,6 +236,37 @@ socket.on("drawing", (data) => {
     drawLine(canvasFrom, canvasTo, color, lineWidth);
   } else {
     console.log("Received own 'drawing' data. Ignoring.");
+  }
+});
+
+// Handle 'snapClose' event from server
+socket.on("snapClose", (data) => {
+  console.log("Received 'snapClose' from server:", data);
+  const { playerNumber: senderPlayer, from, to, color, lineWidth } = data;
+
+  // Only draw if the sender is the other player
+  if (senderPlayer !== playerNumber) {
+    console.log(`Snap close from Player ${senderPlayer}: from (${from.x}, ${from.y}) to (${to.x}, ${to.y})`);
+
+    // Add to drawing history in game world coordinates
+    drawingHistory.push({
+      from: from, // Store in game world coordinates
+      to: to,
+      color: color || "#000000",
+      lineWidth: lineWidth || 2,
+    });
+
+    // Convert to canvas coordinates for drawing
+    const canvasFrom = gameWorldToCanvas(from.x, from.y);
+    const canvasTo = gameWorldToCanvas(to.x, to.y);
+
+    // Draw the snapping line
+    drawLine(canvasFrom, canvasTo, color, lineWidth);
+    console.log(
+      `Drew snapping line from (${canvasFrom.x}, ${canvasFrom.y}) to (${canvasTo.x}, ${canvasTo.y}) with color ${color} and lineWidth ${lineWidth}`
+    );
+  } else {
+    console.log("Received own 'snapClose' data. Ignoring.");
   }
 });
 
@@ -268,10 +291,15 @@ function startGame() {
 function redrawAllDrawings() {
   console.log("Redrawing all drawings from history.");
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-  drawingHistory.forEach((path) => {
+  drawingHistory.forEach((path, index) => {
     const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y);
     const canvasTo = gameWorldToCanvas(path.to.x, path.to.y);
     drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
+    console.log(
+      `Redrew path ${index + 1}: from (${canvasFrom.x}, ${canvasFrom.y}) to (${canvasTo.x}, ${canvasTo.y}) with color ${
+        path.color
+      } and lineWidth ${path.lineWidth}`
+    );
   });
 }
 
@@ -314,24 +342,10 @@ function gameWorldToCanvas(x, y) {
   if (shouldRotateCanvas) {
     canvasX = drawCanvas.width - canvasX;
     canvasY = drawCanvas.height - canvasY;
-    console.log(`Mirrored canvas coordinates: (${canvasX}, ${canvasY})`);
+    console.log(`Mirrored canvas coordinates: (${canvasX}, ${canvasY}) for game world point (${x}, ${y})`);
   }
 
   return { x: canvasX, y: canvasY };
-}
-
-// Function to rotate a point 180 degrees around the center of the canvas
-function rotatePoint(gwPoint) {
-  // Convert game world coordinates to canvas coordinates
-  let { x, y } = gameWorldToCanvas(gwPoint.x, gwPoint.y);
-  console.log(`Original canvas point before rotation: (${x}, ${y})`);
-
-  // Rotate 180 degrees (mirror horizontally and vertically)
-  x = drawCanvas.width - x;
-  y = drawCanvas.height - y;
-  console.log(`Rotated canvas point: (${x}, ${y})`);
-
-  return { x, y };
 }
 
 // Utility function to get mouse position relative to canvas
@@ -363,6 +377,7 @@ function handleMouseDown(evt) {
   const pos = getMousePos(evt);
   lastX = pos.x;
   lastY = pos.y;
+  currentDrawingStart = { x: pos.x, y: pos.y }; // Record starting point
   console.log(`Mouse down at (${lastX}, ${lastY}). Started drawing.`);
 }
 
@@ -416,6 +431,7 @@ function handleMouseUpOut() {
   if (!isDrawing) return;
   isDrawing = false;
   console.log("Mouse up or out. Stopped drawing.");
+  snapCloseDrawing(); // Automatically snap close the drawing
 }
 
 // Function to handle touch start event
@@ -431,6 +447,7 @@ function handleTouchStart(evt) {
     const pos = getTouchPos(evt.touches[0]);
     lastX = pos.x;
     lastY = pos.y;
+    currentDrawingStart = { x: pos.x, y: pos.y }; // Record starting point
     console.log(`Touch start at (${lastX}, ${lastY}). Started drawing.`);
   }
 }
@@ -488,6 +505,7 @@ function handleTouchEndCancel() {
   if (!isDrawing) return;
   isDrawing = false;
   console.log("Touch end or cancel. Stopped drawing.");
+  snapCloseDrawing(); // Automatically snap close the drawing
 }
 
 // Function to draw a line on the canvas
@@ -504,7 +522,75 @@ function drawLine(fromCanvas, toCanvas, color, lineWidth) {
   );
 }
 
-// EVENT LISTENERS FOR DRAWING
+// Function to handle automatic snapping closure
+function snapCloseDrawing() {
+  if (!currentDrawingStart) {
+    console.log("No active drawing session to close.");
+    return;
+  }
+
+  // Get the starting point
+  const startX = currentDrawingStart.x;
+  const startY = currentDrawingStart.y;
+
+  // Get the current ending point
+  const endX = lastX;
+  const endY = lastY;
+
+  console.log(`Snapping drawing closed from (${endX}, ${endY}) to (${startX}, ${startY}).`);
+
+  // Draw the closing line locally
+  drawLine({ x: endX, y: endY }, { x: startX, y: startY }, "#000000", 2); // Using red color for snapping
+
+  // Convert canvas coordinates to game world coordinates
+  const gwFrom = canvasToGameWorld(endX, endY);
+  const gwTo = canvasToGameWorld(startX, startY);
+
+  // Add the snapping line to drawing history
+  drawingHistory.push({
+    from: gwFrom,
+    to: gwTo,
+    color: "#000000", // Red color
+    lineWidth: 2,
+  });
+
+  console.log(
+    `Added snapping line to history: from (${gwFrom.x}, ${gwFrom.y}) to (${gwTo.x}, ${gwTo.y}) with color #000000 and lineWidth 2.`
+  );
+
+  // Emit the 'snapClose' event to the server in game world coordinates
+  socket.emit("snapClose", {
+    from: gwFrom,
+    to: gwTo,
+    color: "#000000", // Red color
+    lineWidth: 2,
+  });
+  console.log("Emitted 'snapClose' event to server:", {
+    from: gwFrom,
+    to: gwTo,
+    color: "#000000",
+    lineWidth: 2,
+  });
+
+  // Reset the drawing session
+  currentDrawingStart = null;
+}
+
+// Function to rotate a point 180 degrees around the center of the canvas (if needed)
+function rotatePoint(gwPoint) {
+  // Convert game world coordinates to canvas coordinates
+  let { x, y } = gameWorldToCanvas(gwPoint.x, gwPoint.y);
+  console.log(`Original canvas point before rotation: (${x}, ${y})`);
+
+  // Rotate 180 degrees (mirror horizontally and vertically)
+  x = drawCanvas.width - x;
+  y = drawCanvas.height - y;
+  console.log(`Rotated canvas point: (${x}, ${y})`);
+
+  return { x, y };
+}
+
+// Event Listeners for Drawing
 
 // Mouse Events
 drawCanvas.addEventListener("mousedown", handleMouseDown, false);

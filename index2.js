@@ -1,3 +1,5 @@
+// SERVER SIDE:
+
 // VARIABLES
 
 // GAME AND PLAYER VARIABLES
@@ -126,14 +128,33 @@ io.on("connection", (socket) => {
       // Broadcast the drawing data to other players in the room
       socket.to(roomID).emit("drawing", {
         playerNumber: socket.playerNumber,
-        from: data.from, // Game world coordinates
-        to: data.to, // Game world coordinates
+        from: data.from,
+        to: data.to,
         color: data.color || "#000000", // Default color
         lineWidth: data.lineWidth || 2, // Default line width
       });
       console.log(`Broadcasted 'drawing' to room ${roomID}`);
     } else {
       console.log(`Socket ${socket.id} is not in a room. Cannot broadcast 'drawing'.`);
+    }
+  });
+
+  // Handle 'snapClose' event
+  socket.on("snapClose", (data) => {
+    console.log(`Received 'snapClose' from socket ${socket.id} in room ${socket.roomID}:`, data);
+    const roomID = socket.roomID;
+    if (roomID) {
+      // Broadcast the snapClose data to other players in the room
+      socket.to(roomID).emit("snapClose", {
+        playerNumber: socket.playerNumber,
+        from: data.from,
+        to: data.to,
+        color: data.color || "#000000", // Default color
+        lineWidth: data.lineWidth || 2, // Default line width
+      });
+      console.log(`Broadcasted 'snapClose' to room ${roomID}`);
+    } else {
+      console.log(`Socket ${socket.id} is not in a room. Cannot broadcast 'snapClose'.`);
     }
   });
 });
