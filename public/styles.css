@@ -90,6 +90,7 @@ body {
   display: inline-block;
   border: 1px solid #000;
   background-color: transparent; /* Ensure the background is transparent */
+  cursor: crosshair;
 }
 
 /* Side Container */

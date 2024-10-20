@@ -1,4 +1,4 @@
-//#region HTML ELEMENT VARIABLES
+// HTML ELEMENT VARIABLES
 
 let playerNumber = null;
 let roomID = null;
@@ -79,9 +79,7 @@ const endDrawButton = document.getElementById("endDrawButton");
 // Declare the timer display.
 const timerElement = document.getElementById("Timer");
 
-//#endregion HTML ELEMENT VARIABLES
-
-//#region CANVAS AND CONTEXT VARIABLES
+// CANVAS AND CONTEXT VARIABLES
 
 // Declare contexts for drawing canvas.
 const drawCtx = drawCanvas.getContext("2d");
@@ -89,20 +87,17 @@ const drawCtx = drawCanvas.getContext("2d");
 // Declare a dividing line halfway between the top and bottom of the canvas.
 let dividingLine;
 
-//#endregion CANVAS AND CONTEXT VARIABLES
-
-//#region SOCKET VARIABLES
+// SOCKET VARIABLES
 const socket = io();
-//#endregion SOCKET VARIABLES
 
-//#region DRAWING STATE VARIABLES
+// DRAWING STATE VARIABLES
+
 let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
 
 // Drawing history to persist drawings
 let drawingHistory = [];
-//#endregion DRAWING STATE VARIABLES
 
 window.addEventListener("load", () => {
   console.log("Window loaded. Initializing canvas.");
@@ -233,16 +228,20 @@ socket.on("drawing", (data) => {
       );
     }
 
-    // Add to drawing history
+    // Add to drawing history in game world coordinates
     drawingHistory.push({
-      from: transformedFrom,
-      to: transformedTo,
+      from: from, // Store in game world coordinates
+      to: to,
       color: color || "#000000",
       lineWidth: lineWidth || 2,
     });
 
+    // Convert to canvas coordinates for drawing
+    const canvasFrom = gameWorldToCanvas(from.x, from.y);
+    const canvasTo = gameWorldToCanvas(to.x, to.y);
+
     // Draw the line segment
-    drawLine(transformedFrom, transformedTo, color, lineWidth);
+    drawLine(canvasFrom, canvasTo, color, lineWidth);
   } else {
     console.log("Received own 'drawing' data. Ignoring.");
   }
@@ -270,7 +269,9 @@ function redrawAllDrawings() {
   console.log("Redrawing all drawings from history.");
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   drawingHistory.forEach((path) => {
-    drawLine(path.from, path.to, path.color, path.lineWidth);
+    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y);
+    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y);
+    drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
   });
 }
 
@@ -294,7 +295,44 @@ function updateScalingFactors() {
   console.log(`Updated scaling factors: scaleX=${scaleX}, scaleY=${scaleY}`);
 }
 
-//#region DRAWING FUNCTIONS
+// DRAWING FUNCTIONS
+
+// Utility function to convert canvas coordinates to game world coordinates
+function canvasToGameWorld(x, y) {
+  return {
+    x: x / scaleX,
+    y: y / scaleY,
+  };
+}
+
+// Utility function to convert game world coordinates to canvas coordinates
+function gameWorldToCanvas(x, y) {
+  let canvasX = x * scaleX;
+  let canvasY = y * scaleY;
+
+  // Apply mirroring if needed
+  if (shouldRotateCanvas) {
+    canvasX = drawCanvas.width - canvasX;
+    canvasY = drawCanvas.height - canvasY;
+    console.log(`Mirrored canvas coordinates: (${canvasX}, ${canvasY})`);
+  }
+
+  return { x: canvasX, y: canvasY };
+}
+
+// Function to rotate a point 180 degrees around the center of the canvas
+function rotatePoint(gwPoint) {
+  // Convert game world coordinates to canvas coordinates
+  let { x, y } = gameWorldToCanvas(gwPoint.x, gwPoint.y);
+  console.log(`Original canvas point before rotation: (${x}, ${y})`);
+
+  // Rotate 180 degrees (mirror horizontally and vertically)
+  x = drawCanvas.width - x;
+  y = drawCanvas.height - y;
+  console.log(`Rotated canvas point: (${x}, ${y})`);
+
+  return { x, y };
+}
 
 // Utility function to get mouse position relative to canvas
 function getMousePos(evt) {
@@ -339,27 +377,31 @@ function handleMouseMove(evt) {
     `Mouse move to (${currentX}, ${currentY}). Drawing line from (${lastX}, ${lastY}) to (${currentX}, ${currentY}).`
   );
 
+  // Convert canvas coordinates to game world coordinates
+  const gwFrom = canvasToGameWorld(lastX, lastY);
+  const gwTo = canvasToGameWorld(currentX, currentY);
+
   // Draw the line locally
   drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
 
-  // Add to drawing history
+  // Add to drawing history in game world coordinates
   drawingHistory.push({
-    from: { x: lastX, y: lastY },
-    to: { x: currentX, y: currentY },
+    from: gwFrom,
+    to: gwTo,
     color: "#000000",
     lineWidth: 2,
   });
 
-  // Emit the drawing data to the server
+  // Emit the drawing data to the server in game world coordinates
   socket.emit("drawing", {
-    from: { x: lastX, y: lastY },
-    to: { x: currentX, y: currentY },
+    from: gwFrom,
+    to: gwTo,
     color: "#000000", // You can extend this to allow color selection
     lineWidth: 2, // You can extend this to allow line width selection
   });
   console.log("Emitted 'drawing' event to server:", {
-    from: { x: lastX, y: lastY },
-    to: { x: currentX, y: currentY },
+    from: gwFrom,
+    to: gwTo,
     color: "#000000",
     lineWidth: 2,
   });
@@ -406,27 +448,31 @@ function handleTouchMove(evt) {
       `Touch move to (${currentX}, ${currentY}). Drawing line from (${lastX}, ${lastY}) to (${currentX}, ${currentY}).`
     );
 
+    // Convert canvas coordinates to game world coordinates
+    const gwFrom = canvasToGameWorld(lastX, lastY);
+    const gwTo = canvasToGameWorld(currentX, currentY);
+
     // Draw the line locally
     drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
 
-    // Add to drawing history
+    // Add to drawing history in game world coordinates
     drawingHistory.push({
-      from: { x: lastX, y: lastY },
-      to: { x: currentX, y: currentY },
+      from: gwFrom,
+      to: gwTo,
       color: "#000000",
       lineWidth: 2,
     });
 
-    // Emit the drawing data to the server
+    // Emit the drawing data to the server in game world coordinates
     socket.emit("drawing", {
-      from: { x: lastX, y: lastY },
-      to: { x: currentX, y: currentY },
+      from: gwFrom,
+      to: gwTo,
       color: "#000000",
       lineWidth: 2,
     });
     console.log("Emitted 'drawing' event to server:", {
-      from: { x: lastX, y: lastY },
-      to: { x: currentX, y: currentY },
+      from: gwFrom,
+      to: gwTo,
       color: "#000000",
       lineWidth: 2,
     });
@@ -445,33 +491,20 @@ function handleTouchEndCancel() {
 }
 
 // Function to draw a line on the canvas
-function drawLine(from, to, color, lineWidth) {
+function drawLine(fromCanvas, toCanvas, color, lineWidth) {
   drawCtx.beginPath();
-  drawCtx.moveTo(from.x, from.y);
-  drawCtx.lineTo(to.x, to.y);
+  drawCtx.moveTo(fromCanvas.x, fromCanvas.y);
+  drawCtx.lineTo(toCanvas.x, toCanvas.y);
   drawCtx.strokeStyle = color;
   drawCtx.lineWidth = lineWidth;
   drawCtx.stroke();
   drawCtx.closePath();
   console.log(
-    `Drew line from (${from.x}, ${from.y}) to (${to.x}, ${to.y}) with color ${color} and lineWidth ${lineWidth}.`
+    `Drew line from (${fromCanvas.x}, ${fromCanvas.y}) to (${toCanvas.x}, ${toCanvas.y}) with color ${color} and lineWidth ${lineWidth}.`
   );
 }
 
-// Function to rotate a point 180 degrees around the center of the canvas
-function rotatePoint(point) {
-  const rotatedX = drawCanvas.width - point.x;
-  const rotatedY = drawCanvas.height - point.y;
-  console.log(`Rotated point (${point.x}, ${point.y}) to (${rotatedX}, ${rotatedY})`);
-  return {
-    x: rotatedX,
-    y: rotatedY,
-  };
-}
-
-//#endregion DRAWING FUNCTIONS
-
-//#region EVENT LISTENERS FOR DRAWING
+// EVENT LISTENERS FOR DRAWING
 
 // Mouse Events
 drawCanvas.addEventListener("mousedown", handleMouseDown, false);
@@ -485,9 +518,7 @@ drawCanvas.addEventListener("touchmove", handleTouchMove, false);
 drawCanvas.addEventListener("touchend", handleTouchEndCancel, false);
 drawCanvas.addEventListener("touchcancel", handleTouchEndCancel, false);
 
-//#endregion EVENT LISTENERS FOR DRAWING
-
-//#region ADDITIONAL FUNCTIONS
+// ADDITIONAL FUNCTIONS
 
 // Rules Modal Functionality
 rulesButton.addEventListener("click", () => {
@@ -499,5 +530,3 @@ closeButton.addEventListener("click", () => {
   console.log("Close button clicked. Hiding rules modal.");
   rulesModal.style.display = "none";
 });
-
-//#endregion ADDITIONAL FUNCTIONS

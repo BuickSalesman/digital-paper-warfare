@@ -1,6 +1,6 @@
-//#region VARIABLES
+// VARIABLES
 
-//#region GAME AND PLAYER VARIABLES
+// GAME AND PLAYER VARIABLES
 
 const express = require("express");
 const http = require("http");
@@ -34,40 +34,29 @@ let gameRooms = {};
 const FPS = 60;
 const deltaTime = 1000 / FPS; // Time per frame in ms
 
-//#endregion GAME AND PLAYER VARIABLES
-
-//#region CANVAS AND CONTEXT VARIABLES
+// CANVAS AND CONTEXT VARIABLES
 
 // Fixed game world dimensions
 const GAME_WORLD_WIDTH = 10000; // Fixed width in game units
 const ASPECT_RATIO = 1 / 1.4142; // A4 aspect ratio
 const GAME_WORLD_HEIGHT = GAME_WORLD_WIDTH / ASPECT_RATIO; // Calculate height based on aspect ratio
 
-//#endregion CANVAS AND CONTEXT VARIABLES
-
-//#region SERVER VARIABLES
+// SERVER VARIABLES
 const PORT = process.env.PORT || 3000;
-//#endregion SERVER VARIABLES
 
-//#region MATTER SETUP VARIABLES
+// MATTER SETUP VARIABLES
 
 // Import Matter components.
 const { Body, Bodies, Engine, World } = Matter;
 
-//#endregion MATTER SETUP VARIABLES
-
-//#endregion VARIABLES
-
-//#region SERVER EVENTS
+// SERVER EVENTS
 
 // Start the server.
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
-//#endregion SERVER EVENTS
-
-//#region IO.ON
+// IO.ON
 io.on("connection", (socket) => {
   console.log(`New connection: ${socket.id}`);
 
@@ -137,8 +126,8 @@ io.on("connection", (socket) => {
       // Broadcast the drawing data to other players in the room
       socket.to(roomID).emit("drawing", {
         playerNumber: socket.playerNumber,
-        from: data.from,
-        to: data.to,
+        from: data.from, // Game world coordinates
+        to: data.to, // Game world coordinates
         color: data.color || "#000000", // Default color
         lineWidth: data.lineWidth || 2, // Default line width
       });
@@ -149,11 +138,9 @@ io.on("connection", (socket) => {
   });
 });
 
-//#endregion SOCKET EVENTS
+// FUNCTIONS
 
-//#region FUNCTIONS
-
-//#region GAME ROOM FUNCTIONS
+// GAME ROOM FUNCTIONS
 
 // Function to join an existing room
 function joinRoom(socket, room) {
@@ -240,9 +227,7 @@ function createNewRoom(roomID, socket) {
   // Wait for another player to join
 }
 
-//#endregion GAME ROOM FUNCTIONS
-
-//#region MATTER RUNNING AND RENDERING FUNCTIONS
+// MATTER RUNNING AND RENDERING FUNCTIONS
 
 setInterval(() => {
   for (const roomID in gameRooms) {
@@ -252,7 +237,3 @@ setInterval(() => {
     // io.to(roomID).emit("gameUpdate", { /* game state data */ });
   }
 }, deltaTime);
-
-//#endregion MATTER RUNNING AND RENDERING FUNCTIONS
-
-//#endregion FUNCTIONS
