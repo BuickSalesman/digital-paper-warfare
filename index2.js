@@ -73,15 +73,18 @@ io.on("connection", (socket) => {
 
   // Handle 'joinGame' event
   socket.on("joinGame", () => {
+    console.log(`Received 'joinGame' from socket ${socket.id}`);
     let roomFound = false;
 
     // Search for a room with less than 2 players
     for (const roomID in gameRooms) {
       const room = gameRooms[roomID];
+      console.log(`Checking room ${roomID}: Player1=${room.players.player1}, Player2=${room.players.player2}`);
 
       if (!room.players.player1 || !room.players.player2) {
         // Assign player to this room
         roomFound = true;
+        console.log(`Joining existing room ${roomID}`);
         joinRoom(socket, room);
         break;
       }
@@ -90,6 +93,7 @@ io.on("connection", (socket) => {
     if (!roomFound) {
       // Create a new room
       const newRoomID = `room${Object.keys(gameRooms).length + 1}`;
+      console.log(`Creating new room ${newRoomID}`);
       createNewRoom(newRoomID, socket);
     }
   });
@@ -107,12 +111,14 @@ io.on("connection", (socket) => {
 
         if (playerNumber === PLAYER_ONE && room.players.player1 === socket.id) {
           room.players.player1 = null;
+          console.log(`Player 1 (${socket.id}) disconnected from ${roomID}`);
         } else if (playerNumber === PLAYER_TWO && room.players.player2 === socket.id) {
           room.players.player2 = null;
+          console.log(`Player 2 (${socket.id}) disconnected from ${roomID}`);
         }
 
         io.to(roomID).emit("playerDisconnected", disconnectedPlayer);
-        console.log(`Player ${disconnectedPlayer} has disconnected from ${roomID}.`);
+        console.log(`Notified room ${roomID} about disconnection of Player ${disconnectedPlayer}`);
 
         // If both players are disconnected, remove the room
         if (!room.players.player1 && !room.players.player2) {
@@ -125,6 +131,7 @@ io.on("connection", (socket) => {
 
   // Handle 'drawing' event
   socket.on("drawing", (data) => {
+    console.log(`Received 'drawing' from socket ${socket.id} in room ${socket.roomID}:`, data);
     const roomID = socket.roomID;
     if (roomID) {
       // Broadcast the drawing data to other players in the room
@@ -135,6 +142,9 @@ io.on("connection", (socket) => {
         color: data.color || "#000000", // Default color
         lineWidth: data.lineWidth || 2, // Default line width
       });
+      console.log(`Broadcasted 'drawing' to room ${roomID}`);
+    } else {
+      console.log(`Socket ${socket.id} is not in a room. Cannot broadcast 'drawing'.`);
     }
   });
 });
@@ -151,11 +161,14 @@ function joinRoom(socket, room) {
   if (!room.players.player1) {
     room.players.player1 = socket.id;
     playerNumber = PLAYER_ONE;
+    console.log(`Assigned Player 1 to socket ${socket.id} in room ${room.roomID}`);
   } else if (!room.players.player2) {
     room.players.player2 = socket.id;
     playerNumber = PLAYER_TWO;
+    console.log(`Assigned Player 2 to socket ${socket.id} in room ${room.roomID}`);
   } else {
     // Room is full
+    console.log(`Room ${room.roomID} is full. Emitting 'gameFull' to socket ${socket.id}`);
     socket.emit("gameFull");
     return; // Exit the function
   }
@@ -168,6 +181,7 @@ function joinRoom(socket, room) {
 
   // If two players are connected, start the game
   if (room.players.player1 && room.players.player2) {
+    console.log(`Room ${room.roomID} is now full. Starting game.`);
     // Send the fixed game world dimensions to clients
     io.to(room.roomID).emit("startGame", {
       players: room.players,
@@ -176,7 +190,9 @@ function joinRoom(socket, room) {
     // Optionally, send initial game state
     io.to(room.roomID).emit("initialGameState", {
       // Add any initial game state data here
+      message: "Game has started.",
     });
+    console.log(`Sent 'startGame' and 'initialGameState' to room ${room.roomID}`);
     // Create game bodies if necessary
   }
 }
@@ -213,6 +229,7 @@ function createNewRoom(roomID, socket) {
   };
 
   gameRooms[roomID] = room;
+  console.log(`Created room ${roomID}`);
 
   socket.join(roomID);
   socket.playerNumber = PLAYER_ONE;
@@ -231,6 +248,8 @@ setInterval(() => {
   for (const roomID in gameRooms) {
     const room = gameRooms[roomID];
     Matter.Engine.update(room.roomEngine, deltaTime);
+    // Optionally, emit game state updates to clients
+    // io.to(roomID).emit("gameUpdate", { /* game state data */ });
   }
 }, deltaTime);
 
