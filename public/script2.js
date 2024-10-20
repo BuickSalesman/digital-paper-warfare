@@ -13,9 +13,6 @@ let gameWorldHeight = null;
 let scaleX = 1;
 let scaleY = 1;
 
-// Flag to indicate if the canvas should be rotated
-let shouldRotateCanvas = false;
-
 // Drawing Variables
 const GameState = {
   PRE_GAME: "PRE_GAME",
@@ -156,15 +153,6 @@ socket.on("playerInfo", (data) => {
   roomID = data.roomID;
   statusText.textContent = `You are Player ${playerNumber}`;
 
-  // Determine if the canvas should be rotated
-  if (playerNumber === PLAYER_TWO) {
-    shouldRotateCanvas = true;
-    console.log("Player is Player 2. Incoming drawings will be rotated.");
-  } else {
-    console.log("Player is Player 1. Incoming drawings will not be rotated.");
-  }
-
-  // Initialize currentPlayerDrawing based on playerNumber
   console.log(`Player ${playerNumber} joined room ${roomID}`);
 });
 
@@ -220,17 +208,23 @@ socket.on("drawing", (data) => {
   if (senderPlayer !== playerNumber) {
     console.log(`Drawing from Player ${senderPlayer}: from (${from.x}, ${from.y}) to (${to.x}, ${to.y})`);
 
-    // Add to drawing history in game world coordinates
+    // Determine if the drawing should be mirrored
+    const shouldMirror =
+      (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
+      (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
+
+    // Add to drawing history in game world coordinates with sender's player number
     drawingHistory.push({
       from: from, // Store in game world coordinates
       to: to,
       color: color || "#000000",
       lineWidth: lineWidth || 2,
+      playerNumber: senderPlayer, // Add sender's player number
     });
 
     // Convert to canvas coordinates for drawing
-    const canvasFrom = gameWorldToCanvas(from.x, from.y);
-    const canvasTo = gameWorldToCanvas(to.x, to.y);
+    const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldMirror);
+    const canvasTo = gameWorldToCanvas(to.x, to.y, shouldMirror);
 
     // Draw the line segment
     drawLine(canvasFrom, canvasTo, color, lineWidth);
@@ -248,17 +242,23 @@ socket.on("snapClose", (data) => {
   if (senderPlayer !== playerNumber) {
     console.log(`Snap close from Player ${senderPlayer}: from (${from.x}, ${from.y}) to (${to.x}, ${to.y})`);
 
-    // Add to drawing history in game world coordinates
+    // Determine if the snapping line should be mirrored
+    const shouldMirror =
+      (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
+      (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
+
+    // Add to drawing history in game world coordinates with sender's player number
     drawingHistory.push({
       from: from, // Store in game world coordinates
       to: to,
       color: color || "#000000",
       lineWidth: lineWidth || 2,
+      playerNumber: senderPlayer, // Add sender's player number
     });
 
     // Convert to canvas coordinates for drawing
-    const canvasFrom = gameWorldToCanvas(from.x, from.y);
-    const canvasTo = gameWorldToCanvas(to.x, to.y);
+    const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldMirror);
+    const canvasTo = gameWorldToCanvas(to.x, to.y, shouldMirror);
 
     // Draw the snapping line
     drawLine(canvasFrom, canvasTo, color, lineWidth);
@@ -292,8 +292,16 @@ function redrawAllDrawings() {
   console.log("Redrawing all drawings from history.");
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
   drawingHistory.forEach((path, index) => {
-    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y);
-    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y);
+    // Determine if the drawing should be mirrored
+    const shouldMirror =
+      (path.playerNumber === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
+      (path.playerNumber === PLAYER_TWO && playerNumber === PLAYER_ONE);
+
+    // Convert to canvas coordinates with or without mirroring
+    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, shouldMirror);
+    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, shouldMirror);
+
+    // Draw the line segment
     drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
     console.log(
       `Redrew path ${index + 1}: from (${canvasFrom.x}, ${canvasFrom.y}) to (${canvasTo.x}, ${canvasTo.y}) with color ${
@@ -333,13 +341,13 @@ function canvasToGameWorld(x, y) {
   };
 }
 
-// Utility function to convert game world coordinates to canvas coordinates
-function gameWorldToCanvas(x, y) {
+// Utility function to convert game world coordinates to canvas coordinates with optional mirroring
+function gameWorldToCanvas(x, y, shouldMirror = false) {
   let canvasX = x * scaleX;
   let canvasY = y * scaleY;
 
-  // Apply mirroring if needed
-  if (shouldRotateCanvas) {
+  // Apply mirroring if required
+  if (shouldMirror) {
     canvasX = drawCanvas.width - canvasX;
     canvasY = drawCanvas.height - canvasY;
     console.log(`Mirrored canvas coordinates: (${canvasX}, ${canvasY}) for game world point (${x}, ${y})`);
@@ -399,12 +407,13 @@ function handleMouseMove(evt) {
   // Draw the line locally
   drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
 
-  // Add to drawing history in game world coordinates
+  // Add to drawing history in game world coordinates without playerNumber since it's local
   drawingHistory.push({
     from: gwFrom,
     to: gwTo,
     color: "#000000",
     lineWidth: 2,
+    playerNumber: playerNumber, // Add local player's number
   });
 
   // Emit the drawing data to the server in game world coordinates
@@ -472,12 +481,13 @@ function handleTouchMove(evt) {
     // Draw the line locally
     drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
 
-    // Add to drawing history in game world coordinates
+    // Add to drawing history in game world coordinates without playerNumber since it's local
     drawingHistory.push({
       from: gwFrom,
       to: gwTo,
       color: "#000000",
       lineWidth: 2,
+      playerNumber: playerNumber, // Add local player's number
     });
 
     // Emit the drawing data to the server in game world coordinates
@@ -540,18 +550,19 @@ function snapCloseDrawing() {
   console.log(`Snapping drawing closed from (${endX}, ${endY}) to (${startX}, ${startY}).`);
 
   // Draw the closing line locally
-  drawLine({ x: endX, y: endY }, { x: startX, y: startY }, "#000000", 2); // Using red color for snapping
+  drawLine({ x: endX, y: endY }, { x: startX, y: startY }, "#000000", 2); // Using default color for snapping
 
   // Convert canvas coordinates to game world coordinates
   const gwFrom = canvasToGameWorld(endX, endY);
   const gwTo = canvasToGameWorld(startX, startY);
 
-  // Add the snapping line to drawing history
+  // Add the snapping line to drawing history without playerNumber since it's local
   drawingHistory.push({
     from: gwFrom,
     to: gwTo,
-    color: "#000000", // Red color
+    color: "#000000", // Default color
     lineWidth: 2,
+    playerNumber: playerNumber, // Add local player's number
   });
 
   console.log(
@@ -562,7 +573,7 @@ function snapCloseDrawing() {
   socket.emit("snapClose", {
     from: gwFrom,
     to: gwTo,
-    color: "#000000", // Red color
+    color: "#000000", // Default color
     lineWidth: 2,
   });
   console.log("Emitted 'snapClose' event to server:", {
@@ -576,19 +587,18 @@ function snapCloseDrawing() {
   currentDrawingStart = null;
 }
 
-// Function to rotate a point 180 degrees around the center of the canvas (if needed)
-function rotatePoint(gwPoint) {
-  // Convert game world coordinates to canvas coordinates
-  let { x, y } = gameWorldToCanvas(gwPoint.x, gwPoint.y);
-  console.log(`Original canvas point before rotation: (${x}, ${y})`);
+// ADDITIONAL FUNCTIONS
 
-  // Rotate 180 degrees (mirror horizontally and vertically)
-  x = drawCanvas.width - x;
-  y = drawCanvas.height - y;
-  console.log(`Rotated canvas point: (${x}, ${y})`);
+// Rules Modal Functionality
+rulesButton.addEventListener("click", () => {
+  console.log("Rules button clicked. Displaying rules modal.");
+  rulesModal.style.display = "flex";
+});
 
-  return { x, y };
-}
+closeButton.addEventListener("click", () => {
+  console.log("Close button clicked. Hiding rules modal.");
+  rulesModal.style.display = "none";
+});
 
 // Event Listeners for Drawing
 
@@ -603,16 +613,3 @@ drawCanvas.addEventListener("touchstart", handleTouchStart, false);
 drawCanvas.addEventListener("touchmove", handleTouchMove, false);
 drawCanvas.addEventListener("touchend", handleTouchEndCancel, false);
 drawCanvas.addEventListener("touchcancel", handleTouchEndCancel, false);
-
-// ADDITIONAL FUNCTIONS
-
-// Rules Modal Functionality
-rulesButton.addEventListener("click", () => {
-  console.log("Rules button clicked. Displaying rules modal.");
-  rulesModal.style.display = "flex";
-});
-
-closeButton.addEventListener("click", () => {
-  console.log("Close button clicked. Hiding rules modal.");
-  rulesModal.style.display = "none";
-});
