@@ -146,7 +146,7 @@ io.on("connection", (socket) => {
         io.to(roomID).emit("playerDisconnected", disconnectedPlayer);
         console.log(`Notified room ${roomID} about disconnection of Player ${disconnectedPlayer}`);
 
-        // Delete the room as per new requirement
+        // Delete the room to allow new players to join fresh
         delete gameRooms[roomID];
         console.log(`Room ${roomID} has been deleted due to player disconnection.`);
       }
@@ -276,7 +276,10 @@ function createNewRoom(roomID, socket) {
     totalShapesDrawn: 0,
     currentGameState: GameState.LOBBY, // Start with LOBBY
     readyPlayers: 1, // The creator is ready by default
+    dividingLine: GAME_WORLD_HEIGHT / 2, // Define dividing line in game world coordinates
   };
+
+  console.log(`Dividing line for room ${roomID} set at Y = ${room.dividingLine} in game world coordinates`);
 
   gameRooms[roomID] = room;
   console.log(`Created room ${roomID}`);

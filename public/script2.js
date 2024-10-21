@@ -140,17 +140,22 @@ function initializeCanvas() {
   width = canvasWidth;
   height = canvasHeight;
 
+  // Define dividing line as halfway down the canvas
   dividingLine = drawCanvas.height / 2;
 
   // Optionally, log the dimensions to verify
   console.log("Initial Canvas Width:", drawCanvas.width);
   console.log("Initial Canvas Height:", drawCanvas.height);
+  console.log("Dividing Line at Y =", dividingLine);
 
   // Update scaling factors
   updateScalingFactors();
 
   // Redraw existing drawings
   redrawAllDrawings();
+
+  // Draw the dividing line
+  drawDividingLine();
 }
 
 // Receive Player Info
@@ -232,8 +237,8 @@ socket.on("drawing", (data) => {
   if (senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME) {
     console.log(`Drawing from Player ${senderPlayer}: from (${from.x}, ${from.y}) to (${to.x}, ${to.y})`);
 
-    // Determine if the drawing should be mirrored
-    const shouldMirror =
+    // Determine if the drawing should be mirrored and flipped
+    const shouldTransform =
       (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
       (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
 
@@ -247,11 +252,14 @@ socket.on("drawing", (data) => {
     });
 
     // Convert to canvas coordinates for drawing
-    const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldMirror);
-    const canvasTo = gameWorldToCanvas(to.x, to.y, shouldMirror);
+    const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
+    const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
 
     // Draw the line segment
     drawLine(canvasFrom, canvasTo, color, lineWidth);
+
+    // Redraw the dividing line to ensure it's on top
+    drawDividingLine();
   } else {
     console.log("Received own 'drawing' data or game not in PRE_GAME. Ignoring.");
   }
@@ -266,8 +274,8 @@ socket.on("snapClose", (data) => {
   if (senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME) {
     console.log(`Snap close from Player ${senderPlayer}: from (${from.x}, ${from.y}) to (${to.x}, ${to.y})`);
 
-    // Determine if the snapping line should be mirrored
-    const shouldMirror =
+    // Determine if the snapping line should be mirrored and flipped
+    const shouldTransform =
       (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
       (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
 
@@ -281,14 +289,17 @@ socket.on("snapClose", (data) => {
     });
 
     // Convert to canvas coordinates for drawing
-    const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldMirror);
-    const canvasTo = gameWorldToCanvas(to.x, to.y, shouldMirror);
+    const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
+    const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
 
     // Draw the snapping line
     drawLine(canvasFrom, canvasTo, color, lineWidth);
     console.log(
       `Drew snapping line from (${canvasFrom.x}, ${canvasFrom.y}) to (${canvasTo.x}, ${canvasTo.y}) with color ${color} and lineWidth ${lineWidth}`
     );
+
+    // Redraw the dividing line to ensure it's on top
+    drawDividingLine();
   } else {
     console.log("Received own 'snapClose' data or game not in PRE_GAME. Ignoring.");
   }
@@ -307,15 +318,17 @@ joinButton.addEventListener("click", () => {
 function redrawAllDrawings() {
   console.log("Redrawing all drawings from history.");
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+
+  // Draw all lines from history
   drawingHistory.forEach((path, index) => {
-    // Determine if the drawing should be mirrored
-    const shouldMirror =
+    // Determine if the drawing should be mirrored and flipped
+    const shouldTransform =
       (path.playerNumber === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
       (path.playerNumber === PLAYER_TWO && playerNumber === PLAYER_ONE);
 
-    // Convert to canvas coordinates with or without mirroring
-    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, shouldMirror);
-    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, shouldMirror);
+    // Convert to canvas coordinates with or without mirroring and flipping
+    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, shouldTransform, true);
+    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, shouldTransform, true);
 
     // Draw the line segment
     drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
@@ -325,6 +338,9 @@ function redrawAllDrawings() {
       } and lineWidth ${path.lineWidth}`
     );
   });
+
+  // Draw the dividing line on top of all drawings
+  drawDividingLine();
 }
 
 // Function to Resize Canvas while maintaining aspect ratio
@@ -351,16 +367,16 @@ function canvasToGameWorld(x, y) {
   };
 }
 
-// Utility function to convert game world coordinates to canvas coordinates with optional mirroring
-function gameWorldToCanvas(x, y, shouldMirror = false) {
+// Utility function to convert game world coordinates to canvas coordinates with optional mirroring and flipping
+function gameWorldToCanvas(x, y, shouldTransform = false, isIncoming = false) {
   let canvasX = x * scaleX;
   let canvasY = y * scaleY;
 
-  // Apply mirroring if required
-  if (shouldMirror) {
+  if (shouldTransform) {
+    // Flip vertically and horizontally
     canvasX = drawCanvas.width - canvasX;
     canvasY = drawCanvas.height - canvasY;
-    console.log(`Mirrored canvas coordinates: (${canvasX}, ${canvasY}) for game world point (${x}, ${y})`);
+    console.log(`Transformed canvas coordinates: (${canvasX}, ${canvasY}) for game world point (${x}, ${y})`);
   }
 
   return { x: canvasX, y: canvasY };
@@ -391,8 +407,15 @@ function handleMouseDown(evt) {
     return;
   }
 
-  isDrawing = true;
   const pos = getMousePos(evt);
+
+  // Enforce drawing within player's designated half
+  if (!isWithinPlayerArea(pos.y)) {
+    console.log(`Mouse down at (${pos.x}, ${pos.y}) is outside player's drawing area. Ignoring.`);
+    return;
+  }
+
+  isDrawing = true;
   lastX = pos.x;
   lastY = pos.y;
   currentDrawingStart = { x: pos.x, y: pos.y }; // Record starting point
@@ -407,6 +430,12 @@ function handleMouseMove(evt) {
   const pos = getMousePos(evt);
   const currentX = pos.x;
   const currentY = pos.y;
+
+  // Enforce drawing within player's designated half
+  if (!isWithinPlayerArea(currentY)) {
+    console.log(`Mouse move to (${currentX}, ${currentY}) is outside player's drawing area. Ignoring.`);
+    return;
+  }
 
   console.log(
     `Mouse move to (${currentX}, ${currentY}). Drawing line from (${lastX}, ${lastY}) to (${currentX}, ${currentY}).`
@@ -466,8 +495,15 @@ function handleTouchStart(evt) {
 
   evt.preventDefault();
   if (evt.touches.length > 0) {
-    isDrawing = true;
     const pos = getTouchPos(evt.touches[0]);
+
+    // Enforce drawing within player's designated half
+    if (!isWithinPlayerArea(pos.y)) {
+      console.log(`Touch start at (${pos.x}, ${pos.y}) is outside player's drawing area. Ignoring.`);
+      return;
+    }
+
+    isDrawing = true;
     lastX = pos.x;
     lastY = pos.y;
     currentDrawingStart = { x: pos.x, y: pos.y }; // Record starting point
@@ -485,6 +521,12 @@ function handleTouchMove(evt) {
     const pos = getTouchPos(evt.touches[0]);
     const currentX = pos.x;
     const currentY = pos.y;
+
+    // Enforce drawing within player's designated half
+    if (!isWithinPlayerArea(currentY)) {
+      console.log(`Touch move to (${currentX}, ${currentY}) is outside player's drawing area. Ignoring.`);
+      return;
+    }
 
     console.log(
       `Touch move to (${currentX}, ${currentY}). Drawing line from (${lastX}, ${lastY}) to (${currentX}, ${currentY}).`
@@ -603,6 +645,9 @@ function snapCloseDrawing() {
 
   // Reset the drawing session
   currentDrawingStart = null;
+
+  // Redraw the dividing line to ensure it's on top
+  drawDividingLine();
 }
 
 // ADDITIONAL FUNCTIONS
@@ -631,3 +676,22 @@ drawCanvas.addEventListener("touchstart", handleTouchStart, false);
 drawCanvas.addEventListener("touchmove", handleTouchMove, false);
 drawCanvas.addEventListener("touchend", handleTouchEndCancel, false);
 drawCanvas.addEventListener("touchcancel", handleTouchEndCancel, false);
+
+// Function to Draw the Dividing Line on the Canvas
+function drawDividingLine() {
+  drawCtx.beginPath();
+  drawCtx.moveTo(0, dividingLine);
+  drawCtx.lineTo(drawCanvas.width, dividingLine);
+  drawCtx.strokeStyle = "black";
+  drawCtx.lineWidth = 2;
+  drawCtx.stroke();
+  drawCtx.closePath();
+  console.log(`Drew dividing line at Y = ${dividingLine}`);
+}
+
+// Function to Check if Y Coordinate is Within Player's Designated Area
+function isWithinPlayerArea(y) {
+  // Both players can only draw below the dividing line in their own view
+  // No mirroring is applied to the entire canvas
+  return y >= dividingLine;
+}
