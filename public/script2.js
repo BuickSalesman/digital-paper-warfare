@@ -29,7 +29,7 @@ const maxTotalShapes = 10;
 const maxShapesPerPlayer = 5;
 
 // Canvas dimensions (will be set dynamically)
-let width = 1000; // Placeholder, will be updated
+let width = 10000; // Placeholder, will be updated
 let height = 1414; // Placeholder, will be updated
 
 // Define Player Constants
@@ -695,5 +695,3 @@ function isWithinPlayerArea(y) {
   // No mirroring is applied to the entire canvas
   return y >= dividingLine;
 }
-
-//tried to implement margin here and sucked ass at it
