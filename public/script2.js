@@ -87,6 +87,7 @@ const drawCtx = drawCanvas.getContext("2d");
 let dividingLine;
 
 // SOCKET VARIABLES
+/* global io */
 const socket = io();
 
 // DRAWING STATE VARIABLES
@@ -309,7 +310,6 @@ socket.on("snapClose", (data) => {
 joinButton.addEventListener("click", () => {
   console.log("Join button clicked. Emitting 'joinGame' to server.");
   socket.emit("joinGame");
-  statusText.textContent = "Waiting for another player...";
   joinButton.disabled = true;
   currentGameState = GameState.LOBBY; // Remain in LOBBY until PRE_GAME
 });
@@ -695,3 +695,5 @@ function isWithinPlayerArea(y) {
   // No mirroring is applied to the entire canvas
   return y >= dividingLine;
 }
+
+//tried to implement margin here and sucked ass at it
