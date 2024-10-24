@@ -6,22 +6,19 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body id="bodyContainer">
-    <!-- Landing Page -->
     <div id="landing-page">
       <h1>Welcome to the Game</h1>
       <button id="join-button">Join Game</button>
       <p id="status"></p>
+      <input type="text" id="passcode-input" placeholder="Enter 6-digit Passcode" maxlength="6" />
     </div>
 
-    <!-- Game and Power Container -->
     <div id="gameAndPowerContainer" style="display: none">
       <div id="gameContainer">
-        <!-- We'll use one canvas for the game -->
         <canvas id="drawCanvas"></canvas>
       </div>
 
       <div id="sideContainer">
-        <!-- Keeping your existing side elements -->
         <div id="powerMeterContainer">
           <div id="rewardZone"></div>
           <div id="punishmentZone"></div>
@@ -41,7 +38,6 @@
       </div>
     </div>
 
-    <!-- Rules Modal -->
     <div id="rulesModal" class="modal">
       <div class="modal-content">
         <span class="close-button">&times;</span>
@@ -55,9 +51,7 @@
       </div>
     </div>
 
-    <!-- Socket.IO -->
     <script src="/socket.io/socket.io.js"></script>
-    <!-- Main Script -->
     <script src="script-rooms.js"></script>
   </body>
 </html>

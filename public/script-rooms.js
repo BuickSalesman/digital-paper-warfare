@@ -1,3 +1,7 @@
+// SOCKET VARIABLES
+/* global io */
+const socket = io();
+
 let playerNumber = null;
 let roomID = null;
 let renderingStarted = false;
@@ -36,6 +40,9 @@ const joinButton = document.getElementById("join-button");
 // Declare status text.
 const statusText = document.getElementById("status");
 
+// Declare passcode input.
+const passcodeInput = document.getElementById("passcode-input");
+
 // Declare gameAndPowerContainer element.
 const gameAndPowerContainer = document.getElementById("gameAndPowerContainer");
 
@@ -49,10 +56,6 @@ const drawCanvas = document.getElementById("drawCanvas"); // For drawing.
 
 // Declare contexts for drawing canvas.
 const drawCtx = drawCanvas.getContext("2d");
-
-// SOCKET VARIABLES
-/* global io */
-const socket = io();
 
 window.addEventListener("resize", resizeCanvas);
 
