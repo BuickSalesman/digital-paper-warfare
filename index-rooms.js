@@ -49,33 +49,57 @@ server.listen(PORT, () => {
 io.on("connection", (socket) => {
   console.log(`New connection: ${socket.id}`);
 
-  // Handle 'joinGame' event
-  socket.on("joinGame", () => {
+  socket.on("joinGame", (data) => {
     console.log(`Received 'joinGame' from socket ${socket.id}`);
-    let roomFound = false;
+    const passcode = data && data.passcode ? data.passcode : null;
 
-    // Search for a room with less than 2 players and in LOBBY state
-    for (const roomID in gameRooms) {
-      const room = gameRooms[roomID];
-      console.log(
-        `Checking room ${roomID}: Player1=${room.players.player1}, Player2=${room.players.player2}, State=${room.currentGameState}`
-      );
+    if (passcode) {
+      console.log(`Player wants to join room with passcode: ${passcode}`);
 
-      if (room.currentGameState === GameState.LOBBY && (!room.players.player1 || !room.players.player2)) {
-        // Assign player to this room
-        roomFound = true;
-        console.log(`Joining existing room ${roomID}`);
-        joinRoom(socket, room);
-        break;
+      // Validate passcode (ensure it's 6 digits)
+      if (!/^\d{6}$/.test(passcode)) {
+        console.log(`Invalid passcode: ${passcode}`);
+        socket.emit("invalidPasscode", { message: "Passcode must be exactly 6 digits." });
+        return;
       }
-    }
 
-    if (!roomFound) {
-      // Create a new room
-      const newRoomID = `room${nextRoomNumber}`;
-      nextRoomNumber += 1;
-      console.log(`Creating new room ${newRoomID}`);
-      createNewRoom(newRoomID, socket);
+      const roomID = `passcode_${passcode}`; // Use passcode as room ID
+      let room = gameRooms[roomID];
+
+      if (!room) {
+        // No room with this passcode exists, create a new one
+        console.log(`Creating new passcode room ${roomID}`);
+        createNewRoom(roomID, socket, true);
+      } else {
+        // Room exists, try to join it
+        console.log(`Joining existing passcode room ${roomID}`);
+        joinRoom(socket, room);
+      }
+    } else {
+      // Existing logic to join a random available room
+      let roomFound = false;
+
+      for (const roomID in gameRooms) {
+        const room = gameRooms[roomID];
+        if (
+          !room.isPasscodeRoom &&
+          room.currentGameState === GameState.LOBBY &&
+          (!room.players.player1 || !room.players.player2)
+        ) {
+          roomFound = true;
+          console.log(`Joining existing room ${roomID}`);
+          joinRoom(socket, room);
+          break;
+        }
+      }
+
+      if (!roomFound) {
+        // Create a new room
+        const newRoomID = `room${nextRoomNumber}`;
+        nextRoomNumber += 1;
+        console.log(`Creating new room ${newRoomID}`);
+        createNewRoom(newRoomID, socket);
+      }
     }
   });
 
@@ -129,9 +153,15 @@ io.on("connection", (socket) => {
         io.to(roomID).emit("playerDisconnected", disconnectedPlayer);
         console.log(`Notified room ${roomID} about disconnection of Player ${disconnectedPlayer}`);
 
-        // Delete the room to allow new players to join fresh
-        delete gameRooms[roomID];
-        console.log(`Room ${roomID} has been deleted due to player disconnection.`);
+        // Delete the room if appropriate
+        if (!room.players.player1 && !room.players.player2) {
+          delete gameRooms[roomID];
+          console.log(`Room ${roomID} has been deleted as both players disconnected.`);
+        } else if (!room.isPasscodeRoom) {
+          // For non-passcode rooms, delete the room if any player disconnects
+          delete gameRooms[roomID];
+          console.log(`Room ${roomID} has been deleted as a player disconnected.`);
+        }
       }
     }
   });
@@ -153,10 +183,9 @@ function joinRoom(socket, room) {
     playerNumber = PLAYER_TWO;
     console.log(`Assigned Player 2 to socket ${socket.id} in room ${room.roomID}`);
   } else {
-    // Room is full
     console.log(`Room ${room.roomID} is full. Emitting 'gameFull' to socket ${socket.id}`);
     socket.emit("gameFull");
-    return; // Exit the function
+    return;
   }
 
   socket.join(room.roomID);
@@ -173,7 +202,6 @@ function joinRoom(socket, room) {
   // Check if room now has two players
   if (room.players.player1 && room.players.player2) {
     console.log(`Room ${room.roomID} is now full. Emitting 'preGame' to room.`);
-    // Emit 'preGame' to both clients to prepare the game
     io.to(room.roomID).emit("preGame", {
       message: "Two players have joined. Prepare to start the game.",
     });
@@ -182,7 +210,7 @@ function joinRoom(socket, room) {
 }
 
 // Function to create a new room
-function createNewRoom(roomID, socket) {
+function createNewRoom(roomID, socket, isPasscodeRoom = false) {
   const roomEngine = Matter.Engine.create();
   const roomWorld = roomEngine.world;
 
@@ -192,31 +220,19 @@ function createNewRoom(roomID, socket) {
 
   const room = {
     roomID: roomID,
+    isPasscodeRoom: isPasscodeRoom,
     players: {
       player1: socket.id,
       player2: null,
     },
-    roomEngine: roomEngine,
-    roomWorld: roomWorld,
-    width: GAME_WORLD_WIDTH,
-    height: GAME_WORLD_HEIGHT,
-    bodiesCreated: false,
-    allPaths: [], // Store all valid drawing paths
-    drawingSessions: {}, // Store ongoing drawing sessions
-    shapeCounts: {
-      [PLAYER_ONE]: 0,
-      [PLAYER_TWO]: 0,
-    },
-    noDrawZones: [], // Initialize no-draw zones
-    totalShapesDrawn: 0,
-    currentGameState: GameState.LOBBY, // Start with LOBBY
+    // Rest of the properties...
+    currentGameState: GameState.LOBBY,
     readyPlayers: 1, // The creator is ready by default
-    dividingLine: GAME_WORLD_HEIGHT / 2, // Define dividing line in game world coordinates
+    // Additional properties...
   };
 
   gameRooms[roomID] = room;
   console.log(`Created room ${roomID}`);
-  console.log(room);
 
   socket.join(roomID);
   socket.playerNumber = PLAYER_ONE;
@@ -228,6 +244,4 @@ function createNewRoom(roomID, socket) {
     gameWorldHeight: GAME_WORLD_HEIGHT,
   });
   console.log(`Socket ${socket.id} created and joined ${roomID} as Player ${PLAYER_ONE}`);
-
-  // Wait for another player to join
 }

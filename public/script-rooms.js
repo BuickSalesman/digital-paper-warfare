@@ -41,7 +41,7 @@ const joinButton = document.getElementById("join-button");
 const statusText = document.getElementById("status");
 
 // Declare passcode input.
-const passcodeInput = document.getElementById("passcode-input");
+let passcodeInput = document.getElementById("passcode-input");
 
 // Declare gameAndPowerContainer element.
 const gameAndPowerContainer = document.getElementById("gameAndPowerContainer");
@@ -135,6 +135,8 @@ socket.on("playerDisconnected", (number) => {
 
   // Enable the join button
   joinButton.disabled = false;
+  passcodeInput = false;
+  passcodeInput.value = "";
 
   // Reset game state variables
   currentGameState = GameState.LOBBY;
@@ -148,13 +150,33 @@ socket.on("playerDisconnected", (number) => {
 
 // Handle 'gameFull' event
 socket.on("gameFull", () => {
+  alert("The game is full.");
   joinButton.disabled = false;
+  passcodeInput.disabled = false;
+});
+
+socket.on("invalidPasscode", (data) => {
+  alert(data.message);
+  joinButton.disabled = false;
+  passcodeInput.disabled = false;
 });
 
 // Handle Join Button Click
 joinButton.addEventListener("click", () => {
-  socket.emit("joinGame");
+  const passcode = passcodeInput.value.trim();
+  if (passcode) {
+    // Validate that the passcode is exactly 6 digits
+    if (/^\d{6}$/.test(passcode)) {
+      socket.emit("joinGame", { passcode });
+    } else {
+      alert("Passcode must be exactly 6 digits.");
+      return;
+    }
+  } else {
+    socket.emit("joinGame");
+  }
   joinButton.disabled = true;
+  passcodeInput.disabled = true;
   currentGameState = GameState.LOBBY; // Remain in LOBBY until PRE_GAME
 });
 
