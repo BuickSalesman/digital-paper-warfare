@@ -274,3 +274,31 @@ button.dashed.thin {
 #rulzButton:hover {
   background-color: rgba(15, 15, 15, 0.3);
 }
+
+/* Updated Passcode Input Field Styles */
+#passcode-input {
+  font-family: "DeskScratch";
+  font-size: 1.5rem;
+  color: rgba(15, 15, 15, 0.9);
+  background-color: transparent; /* Make background transparent */
+  border: none; /* Remove border */
+  padding: 0.5rem;
+  margin: 1rem 0;
+  width: 250px;
+  text-align: center;
+  outline: none;
+  transition: border-bottom 0.2s;
+}
+
+#passcode-input::placeholder {
+  color: rgba(15, 15, 15, 0.7);
+  font-style: italic;
+}
+
+#passcode-input:focus {
+  border-bottom: 1px solid rgba(15, 15, 15, 0.9); /* Add underline on focus */
+}
+
+#passcode-input:disabled {
+  color: #666;
+}
