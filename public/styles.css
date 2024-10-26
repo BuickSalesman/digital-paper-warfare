@@ -282,7 +282,6 @@ button.dashed.thin {
   color: rgba(15, 15, 15, 0.9);
   background-color: transparent; /* Make background transparent */
   border: none; /* Remove border */
-  padding: 0.5rem;
   margin: 1rem 0;
   width: 250px;
   text-align: center;
@@ -293,10 +292,6 @@ button.dashed.thin {
 #passcode-input::placeholder {
   color: rgba(15, 15, 15, 0.7);
   font-style: italic;
-}
-
-#passcode-input:focus {
-  border-bottom: 1px solid rgba(15, 15, 15, 0.9); /* Add underline on focus */
 }
 
 #passcode-input:disabled {
