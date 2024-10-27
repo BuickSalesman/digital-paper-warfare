@@ -202,57 +202,57 @@ socket.on("gameFull", () => {
 });
 
 socket.on("drawing", (data) => {
-  const { playerNumber: senderPlayer, from, to, color, lineWidth } = data;
+  const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2 } = data;
 
-  if (senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME) {
-    const shouldTransform =
-      (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
-      (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
+  const isValid = senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME;
 
-    drawingHistory.push({
-      from: from,
-      to: to,
-      color: color || "#000000",
-      lineWidth: lineWidth || 2,
-      playerNumber: senderPlayer,
-    });
+  isValid &&
+    (() => {
+      const shouldTransform =
+        (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
+        (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
 
-    const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
-    const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
+      drawingHistory.push({
+        from,
+        to,
+        color,
+        lineWidth,
+        playerNumber: senderPlayer,
+      });
 
-    drawLine(canvasFrom, canvasTo, color, lineWidth);
+      const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
+      const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
 
-    drawDividingLine();
-  } else {
-    console.log("Received own 'drawing' data or game not in PRE_GAME. Ignoring.");
-  }
+      drawLine(canvasFrom, canvasTo, color, lineWidth);
+      drawDividingLine();
+    })();
 });
 
 socket.on("snapClose", (data) => {
-  const { playerNumber: senderPlayer, from, to, color, lineWidth } = data;
+  const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2 } = data;
 
-  if (senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME) {
-    const shouldTransform =
-      (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
-      (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
+  const isValid = senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME;
 
-    drawingHistory.push({
-      from: from,
-      to: to,
-      color: color || "#000000",
-      lineWidth: lineWidth || 2,
-      playerNumber: senderPlayer,
-    });
+  isValid &&
+    (() => {
+      const shouldTransform =
+        (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
+        (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
 
-    const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
-    const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
+      drawingHistory.push({
+        from,
+        to,
+        color,
+        lineWidth,
+        playerNumber: senderPlayer,
+      });
 
-    drawLine(canvasFrom, canvasTo, color, lineWidth);
+      const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
+      const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
 
-    drawDividingLine();
-  } else {
-    console.log("Received own 'snapClose' data or game not in PRE_GAME. Ignoring.");
-  }
+      drawLine(canvasFrom, canvasTo, color, lineWidth);
+      drawDividingLine();
+    })();
 });
 
 // socket.on("finalizeDrawingPhase", () => {
