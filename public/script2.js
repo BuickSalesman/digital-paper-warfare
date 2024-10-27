@@ -86,9 +86,7 @@ let noDrawZones = [];
 
 // let shouldRotateCanvas = false
 
-window.addEventListener("load", () => {
-  console.log("Window loaded. Awaiting playerInfo.");
-});
+window.addEventListener("load", () => {});
 
 window.addEventListener("resize", resizeCanvas);
 
@@ -127,14 +125,12 @@ function initializeCanvas() {
 }
 
 socket.on("playerInfo", (data) => {
-  console.log("Received 'playerInfo' from server:", data);
   playerNumber = data.playerNumber;
   roomID = data.roomID;
   gameWorldWidth = data.gameWorldWidth;
   gameWorldHeight = data.gameWorldHeight;
   statusText.textContent = `You are Player ${playerNumber}`;
 
-  console.log(`Player ${playerNumber} joined room ${roomID}`);
   initializeCanvas();
 });
 
@@ -149,7 +145,6 @@ socket.on("startPreGame", () => {
 });
 
 socket.on("initialGameState", (data) => {
-  console.log("Received initial game state:", data);
   tanks = data.tanks;
   reactors = data.reactors;
   fortresses = data.fortresses;
@@ -182,8 +177,6 @@ socket.on("gameUpdate", (data) => {
 });
 
 socket.on("playerDisconnected", (number) => {
-  console.log(`Received 'playerDisconnected' from server: Player ${number}`);
-
   landingPage.style.display = "block";
   gameAndPowerContainer.style.display = "none";
 
@@ -209,12 +202,9 @@ socket.on("gameFull", () => {
 });
 
 socket.on("drawing", (data) => {
-  console.log("Received 'drawing' from server:", data);
   const { playerNumber: senderPlayer, from, to, color, lineWidth } = data;
 
   if (senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME) {
-    console.log(`Drawing from Player ${senderPlayer}: from (${from.x}, ${from.y}) to (${to.x}, ${to.y})`);
-
     const shouldTransform =
       (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
       (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
@@ -239,12 +229,9 @@ socket.on("drawing", (data) => {
 });
 
 socket.on("snapClose", (data) => {
-  console.log("Received 'snapClose' from server:", data);
   const { playerNumber: senderPlayer, from, to, color, lineWidth } = data;
 
   if (senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME) {
-    console.log(`Snap close from Player ${senderPlayer}: from (${from.x}, ${from.y}) to (${to.x}, ${to.y})`);
-
     const shouldTransform =
       (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
       (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
@@ -261,9 +248,6 @@ socket.on("snapClose", (data) => {
     const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
 
     drawLine(canvasFrom, canvasTo, color, lineWidth);
-    console.log(
-      `Drew snapping line from (${canvasFrom.x}, ${canvasFrom.y}) to (${canvasTo.x}, ${canvasTo.y}) with color ${color} and lineWidth ${lineWidth}`
-    );
 
     drawDividingLine();
   } else {
@@ -294,7 +278,6 @@ joinButton.addEventListener("click", () => {
 });
 
 function redrawCanvas() {
-  console.log("Redrawing all drawings from history.");
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
   drawingHistory.forEach((path, index) => {
@@ -306,11 +289,6 @@ function redrawCanvas() {
     const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, shouldTransform, true);
 
     drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
-    console.log(
-      `Redrew path ${index + 1}: from (${canvasFrom.x}, ${canvasFrom.y}) to (${canvasTo.x}, ${canvasTo.y}) with color ${
-        path.color
-      } and lineWidth ${path.lineWidth}`
-    );
   });
   drawDividingLine();
   fortresses.forEach(drawFortress);
@@ -343,10 +321,8 @@ function gameWorldToCanvas(x, y, shouldTransform = false, isIncoming = false) {
   let canvasY = y * scaleY;
 
   if (shouldTransform) {
-    // Flip vertically and horizontally
     canvasX = drawCanvas.width - canvasX;
     canvasY = drawCanvas.height - canvasY;
-    console.log(`Transformed canvas coordinates: (${canvasX}, ${canvasY}) for game world point (${x}, ${y})`);
   }
 
   return { x: canvasX, y: canvasY };
@@ -370,14 +346,12 @@ function getTouchPos(touch) {
 
 function handleMouseDown(evt) {
   if (currentGameState !== GameState.PRE_GAME && currentGameState !== GameState.GAME_RUNNING) {
-    console.log("Game not in PRE_GAME or GAME_RUNNING state. Ignoring mouse down.");
     return;
   }
 
   const pos = getMousePos(evt);
 
   if (!isWithinPlayerArea(pos.y)) {
-    console.log(`Mouse down at (${pos.x}, ${pos.y}) is outside player's drawing area. Ignoring.`);
     return;
   }
 
@@ -385,7 +359,6 @@ function handleMouseDown(evt) {
   lastX = pos.x;
   lastY = pos.y;
   currentDrawingStart = { x: pos.x, y: pos.y };
-  console.log(`Mouse down at (${lastX}, ${lastY}). Started drawing.`);
 }
 
 function handleMouseMove(evt) {
@@ -397,13 +370,8 @@ function handleMouseMove(evt) {
   const currentY = pos.y;
 
   if (!isWithinPlayerArea(currentY)) {
-    console.log(`Mouse move to (${currentX}, ${currentY}) is outside player's drawing area. Ignoring.`);
     return;
   }
-
-  console.log(
-    `Mouse move to (${currentX}, ${currentY}). Drawing line from (${lastX}, ${lastY}) to (${currentX}, ${currentY}).`
-  );
 
   const gwFrom = canvasToGameWorld(lastX, lastY);
   const gwTo = canvasToGameWorld(currentX, currentY);
@@ -424,12 +392,6 @@ function handleMouseMove(evt) {
     color: "#000000",
     lineWidth: 2,
   });
-  console.log("Emitted 'drawing' event to server:", {
-    from: gwFrom,
-    to: gwTo,
-    color: "#000000",
-    lineWidth: 2,
-  });
 
   lastX = currentX;
   lastY = currentY;
@@ -440,13 +402,11 @@ function handleMouseUpOut() {
     return;
   }
   isDrawing = false;
-  console.log("Mouse up or out. Stopped drawing.");
   snapCloseDrawing();
 }
 
 function handleTouchStart(evt) {
   if (currentGameState !== GameState.PRE_GAME && currentGameState !== GameState.GAME_RUNNING) {
-    console.log("Game not in PRE_GAME or GAME_RUNNING state. Ignoring touch start.");
     return;
   }
 
@@ -455,7 +415,6 @@ function handleTouchStart(evt) {
     const pos = getTouchPos(evt.touches[0]);
 
     if (!isWithinPlayerArea(pos.y)) {
-      console.log(`Touch start at (${pos.x}, ${pos.y}) is outside player's drawing area. Ignoring.`);
       return;
     }
 
@@ -463,7 +422,6 @@ function handleTouchStart(evt) {
     lastX = pos.x;
     lastY = pos.y;
     currentDrawingStart = { x: pos.x, y: pos.y };
-    console.log(`Touch start at (${lastX}, ${lastY}). Started drawing.`);
   }
 }
 
@@ -478,13 +436,8 @@ function handleTouchMove(evt) {
     const currentY = pos.y;
 
     if (!isWithinPlayerArea(currentY)) {
-      console.log(`Touch move to (${currentX}, ${currentY}) is outside player's drawing area. Ignoring.`);
       return;
     }
-
-    console.log(
-      `Touch move to (${currentX}, ${currentY}). Drawing line from (${lastX}, ${lastY}) to (${currentX}, ${currentY}).`
-    );
 
     const gwFrom = canvasToGameWorld(lastX, lastY);
     const gwTo = canvasToGameWorld(currentX, currentY);
@@ -505,12 +458,6 @@ function handleTouchMove(evt) {
       color: "#000000",
       lineWidth: 2,
     });
-    console.log("Emitted 'drawing' event to server:", {
-      from: gwFrom,
-      to: gwTo,
-      color: "#000000",
-      lineWidth: 2,
-    });
 
     lastX = currentX;
     lastY = currentY;
@@ -522,7 +469,6 @@ function handleTouchEndCancel() {
     return;
   }
   isDrawing = false;
-  console.log("Touch end or cancel. Stopped drawing.");
   snapCloseDrawing();
 }
 
@@ -534,14 +480,10 @@ function drawLine(fromCanvas, toCanvas, color, lineWidth) {
   drawCtx.lineWidth = lineWidth;
   drawCtx.stroke();
   drawCtx.closePath();
-  console.log(
-    `Drew line from (${fromCanvas.x}, ${fromCanvas.y}) to (${toCanvas.x}, ${toCanvas.y}) with color ${color} and lineWidth ${lineWidth}.`
-  );
 }
 
 function snapCloseDrawing() {
   if (!currentDrawingStart) {
-    console.log("No active drawing session to close.");
     return;
   }
 
@@ -550,8 +492,6 @@ function snapCloseDrawing() {
 
   const endX = lastX;
   const endY = lastY;
-
-  console.log(`Snapping drawing closed from (${endX}, ${endY}) to (${startX}, ${startY}).`, currentGameState);
 
   drawLine({ x: endX, y: endY }, { x: startX, y: startY }, "#000000", 2);
 
@@ -566,17 +506,7 @@ function snapCloseDrawing() {
     playerNumber: playerNumber,
   });
 
-  console.log(
-    `Added snapping line to history: from (${gwFrom.x}, ${gwFrom.y}) to (${gwTo.x}, ${gwTo.y}) with color #000000 and lineWidth 2.`
-  );
-
   socket.emit("snapClose", {
-    from: gwFrom,
-    to: gwTo,
-    color: "#000000",
-    lineWidth: 2,
-  });
-  console.log("Emitted 'snapClose' event to server:", {
     from: gwFrom,
     to: gwTo,
     color: "#000000",
@@ -589,12 +519,10 @@ function snapCloseDrawing() {
 }
 
 rulesButton.addEventListener("click", () => {
-  console.log("Rules button clicked. Displaying rules modal.");
   rulesModal.style.display = "flex";
 });
 
 closeButton.addEventListener("click", () => {
-  console.log("Close button clicked. Hiding rules modal.");
   rulesModal.style.display = "none";
 });
 
@@ -616,7 +544,6 @@ function drawDividingLine() {
   drawCtx.lineWidth = 2;
   drawCtx.stroke();
   drawCtx.closePath();
-  console.log(`Drew dividing line at Y = ${dividingLine}`);
 }
 
 function isWithinPlayerArea(y) {
