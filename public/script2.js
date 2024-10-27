@@ -26,7 +26,6 @@ let currentGameState = GameState.LOBBY;
 
 let shapeCountPlayer1 = 0;
 let shapeCountPlayer2 = 0;
-const maxTotalShapes = 10;
 const maxShapesPerPlayer = 5;
 
 let width = 10000; // Placeholder, will be updated
@@ -255,6 +254,10 @@ socket.on("snapClose", (data) => {
     })();
 });
 
+socket.on("maxShapesReached", (data) => {
+  disableDrawing();
+});
+
 // socket.on("finalizeDrawingPhase", () => {
 //   currentGameState = GameState.GAME_RUNNING;
 //   console.log("Drawing phase finalized. Game is now running.");
@@ -349,6 +352,14 @@ function handleMouseDown(evt) {
     return;
   }
 
+  // Check if player has reached max shapes
+  if (
+    (playerNumber === PLAYER_ONE && shapeCountPlayer1 >= maxShapesPerPlayer) ||
+    (playerNumber === PLAYER_TWO && shapeCountPlayer2 >= maxShapesPerPlayer)
+  ) {
+    return;
+  }
+
   const pos = getMousePos(evt);
 
   if (!isWithinPlayerArea(pos.y)) {
@@ -407,6 +418,14 @@ function handleMouseUpOut() {
 
 function handleTouchStart(evt) {
   if (currentGameState !== GameState.PRE_GAME && currentGameState !== GameState.GAME_RUNNING) {
+    return;
+  }
+
+  // Check if player has reached max shapes
+  if (
+    (playerNumber === PLAYER_ONE && shapeCountPlayer1 >= maxShapesPerPlayer) ||
+    (playerNumber === PLAYER_TWO && shapeCountPlayer2 >= maxShapesPerPlayer)
+  ) {
     return;
   }
 
@@ -513,6 +532,18 @@ function snapCloseDrawing() {
     lineWidth: 2,
   });
 
+  if (playerNumber === PLAYER_ONE) {
+    shapeCountPlayer1++;
+    if (shapeCountPlayer1 >= maxShapesPerPlayer) {
+      disableDrawing();
+    }
+  } else if (playerNumber === PLAYER_TWO) {
+    shapeCountPlayer2++;
+    if (shapeCountPlayer2 >= maxShapesPerPlayer) {
+      disableDrawing();
+    }
+  }
+
   currentDrawingStart = null;
 
   drawDividingLine();
@@ -535,6 +566,18 @@ drawCanvas.addEventListener("touchstart", handleTouchStart, false);
 drawCanvas.addEventListener("touchmove", handleTouchMove, false);
 drawCanvas.addEventListener("touchend", handleTouchEndCancel, false);
 drawCanvas.addEventListener("touchcancel", handleTouchEndCancel, false);
+
+function disableDrawing() {
+  drawCanvas.removeEventListener("mousedown", handleMouseDown, false);
+  drawCanvas.removeEventListener("mousemove", handleMouseMove, false);
+  drawCanvas.removeEventListener("mouseup", handleMouseUpOut, false);
+  drawCanvas.removeEventListener("mouseout", handleMouseUpOut, false);
+
+  drawCanvas.removeEventListener("touchstart", handleTouchStart, false);
+  drawCanvas.removeEventListener("touchmove", handleTouchMove, false);
+  drawCanvas.removeEventListener("touchend", handleTouchEndCancel, false);
+  drawCanvas.removeEventListener("touchcancel", handleTouchEndCancel, false);
+}
 
 function drawDividingLine() {
   drawCtx.beginPath();

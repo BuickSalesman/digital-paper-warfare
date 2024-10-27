@@ -57,7 +57,6 @@ let gameRooms = {};
 let nextRoomNumber = 1;
 
 // Game constants
-const MAX_INK_PER_SHAPE = 10000; // Maximum ink per shape
 const DIVIDING_LINE_MARGIN = 10; // Dividing line margin
 const DRAWING_MARGIN_X = 20; // Drawing margin X
 const DRAWING_MARGIN_Y = 20; // Drawing margin Y
@@ -593,6 +592,10 @@ function validateDrawing(room, path, playerNumber) {
   // Player 2 draws above the dividing line.
   const dividingLine = room.height / 2;
 
+  if (room.shapeCounts[playerNumber] >= MAX_SHAPES_PER_PLAYER) {
+    return false; // Reject the shape
+  }
+
   for (const point of path) {
     if (playerNumber === PLAYER_ONE) {
       if (point.y < dividingLine + DIVIDING_LINE_MARGIN) {
@@ -651,17 +654,17 @@ function handleShapeCount(room, playerNumber) {
   room.shapeCounts[playerNumber] += 1;
   room.totalShapesDrawn += 1;
 
-  const maxShapeCountPlayer1 = MAX_SHAPES_PER_PLAYER;
-  const maxShapeCountPlayer2 = MAX_SHAPES_PER_PLAYER;
-
-  if (playerNumber === PLAYER_ONE && room.shapeCounts[playerNumber] >= maxShapeCountPlayer1) {
-    console.log(`Player ${PLAYER_ONE} has finished drawing.`);
-  } else if (playerNumber === PLAYER_TWO && room.shapeCounts[playerNumber] >= maxShapeCountPlayer2) {
-    console.log(`Player ${PLAYER_TWO} has finished drawing.`);
+  if (room.shapeCounts[playerNumber] >= MAX_SHAPES_PER_PLAYER) {
+    console.log(`Player ${playerNumber} has reached the maximum number of shapes.`);
+    // Optionally, send a message to the player
+    const playerSocketId = room.players[`player${playerNumber}`];
+    io.to(playerSocketId).emit("maxShapesReached", {
+      message: "You have reached the maximum number of shapes allowed.",
+    });
   }
 
   // Check if both players have finished drawing
-  if (room.shapeCounts[PLAYER_ONE] >= maxShapeCountPlayer1 && room.shapeCounts[PLAYER_TWO] >= maxShapeCountPlayer2) {
+  if (room.shapeCounts[PLAYER_ONE] >= MAX_SHAPES_PER_PLAYER && room.shapeCounts[PLAYER_TWO] >= MAX_SHAPES_PER_PLAYER) {
     finalizeDrawingPhase(room);
   }
 }
