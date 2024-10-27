@@ -594,6 +594,8 @@ function isWithinPlayerArea(y) {
 }
 
 function drawTank(tank) {
+  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
+
   const size = tank.size;
   const x = tank.position.x * scaleX;
   const y = tank.position.y * scaleY;
@@ -603,12 +605,10 @@ function drawTank(tank) {
   drawCtx.translate(x, y);
   drawCtx.rotate(tank.angle);
 
-  if (tank.playerId === PLAYER_ONE) {
-    drawCtx.strokeStyle = "blue";
-  } else if (tank.playerId === PLAYER_TWO) {
-    drawCtx.strokeStyle = "red";
+  if (tank.playerId === playerNumber) {
+    drawCtx.strokeStyle = "blue"; // Own fortress
   } else {
-    drawCtx.strokeStyle = "black";
+    drawCtx.strokeStyle = "red"; // Opponent's fortress
   }
 
   drawCtx.lineWidth = 2;
@@ -617,19 +617,18 @@ function drawTank(tank) {
 }
 
 function drawReactor(reactor) {
+  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
+
   const radius = (reactor.size / 2) * scaleX;
   const x = reactor.position.x * scaleX;
   const y = reactor.position.y * scaleY;
 
   drawCtx.save();
   drawCtx.translate(x, y);
-
-  if (reactor.playerId === PLAYER_ONE) {
-    drawCtx.strokeStyle = "blue";
-  } else if (reactor.playerId === PLAYER_TWO) {
-    drawCtx.strokeStyle = "red";
+  if (reactor.playerId === playerNumber) {
+    drawCtx.strokeStyle = "blue"; // Own fortress
   } else {
-    drawCtx.strokeStyle = "black";
+    drawCtx.strokeStyle = "red"; // Opponent's fortress
   }
 
   drawCtx.lineWidth = 2;
@@ -640,21 +639,21 @@ function drawReactor(reactor) {
 }
 
 function drawFortress(fortress) {
+  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
+
   const width = fortress.width * scaleX;
   const height = fortress.height * scaleY;
-  const x = fortress.position.x * scaleX;
-  const y = fortress.position.y * scaleY;
+  const canvasPos = gameWorldToCanvas(fortress.position.x, fortress.position.y);
 
   drawCtx.save();
-  drawCtx.translate(x, y);
+  drawCtx.translate(canvasPos.x, canvasPos.y);
   drawCtx.rotate(fortress.angle);
 
-  if (fortress.playerId === PLAYER_ONE) {
-    drawCtx.strokeStyle = "blue";
-  } else if (fortress.playerId === PLAYER_TWO) {
-    drawCtx.strokeStyle = "red";
+  // Determine color based on player ownership
+  if (fortress.playerId === playerNumber) {
+    drawCtx.strokeStyle = "blue"; // Own fortress
   } else {
-    drawCtx.strokeStyle = "black";
+    drawCtx.strokeStyle = "red"; // Opponent's fortress
   }
 
   drawCtx.lineWidth = 2;
@@ -663,6 +662,8 @@ function drawFortress(fortress) {
 }
 
 function drawTurret(turret) {
+  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
+
   const radius = (turret.size / 2) * scaleX;
   const x = turret.position.x * scaleX;
   const y = turret.position.y * scaleY;
@@ -671,12 +672,10 @@ function drawTurret(turret) {
   drawCtx.translate(x, y);
   drawCtx.rotate(turret.angle);
 
-  if (turret.playerId === PLAYER_ONE) {
-    drawCtx.strokeStyle = "blue";
-  } else if (turret.playerId === PLAYER_TWO) {
-    drawCtx.strokeStyle = "red";
+  if (turret.playerId === playerNumber) {
+    drawCtx.strokeStyle = "blue"; // Own fortress
   } else {
-    drawCtx.strokeStyle = "black";
+    drawCtx.strokeStyle = "red"; // Opponent's fortress
   }
 
   drawCtx.lineWidth = 2;
