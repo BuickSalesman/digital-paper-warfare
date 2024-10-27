@@ -1,6 +1,7 @@
-// CLIENT SIDE:
+// SOCKET VARIABLES
+/* global io */
+const socket = io();
 
-// HTML ELEMENT VARIABLES
 let playerNumber = null;
 let roomID = null;
 let renderingStarted = false;
@@ -45,6 +46,9 @@ const joinButton = document.getElementById("join-button");
 // Declare status text.
 const statusText = document.getElementById("status");
 
+// Declare passcode input.
+let passcodeInput = document.getElementById("passcode-input");
+
 // Declare gameAndPowerContainer element.
 const gameAndPowerContainer = document.getElementById("gameAndPowerContainer");
 
@@ -87,8 +91,6 @@ const drawCtx = drawCanvas.getContext("2d");
 let dividingLine;
 
 // SOCKET VARIABLES
-/* global io */
-const socket = io();
 
 // DRAWING STATE VARIABLES
 let isDrawing = false;
@@ -144,11 +146,6 @@ function initializeCanvas() {
   // Define dividing line as halfway down the canvas
   dividingLine = drawCanvas.height / 2;
 
-  // Optionally, log the dimensions to verify
-  console.log("Initial Canvas Width:", drawCanvas.width);
-  console.log("Initial Canvas Height:", drawCanvas.height);
-  console.log("Dividing Line at Y =", dividingLine);
-
   // Update scaling factors
   updateScalingFactors();
 
@@ -175,31 +172,23 @@ socket.on("playerInfo", (data) => {
 
 // Handle Pre-Game Preparation
 socket.on("preGame", (data) => {
-  console.log("Received 'preGame' from server:", data);
-
   // Hide landing page and show game container
   landingPage.style.display = "none";
   gameAndPowerContainer.style.display = "flex";
 
-  statusText.textContent = "Preparing to start the game...";
-
   // Emit 'ready' to server indicating the client is ready
   socket.emit("ready");
-  console.log("Emitted 'ready' to server.");
 });
 
 // Handle Start of Pre-Game
 socket.on("startPreGame", (data) => {
-  console.log("Received 'startPreGame' from server:", data);
   currentGameState = GameState.PRE_GAME;
-  statusText.textContent = "Game is starting!";
   // Update UI to reflect PRE_GAME state, e.g., hide waiting message
 });
 
 // Handle Player Disconnection
 socket.on("playerDisconnected", (number) => {
   console.log(`Received 'playerDisconnected' from server: Player ${number}`);
-  statusText.textContent = `Player ${number} disconnected. Returning to landing page...`;
 
   // Reset UI to landing page
   landingPage.style.display = "block";
@@ -207,6 +196,8 @@ socket.on("playerDisconnected", (number) => {
 
   // Enable the join button
   joinButton.disabled = false;
+  passcodeInput = false;
+  passcodeInput.value = "";
 
   // Reset game state variables
   currentGameState = GameState.LOBBY;
@@ -218,14 +209,11 @@ socket.on("playerDisconnected", (number) => {
   playerNumber = null;
   gameWorldWidth = null;
   gameWorldHeight = null;
-
-  console.log("UI has been reset to the landing page due to player disconnection.");
 });
 
 // Handle 'gameFull' event
 socket.on("gameFull", () => {
-  console.log("Received 'gameFull' from server.");
-  statusText.textContent = "All game rooms are full. Please try again later.";
+  alert("The game is full.");
   joinButton.disabled = false;
 });
 
@@ -308,9 +296,20 @@ socket.on("snapClose", (data) => {
 
 // Handle Join Button Click
 joinButton.addEventListener("click", () => {
-  console.log("Join button clicked. Emitting 'joinGame' to server.");
-  socket.emit("joinGame");
+  const passcode = passcodeInput.value.trim();
+  if (passcode) {
+    // Validate that the passcode is exactly 6 digits
+    if (/^\d{6}$/.test(passcode)) {
+      socket.emit("joinGame", { passcode });
+    } else {
+      alert("Passcode must be exactly 6 digits.");
+      return;
+    }
+  } else {
+    socket.emit("joinGame");
+  }
   joinButton.disabled = true;
+  passcodeInput.disabled = true;
   currentGameState = GameState.LOBBY; // Remain in LOBBY until PRE_GAME
 });
 
@@ -345,7 +344,6 @@ function redrawAllDrawings() {
 
 // Function to Resize Canvas while maintaining aspect ratio
 function resizeCanvas() {
-  console.log("Window resized. Resizing canvas.");
   // Re-initialize canvas dimensions
   initializeCanvas();
 }
