@@ -98,7 +98,7 @@ io.on("connection", (socket) => {
       console.log(`Player wants to join room with passcode: ${passcode}`);
 
       // Validate passcode (ensure it's 6 digits)
-      if (/^[A-Za-z0-9]{6}$/.test(passcode)) {
+      if (!/^[A-Za-z0-9]{6}$/.test(passcode)) {
         console.log(`Invalid passcode: ${passcode}`);
         socket.emit("invalidPasscode", { message: "Passcode must be exactly 6 letters and numbers." });
         return;
