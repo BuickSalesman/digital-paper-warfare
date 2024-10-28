@@ -20,6 +20,8 @@ const FortressModule = require("./objects/fortress");
 const TurretModule = require("./objects/turret");
 const ShellModule = require("./objects/shell");
 
+const PolyK = require("polyk");
+
 // Assuming collisionCategories.js exports these constants
 const {
   CATEGORY_SHELL,
@@ -60,7 +62,6 @@ let nextRoomNumber = 1;
 const DIVIDING_LINE_MARGIN = 10; // Dividing line margin
 const DRAWING_MARGIN_X = 20; // Drawing margin X
 const DRAWING_MARGIN_Y = 20; // Drawing margin Y
-const MAX_TOTAL_SHAPES = 10; // Maximum total shapes
 const MAX_SHAPES_PER_PLAYER = 5; // Maximum shapes per player
 
 // FPS and deltaTime for Matter.js engine
@@ -228,7 +229,6 @@ io.on("connection", (socket) => {
     };
   });
 
-  // Handle 'drawing' event
   // Handle 'drawing' event by forwarding it to other clients
   socket.on("drawing", (data) => {
     const roomID = socket.roomID;
