@@ -26,6 +26,8 @@ let currentGameState = GameState.LOBBY;
 
 let totalPixelsDrawn = 0;
 
+let currentDrawingSessionId = null;
+
 let width = 10000; // Placeholder, will be updated
 let height = 1414; // Placeholder, will be updated
 
@@ -167,9 +169,9 @@ socket.on("gameFull", () => {
 });
 
 socket.on("drawing", (data) => {
-  const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2 } = data;
+  const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2, drawingSessionId } = data;
 
-  const isValid = senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME;
+  const isValid = senderPlayer !== playerNumber;
 
   isValid &&
     (() => {
@@ -183,6 +185,7 @@ socket.on("drawing", (data) => {
         color,
         lineWidth,
         playerNumber: senderPlayer,
+        drawingSessionId: drawingSessionId,
       });
 
       const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
@@ -191,6 +194,20 @@ socket.on("drawing", (data) => {
       drawLine(canvasFrom, canvasTo, color, lineWidth);
       drawDividingLine();
     })();
+});
+
+socket.on("eraseDrawingSession", (data) => {
+  const { drawingSessionId } = data;
+
+  // Remove the drawing session's segments from drawingHistory
+  drawingHistory = drawingHistory.filter((segment) => segment.drawingSessionId !== drawingSessionId);
+
+  // Redraw the canvas
+  redrawCanvas();
+
+  if (data.playerNumber === playerNumber) {
+    alert("Your drawing exceeded the allowed length and has been erased.");
+  }
 });
 
 joinButton.addEventListener("click", () => {
@@ -286,62 +303,11 @@ function handleMouseDown(evt) {
   isDrawing = true;
   lastX = pos.x;
   lastY = pos.y;
-  currentDrawingStart = { x: pos.x, y: pos.y };
 
-  // Reset total pixels drawn for the new drawing session
-  totalPixelsDrawn = 0;
-}
+  currentDrawingSessionId = `${playerNumber}-${Date.now()}-${Math.random()}`;
 
-function handleMouseMove(evt) {
-  if (!isDrawing) {
-    return;
-  }
-  const pos = getMousePos(evt);
-  const currentX = pos.x;
-  const currentY = pos.y;
-
-  if (!isWithinPlayerArea(currentY)) {
-    return;
-  }
-
-  // Calculate the distance between the last point and the current point
-  const dx = currentX - lastX;
-  const dy = currentY - lastY;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  totalPixelsDrawn += distance;
-
-  const gwFrom = canvasToGameWorld(lastX, lastY);
-  const gwTo = canvasToGameWorld(currentX, currentY);
-
-  drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
-
-  drawingHistory.push({
-    from: gwFrom,
-    to: gwTo,
-    color: "#000000",
-    lineWidth: 2,
-    playerNumber: playerNumber,
-  });
-
-  socket.emit("drawing", {
-    from: gwFrom,
-    to: gwTo,
-    color: "#000000",
-    lineWidth: 2,
-  });
-
-  lastX = currentX;
-  lastY = currentY;
-}
-
-function handleMouseUpOut() {
-  if (!isDrawing) {
-    return;
-  }
-  isDrawing = false;
-
-  // Log the total pixels drawn for this drawing session
-  console.log(`Total pixels drawn: ${Math.round(totalPixelsDrawn)} pixels`);
+  const gwPos = canvasToGameWorld(pos.x, pos.y);
+  socket.emit("startDrawing", { position: gwPos, drawingSessionId: currentDrawingSessionId });
 }
 
 function handleTouchStart(evt) {
@@ -360,56 +326,104 @@ function handleTouchStart(evt) {
     isDrawing = true;
     lastX = pos.x;
     lastY = pos.y;
-    currentDrawingStart = { x: pos.x, y: pos.y };
 
-    // Reset total pixels drawn for the new drawing session
-    totalPixelsDrawn = 0;
+    currentDrawingSessionId = `${playerNumber}-${Date.now()}-${Math.random()}`;
+
+    const gwPos = canvasToGameWorld(pos.x, pos.y);
+    socket.emit("startDrawing", { position: gwPos, drawingSessionId: currentDrawingSessionId });
   }
+}
+
+function handleMouseMove(evt) {
+  if (!isDrawing) {
+    return;
+  }
+  const pos = getMousePos(evt);
+  const currentX = pos.x;
+  const currentY = pos.y;
+
+  if (!isWithinPlayerArea(currentY)) {
+    return;
+  }
+
+  const gwFrom = canvasToGameWorld(lastX, lastY);
+  const gwTo = canvasToGameWorld(currentX, currentY);
+
+  // Draw locally
+  drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
+
+  // Add to drawingHistory
+  drawingHistory.push({
+    from: gwFrom,
+    to: gwTo,
+    color: "#000000",
+    lineWidth: 2,
+    playerNumber: playerNumber,
+    drawingSessionId: currentDrawingSessionId,
+  });
+
+  // Send drawing data to server, including drawingSessionId
+  socket.emit("drawing", {
+    drawingSessionId: currentDrawingSessionId,
+    from: gwFrom,
+    to: gwTo,
+    color: "#000000",
+    lineWidth: 2,
+  });
+
+  lastX = currentX;
+  lastY = currentY;
 }
 
 function handleTouchMove(evt) {
   if (!isDrawing) {
     return;
   }
-  evt.preventDefault();
-  if (evt.touches.length > 0) {
-    const pos = getTouchPos(evt.touches[0]);
-    const currentX = pos.x;
-    const currentY = pos.y;
+  const pos = getMousePos(evt);
+  const currentX = pos.x;
+  const currentY = pos.y;
 
-    if (!isWithinPlayerArea(currentY)) {
-      return;
-    }
-
-    // Calculate the distance between the last point and the current point
-    const dx = currentX - lastX;
-    const dy = currentY - lastY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    totalPixelsDrawn += distance;
-
-    const gwFrom = canvasToGameWorld(lastX, lastY);
-    const gwTo = canvasToGameWorld(currentX, currentY);
-
-    drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
-
-    drawingHistory.push({
-      from: gwFrom,
-      to: gwTo,
-      color: "#000000",
-      lineWidth: 2,
-      playerNumber: playerNumber,
-    });
-
-    socket.emit("drawing", {
-      from: gwFrom,
-      to: gwTo,
-      color: "#000000",
-      lineWidth: 2,
-    });
-
-    lastX = currentX;
-    lastY = currentY;
+  if (!isWithinPlayerArea(currentY)) {
+    return;
   }
+
+  const gwFrom = canvasToGameWorld(lastX, lastY);
+  const gwTo = canvasToGameWorld(currentX, currentY);
+
+  // Draw locally
+  drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
+
+  // Add to drawingHistory
+  drawingHistory.push({
+    from: gwFrom,
+    to: gwTo,
+    color: "#000000",
+    lineWidth: 2,
+    playerNumber: playerNumber,
+    drawingSessionId: currentDrawingSessionId,
+  });
+
+  // Send drawing data to server, including drawingSessionId
+  socket.emit("drawing", {
+    drawingSessionId: currentDrawingSessionId,
+    from: gwFrom,
+    to: gwTo,
+    color: "#000000",
+    lineWidth: 2,
+  });
+
+  lastX = currentX;
+  lastY = currentY;
+}
+
+function handleMouseUpOut() {
+  if (!isDrawing) {
+    return;
+  }
+  isDrawing = false;
+
+  // Notify the server that the drawing has ended
+  socket.emit("endDrawing");
 }
 
 function handleTouchEndCancel() {
@@ -418,8 +432,8 @@ function handleTouchEndCancel() {
   }
   isDrawing = false;
 
-  // Log the total pixels drawn for this drawing session
-  console.log(`Total pixels drawn: ${Math.round(totalPixelsDrawn)} pixels`);
+  // Notify the server that the drawing has ended
+  socket.emit("endDrawing");
 }
 
 function drawLine(fromCanvas, toCanvas, color, lineWidth) {

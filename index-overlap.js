@@ -172,10 +172,12 @@ io.on("connection", (socket) => {
   });
 
   // Handle 'startDrawing' event
+  // Handle 'startDrawing' event
   socket.on("startDrawing", (data) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
     const position = data.position;
+    const drawingSessionId = data.drawingSessionId; // Get the drawingSessionId from the client
     const room = gameRooms[roomID];
     if (!room) {
       return;
@@ -187,12 +189,12 @@ io.on("connection", (socket) => {
     }
 
     room.drawingSessions[playerNumber] = {
-      path: [position],
-      totalInkUsed: 0,
+      id: drawingSessionId, // Use the drawingSessionId from the client
+      totalPixelsDrawn: 0,
+      path: [],
     };
   });
 
-  // Handle 'drawing' event by forwarding it to other clients
   socket.on("drawing", (data) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
@@ -201,35 +203,63 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Emit the drawing data to other clients in the room
-    socket.to(roomID).emit("drawing", {
-      playerNumber,
-      from: data.from,
-      to: data.to,
-      color: data.color,
-      lineWidth: data.lineWidth,
-    });
+    const session = room.drawingSessions[playerNumber];
+    if (!session) {
+      return;
+    }
+
+    const { from, to } = data;
+
+    // Calculate the distance between the two points
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    session.totalPixelsDrawn += distance;
+
+    // Add the line segment to the path
+    session.path.push({ from, to, color: data.color, lineWidth: data.lineWidth });
+
+    if (session.totalPixelsDrawn > 7000) {
+      // Exceeded the limit, erase the drawing session
+      socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
+      socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
+
+      // Remove the drawing session
+      delete room.drawingSessions[playerNumber];
+
+      console.log(`Player ${playerNumber}'s drawing exceeded 300 pixels and was erased.`);
+    } else {
+      // Forward the drawing data to other clients
+      socket.to(roomID).emit("drawing", {
+        playerNumber,
+        drawingSessionId: session.id,
+        from: data.from,
+        to: data.to,
+        color: data.color,
+        lineWidth: data.lineWidth,
+      });
+    }
   });
 
   // Handle 'endDrawing' event
-  socket.on("endDrawing", (data) => {
+  socket.on("endDrawing", () => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
     const room = gameRooms[roomID];
-    if (!room || !room.drawingSessions || !room.drawingSessions[playerNumber]) {
+    if (!room) {
       return;
     }
 
     const session = room.drawingSessions[playerNumber];
+    if (!session) {
+      return;
+    }
 
-    room.allPaths.push({ path: [...session.path], playerNumber });
-
-    io.to(roomID).emit("drawing", {
-      path: session.path,
+    // Add the completed path to allPaths
+    room.allPaths.push({
       playerNumber,
+      path: session.path,
     });
-
-    console.log(`Player ${playerNumber} successfully drew a shape in room ${roomID}.`);
 
     // Remove the drawing session
     delete room.drawingSessions[playerNumber];
