@@ -287,6 +287,9 @@ function handleMouseDown(evt) {
   lastX = pos.x;
   lastY = pos.y;
   currentDrawingStart = { x: pos.x, y: pos.y };
+
+  // Reset total pixels drawn for the new drawing session
+  totalPixelsDrawn = 0;
 }
 
 function handleMouseMove(evt) {
@@ -300,6 +303,12 @@ function handleMouseMove(evt) {
   if (!isWithinPlayerArea(currentY)) {
     return;
   }
+
+  // Calculate the distance between the last point and the current point
+  const dx = currentX - lastX;
+  const dy = currentY - lastY;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  totalPixelsDrawn += distance;
 
   const gwFrom = canvasToGameWorld(lastX, lastY);
   const gwTo = canvasToGameWorld(currentX, currentY);
@@ -330,6 +339,9 @@ function handleMouseUpOut() {
     return;
   }
   isDrawing = false;
+
+  // Log the total pixels drawn for this drawing session
+  console.log(`Total pixels drawn: ${Math.round(totalPixelsDrawn)} pixels`);
 }
 
 function handleTouchStart(evt) {
@@ -349,6 +361,9 @@ function handleTouchStart(evt) {
     lastX = pos.x;
     lastY = pos.y;
     currentDrawingStart = { x: pos.x, y: pos.y };
+
+    // Reset total pixels drawn for the new drawing session
+    totalPixelsDrawn = 0;
   }
 }
 
@@ -365,6 +380,12 @@ function handleTouchMove(evt) {
     if (!isWithinPlayerArea(currentY)) {
       return;
     }
+
+    // Calculate the distance between the last point and the current point
+    const dx = currentX - lastX;
+    const dy = currentY - lastY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    totalPixelsDrawn += distance;
 
     const gwFrom = canvasToGameWorld(lastX, lastY);
     const gwTo = canvasToGameWorld(currentX, currentY);
@@ -396,6 +417,9 @@ function handleTouchEndCancel() {
     return;
   }
   isDrawing = false;
+
+  // Log the total pixels drawn for this drawing session
+  console.log(`Total pixels drawn: ${Math.round(totalPixelsDrawn)} pixels`);
 }
 
 function drawLine(fromCanvas, toCanvas, color, lineWidth) {
