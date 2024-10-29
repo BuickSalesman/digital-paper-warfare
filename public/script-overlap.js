@@ -168,32 +168,54 @@ socket.on("gameFull", () => {
   // passcodeInput.disabled = false;
 });
 
+// In your client-side code
 socket.on("drawing", (data) => {
   const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2, drawingSessionId } = data;
 
-  const isValid = senderPlayer !== playerNumber;
+  const shouldTransform =
+    (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
+    (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
 
-  isValid &&
-    (() => {
-      const shouldTransform =
-        (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
-        (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
+  drawingHistory.push({
+    from,
+    to,
+    color,
+    lineWidth,
+    playerNumber: senderPlayer,
+    drawingSessionId: drawingSessionId,
+  });
 
-      drawingHistory.push({
-        from,
-        to,
-        color,
-        lineWidth,
-        playerNumber: senderPlayer,
-        drawingSessionId: drawingSessionId,
-      });
+  const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
+  const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
 
-      const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
-      const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
+  drawLine(canvasFrom, canvasTo, color, lineWidth);
+  drawDividingLine();
+});
 
-      drawLine(canvasFrom, canvasTo, color, lineWidth);
-      drawDividingLine();
-    })();
+// In your client-side code
+socket.on("shapeClosed", (data) => {
+  const { playerNumber: senderPlayer, closingLine, drawingSessionId } = data;
+
+  const shouldTransform =
+    (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
+    (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
+
+  // Add the closing line to drawingHistory
+  drawingHistory.push({
+    from: closingLine.from,
+    to: closingLine.to,
+    color: closingLine.color,
+    lineWidth: closingLine.lineWidth,
+    playerNumber: senderPlayer,
+    drawingSessionId: drawingSessionId,
+  });
+
+  // Draw the closing line
+  const canvasFrom = gameWorldToCanvas(closingLine.from.x, closingLine.from.y, shouldTransform, true);
+  const canvasTo = gameWorldToCanvas(closingLine.to.x, closingLine.to.y, shouldTransform, true);
+
+  drawLine(canvasFrom, canvasTo, closingLine.color, closingLine.lineWidth);
+  drawDividingLine();
 });
 
 socket.on("eraseDrawingSession", (data) => {

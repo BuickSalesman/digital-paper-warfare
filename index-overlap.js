@@ -242,6 +242,7 @@ io.on("connection", (socket) => {
   });
 
   // Handle 'endDrawing' event
+  // In your server-side code
   socket.on("endDrawing", () => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
@@ -255,14 +256,59 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Add the completed path to allPaths
-    room.allPaths.push({
-      playerNumber,
-      path: session.path,
-    });
+    // Get starting point and ending point
+    const path = session.path;
+    if (path.length === 0) {
+      return;
+    }
 
-    // Remove the drawing session
-    delete room.drawingSessions[playerNumber];
+    const startingPoint = path[0].from;
+    const endingPoint = path[path.length - 1].to;
+
+    // Compute distance between ending point and starting point
+    const dx = endingPoint.x - startingPoint.x;
+    const dy = endingPoint.y - startingPoint.y;
+    const closingDistance = Math.sqrt(dx * dx + dy * dy);
+
+    // Add closing line to totalPixelsDrawn
+    const newTotalPixelsDrawn = session.totalPixelsDrawn + closingDistance;
+
+    if (newTotalPixelsDrawn > 7000) {
+      // Exceeded the limit, erase the drawing session
+      socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
+      socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
+
+      // Remove the drawing session
+      delete room.drawingSessions[playerNumber];
+
+      console.log(`Player ${playerNumber}'s drawing exceeded pixel limit after closing and was erased.`);
+    } else {
+      // Add closing line to session.path
+      const closingLine = {
+        from: endingPoint,
+        to: startingPoint,
+        color: "#000000",
+        lineWidth: 2,
+      };
+      session.path.push(closingLine);
+      session.totalPixelsDrawn = newTotalPixelsDrawn;
+
+      // Send 'shapeClosed' event to both clients
+      io.to(roomID).emit("shapeClosed", {
+        playerNumber,
+        drawingSessionId: session.id,
+        closingLine: closingLine,
+      });
+
+      // Add the completed path to allPaths
+      room.allPaths.push({
+        playerNumber,
+        path: session.path,
+      });
+
+      // Remove the drawing session
+      delete room.drawingSessions[playerNumber];
+    }
   });
 });
 
