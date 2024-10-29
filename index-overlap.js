@@ -3,8 +3,6 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 
-const PolyK = require("polyk");
-
 // Initialize Express app
 const app = express();
 const server = http.createServer(app);
