@@ -8,6 +8,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// At the top of your server code
+const polygonClipping = require("polygon-clipping");
+
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -217,7 +220,7 @@ io.on("connection", (socket) => {
     // Add the line segment to the path
     session.path.push({ from, to, color: data.color, lineWidth: data.lineWidth });
 
-    if (session.totalPixelsDrawn > 7000) {
+    if (session.totalPixelsDrawn > 10000) {
       // Exceeded the limit, erase the drawing session
       socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
       socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
@@ -245,53 +248,83 @@ io.on("connection", (socket) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
     const room = gameRooms[roomID];
-    if (!room) {
-      return;
-    }
+    if (!room) return;
 
     const session = room.drawingSessions[playerNumber];
-    if (!session) {
-      return;
-    }
+    if (!session) return;
 
-    // Get starting point and ending point
     const path = session.path;
-    if (path.length === 0) {
-      return;
-    }
+    if (path.length === 0) return;
 
     const startingPoint = path[0].from;
     const endingPoint = path[path.length - 1].to;
 
-    // Compute distance between ending point and starting point
+    // Compute closing distance
     const dx = endingPoint.x - startingPoint.x;
     const dy = endingPoint.y - startingPoint.y;
     const closingDistance = Math.sqrt(dx * dx + dy * dy);
-
-    // Add closing line to totalPixelsDrawn
     const newTotalPixelsDrawn = session.totalPixelsDrawn + closingDistance;
 
     if (newTotalPixelsDrawn > 7000) {
-      // Exceeded the limit, erase the drawing session
+      // Exceeded pixel limit
       socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
       socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
-
-      // Remove the drawing session
       delete room.drawingSessions[playerNumber];
-
       console.log(`Player ${playerNumber}'s drawing exceeded pixel limit after closing and was erased.`);
-    } else {
-      // Add closing line to session.path
-      const closingLine = {
-        from: endingPoint,
-        to: startingPoint,
-        color: "#000000",
-        lineWidth: 2,
-      };
-      session.path.push(closingLine);
-      session.totalPixelsDrawn = newTotalPixelsDrawn;
+      return;
+    }
 
-      // Send 'shapeClosed' event to both clients
+    // Close the shape by adding the closing line
+    const closingLine = {
+      from: endingPoint,
+      to: startingPoint,
+      color: "#000000",
+      lineWidth: 2,
+    };
+    session.path.push(closingLine);
+    session.totalPixelsDrawn = newTotalPixelsDrawn;
+
+    // Convert the new shape to polygon coordinates
+    const newShapeCoordinates = buildPolygonCoordinates(session.path);
+
+    let isIllegalShape = false;
+
+    // Iterate through existing shapes in the room to check for overlaps or containment
+    for (let existingShape of room.allPaths) {
+      const existingShapeCoordinates = buildPolygonCoordinates(existingShape.path);
+
+      // Check for intersection
+      const intersection = polygonClipping.intersection(newShapeCoordinates, existingShapeCoordinates);
+      if (intersection && intersection.length > 0) {
+        isIllegalShape = true;
+        break;
+      }
+
+      // Check if new shape contains existing shape
+      const difference1 = polygonClipping.difference(existingShapeCoordinates, newShapeCoordinates);
+      if (!difference1 || difference1.length === 0) {
+        // The existing shape is entirely within the new shape
+        isIllegalShape = true;
+        break;
+      }
+
+      // Check if existing shape contains new shape
+      const difference2 = polygonClipping.difference(newShapeCoordinates, existingShapeCoordinates);
+      if (!difference2 || difference2.length === 0) {
+        // The new shape is entirely within the existing shape
+        isIllegalShape = true;
+        break;
+      }
+    }
+
+    if (isIllegalShape) {
+      // Shape is illegal, erase it
+      socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
+      socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
+      delete room.drawingSessions[playerNumber];
+      console.log(`Player ${playerNumber}'s drawing was illegal and was erased.`);
+    } else {
+      // Shape is legal, send 'shapeClosed' event
       io.to(roomID).emit("shapeClosed", {
         playerNumber,
         drawingSessionId: session.id,
@@ -386,4 +419,24 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
   console.log(`Socket ${socket.id} created and joined ${roomID} as Player ${PLAYER_ONE}`);
 
   // Wait for another player to join
+}
+
+// Converts the drawing path to an array of coordinates suitable for polygon-clipping
+function buildPolygonCoordinates(path) {
+  const coordinates = [];
+  // Start with the first 'from' point
+  coordinates.push([path[0].from.x, path[0].from.y]);
+  // Add 'to' points from each segment
+  for (let segment of path) {
+    coordinates.push([segment.to.x, segment.to.y]);
+  }
+  // Ensure the polygon is closed
+  if (
+    coordinates.length > 0 &&
+    (coordinates[0][0] !== coordinates[coordinates.length - 1][0] ||
+      coordinates[0][1] !== coordinates[coordinates.length - 1][1])
+  ) {
+    coordinates.push(coordinates[0]);
+  }
+  return [coordinates]; // Return as an array of linear rings
 }

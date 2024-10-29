@@ -219,17 +219,13 @@ socket.on("shapeClosed", (data) => {
 });
 
 socket.on("eraseDrawingSession", (data) => {
-  const { drawingSessionId } = data;
+  const { drawingSessionId, playerNumber: senderPlayer } = data;
 
   // Remove the drawing session's segments from drawingHistory
   drawingHistory = drawingHistory.filter((segment) => segment.drawingSessionId !== drawingSessionId);
 
   // Redraw the canvas
   redrawCanvas();
-
-  if (data.playerNumber === playerNumber) {
-    alert("Your drawing exceeded the allowed length and has been erased.");
-  }
 });
 
 joinButton.addEventListener("click", () => {
@@ -254,7 +250,7 @@ function redrawCanvas() {
 
   drawingHistory.forEach((path, index) => {
     const shouldTransform =
-      (path.playerNumber === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
+      (path.playrNumber === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
       (path.playerNumber === PLAYER_TWO && playerNumber === PLAYER_ONE);
 
     const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, shouldTransform, true);
