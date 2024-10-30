@@ -35,9 +35,11 @@ let nextRoomNumber = 1;
 // CANVAS AND CONTEXT VARIABLES
 
 // Fixed game world dimensions
-const GAME_WORLD_WIDTH = 10000; // Fixed width in game units
+const GAME_WORLD_WIDTH = 1885; // Fixed width in game units
 const ASPECT_RATIO = 1 / 1.4142; // A4 aspect ratio
 const GAME_WORLD_HEIGHT = GAME_WORLD_WIDTH / ASPECT_RATIO; // Calculate height based on aspect ratio
+
+const inkLimit = 1500;
 
 // SERVER VARIABLES
 const PORT = process.env.PORT || 3000;
@@ -173,11 +175,9 @@ io.on("connection", (socket) => {
   });
 
   // Handle 'startDrawing' event
-  // Handle 'startDrawing' event
   socket.on("startDrawing", (data) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
-    const position = data.position;
     const drawingSessionId = data.drawingSessionId; // Get the drawingSessionId from the client
     const room = gameRooms[roomID];
     if (!room) {
@@ -200,6 +200,8 @@ io.on("connection", (socket) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
     const room = gameRooms[roomID];
+    console.log(data);
+    console.log(socket.id);
     if (!room) {
       return;
     }
@@ -220,24 +222,26 @@ io.on("connection", (socket) => {
     // Add the line segment to the path
     session.path.push({ from, to, color: data.color, lineWidth: data.lineWidth });
 
-    if (session.totalPixelsDrawn > 10000) {
+    if (session.totalPixelsDrawn > inkLimit) {
       // Exceeded the limit, erase the drawing session
-      socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
-      socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
-
-      // Remove the drawing session
-      delete room.drawingSessions[playerNumber];
-
-      console.log(`Player ${playerNumber}'s drawing exceeded 300 pixels and was erased.`);
-    } else {
-      // Forward the drawing data to other clients
-      socket.to(roomID).emit("drawing", {
+      socket.to(roomID).emit("drawingMirror", {
         playerNumber,
         drawingSessionId: session.id,
         from: data.from,
         to: data.to,
-        color: data.color,
-        lineWidth: data.lineWidth,
+        color: "red",
+        lineWidth: 2, // make magic nujmber later
+      });
+      socket.to(socket.id).emit("drawingIllegally", {});
+    } else {
+      // Forward the drawing data to other clients
+      socket.to(roomID).emit("drawingMirror", {
+        playerNumber,
+        drawingSessionId: session.id,
+        from: data.from,
+        to: data.to,
+        color: "black", // make magic number later
+        lineWidth: 2, //make magic number later
       });
     }
   });
@@ -263,9 +267,9 @@ io.on("connection", (socket) => {
     const dx = endingPoint.x - startingPoint.x;
     const dy = endingPoint.y - startingPoint.y;
     const closingDistance = Math.sqrt(dx * dx + dy * dy);
-    const newTotalPixelsDrawn = session.totalPixelsDrawn + closingDistance;
+    // const newTotalPixelsDrawn = session.totalPixelsDrawn + closingDistance; // delete this line and related code
 
-    if (newTotalPixelsDrawn > 7000) {
+    if (session.totalPixelsDrawn > inkLimit) {
       // Exceeded pixel limit
       socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
       socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
@@ -282,7 +286,6 @@ io.on("connection", (socket) => {
       lineWidth: 2,
     };
     session.path.push(closingLine);
-    session.totalPixelsDrawn = newTotalPixelsDrawn;
 
     // Convert the new shape to polygon coordinates
     const newShapeCoordinates = buildPolygonCoordinates(session.path);

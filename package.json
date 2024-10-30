@@ -4,7 +4,7 @@
   "description": "",
   "main": "index-overlap.js",
   "scripts": {
-    "start": "node index-overlap.js",
+    "start": "nodemon index-overlap.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

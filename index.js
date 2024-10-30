@@ -20,8 +20,6 @@ const FortressModule = require("./objects/fortress");
 const TurretModule = require("./objects/turret");
 const ShellModule = require("./objects/shell");
 
-const PolyK = require("polyk");
-
 // Assuming collisionCategories.js exports these constants
 const {
   CATEGORY_SHELL,
@@ -394,8 +392,8 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
   const roomWorld = roomEngine.world;
 
   // Set gravity if needed.
-  roomEngine.world.gravity.y = 0;
-  roomEngine.world.gravity.x = 0;
+  // roomEngine.world.gravity.y = 0;
+  // roomEngine.world.gravity.x = 0;
 
   const room = {
     roomID: roomID,
