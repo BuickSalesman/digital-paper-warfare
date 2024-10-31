@@ -251,7 +251,7 @@ function redrawCanvas() {
 
   drawingHistory.forEach((path, index) => {
     const shouldTransform =
-      (path.playrNumber === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
+      (path.playerNumber === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
       (path.playerNumber === PLAYER_TWO && playerNumber === PLAYER_ONE);
 
     const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, shouldTransform, true);
@@ -315,6 +315,10 @@ function handleMouseDown(evt) {
   lastX = pos.x;
   lastY = pos.y;
 
+  // Reset drawingLegally and color at the start of a new drawing
+  drawingLegally = true;
+  color = "#000000"; // Default color for legal drawing
+
   currentDrawingSessionId = `${playerNumber}-${Date.now()}-${Math.random()}`;
 
   const gwPos = canvasToGameWorld(pos.x, pos.y);
@@ -345,16 +349,18 @@ function handleMouseMove(evt) {
   const gwFrom = canvasToGameWorld(lastX, lastY);
   const gwTo = canvasToGameWorld(currentX, currentY);
 
+  // Determine the color based on drawingLegally
+  const drawColor = drawingLegally ? "#000000" : "#FF0000";
+
   // Draw locally
-  if (drawingLegally) {
-    drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY });
-  } else {
-    drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, color);
-  }
-  // Add to drawingHistory
+  drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, drawColor);
+
+  // Add to drawingHistory, including the color
   drawingHistory.push({
     from: gwFrom,
     to: gwTo,
+    color: drawColor,
+    lineWidth: 2, // Use the appropriate line width
     playerNumber: playerNumber,
     drawingSessionId: currentDrawingSessionId,
   });
