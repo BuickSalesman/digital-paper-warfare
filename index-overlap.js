@@ -211,7 +211,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const { from, to } = data;
+    const { from, to, color, lineWidth } = data;
 
     // Calculate the distance between the two points
     const dx = to.x - from.x;
@@ -220,7 +220,7 @@ io.on("connection", (socket) => {
     session.totalPixelsDrawn += distance;
 
     // Add the line segment to the path
-    session.path.push({ from, to, color: data.color, lineWidth: data.lineWidth });
+    session.path.push({ from, to, color, lineWidth });
 
     if (session.totalPixelsDrawn > inkLimit) {
       // Exceeded the limit, erase the drawing session
@@ -229,19 +229,19 @@ io.on("connection", (socket) => {
         drawingSessionId: session.id,
         from: data.from,
         to: data.to,
-        color: "red",
-        lineWidth: 2, // make magic nujmber later
+        color: "#FF0000", // Red color for illegal drawing
+        lineWidth: data.lineWidth,
       });
-      socket.to(socket.id).emit("drawingIllegally", {});
+      socket.emit("drawingIllegally", {});
     } else {
-      // Forward the drawing data to other clients
+      // Forward the drawing data to other clients, including color and lineWidth
       socket.to(roomID).emit("drawingMirror", {
         playerNumber,
         drawingSessionId: session.id,
         from: data.from,
         to: data.to,
-        color: "black", // make magic number later
-        lineWidth: 2, //make magic number later
+        color: data.color,
+        lineWidth: data.lineWidth,
       });
     }
   });

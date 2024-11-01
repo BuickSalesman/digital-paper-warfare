@@ -355,21 +355,23 @@ function handleMouseMove(evt) {
   // Draw locally
   drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, drawColor);
 
-  // Add to drawingHistory, including the color
+  // Add to drawingHistory, including the color and lineWidth
   drawingHistory.push({
     from: gwFrom,
     to: gwTo,
     color: drawColor,
-    lineWidth: 2, // Use the appropriate line width
+    lineWidth: 2, // Assuming lineWidth is 2
     playerNumber: playerNumber,
     drawingSessionId: currentDrawingSessionId,
   });
 
-  // Send drawing data to server, including drawingSessionId
+  // Send drawing data to server, including color and lineWidth
   socket.emit("drawing", {
     drawingSessionId: currentDrawingSessionId,
     from: gwFrom,
     to: gwTo,
+    color: drawColor,
+    lineWidth: 2, // Assuming lineWidth is 2
   });
 
   lastX = currentX;
