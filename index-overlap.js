@@ -296,26 +296,24 @@ io.on("connection", (socket) => {
     for (let existingShape of room.allPaths) {
       const existingShapeCoordinates = buildPolygonCoordinates(existingShape.path);
 
-      // Check for intersection
+      // Check for intersection or containment
       if (doPolygonsIntersect(newShapeCoordinates, existingShapeCoordinates)) {
         isIllegalShape = true;
-        console.log(`New shape intersects with an existing shape.`);
+        console.log(`New shape intersects with existing shape drawn by Player ${existingShape.playerNumber}.`);
         break;
       }
 
-      // Check if new shape contains existing shape
-      if (isPolygonContained(existingShapeCoordinates, newShapeCoordinates)) {
-        // The existing shape is entirely within the new shape
-        isIllegalShape = true;
-        console.log(`New shape contains an existing shape.`);
-        break;
-      }
-
-      // Check if existing shape contains new shape
+      // Optionally, check if the new shape is contained within an existing shape
       if (isPolygonContained(newShapeCoordinates, existingShapeCoordinates)) {
-        // The new shape is entirely within the existing shape
         isIllegalShape = true;
-        console.log(`Existing shape contains the new shape.`);
+        console.log(`New shape is contained within an existing shape drawn by Player ${existingShape.playerNumber}.`);
+        break;
+      }
+
+      // Optionally, check if an existing shape is contained within the new shape
+      if (isPolygonContained(existingShapeCoordinates, newShapeCoordinates)) {
+        isIllegalShape = true;
+        console.log(`Existing shape drawn by Player ${existingShape.playerNumber} is contained within the new shape.`);
         break;
       }
     }
@@ -434,7 +432,7 @@ function buildPolygonCoordinates(path) {
   for (let segment of path) {
     coordinates.push([segment.to.x, segment.to.y]);
   }
-  // Ensure the polygon is closed
+  // Ensure the polygon is closed by adding the starting point at the end
   if (
     coordinates.length > 0 &&
     (coordinates[0][0] !== coordinates[coordinates.length - 1][0] ||
@@ -442,7 +440,7 @@ function buildPolygonCoordinates(path) {
   ) {
     coordinates.push(coordinates[0]);
   }
-  return [coordinates]; // Return as an array of linear rings
+  return coordinates;
 }
 
 // Determines the orientation of an ordered triplet (p, q, r)
@@ -452,7 +450,6 @@ function orientation(p, q, r) {
   return val > 0 ? 1 : 2; // clock or counterclockwise
 }
 
-// Checks if point q lies on segment pr
 function onSegment(p, q, r) {
   return (
     Math.min(p.x, r.x) - Number.EPSILON <= q.x &&
@@ -462,7 +459,18 @@ function onSegment(p, q, r) {
   );
 }
 
-// Determines if two line segments intersect
+function getEdgesFromCoordinates(polygon) {
+  const edges = [];
+  for (let i = 0; i < polygon.length - 1; i++) {
+    const p1 = { x: polygon[i][0], y: polygon[i][1] };
+    const p2 = { x: polygon[i + 1][0], y: polygon[i + 1][1] };
+    edges.push([p1, p2]);
+  }
+  // Optionally close the polygon by connecting the last point to the first
+  // edges.push([{ x: polygon[polygon.length - 1][0], y: polygon[polygon.length - 1][1] }, { x: polygon[0][0], y: polygon[0][1] }]);
+  return edges;
+}
+
 function doLineSegmentsIntersect(p1, p2, q1, q2) {
   const o1 = orientation(p1, p2, q1);
   const o2 = orientation(p1, p2, q2);
@@ -483,30 +491,22 @@ function doLineSegmentsIntersect(p1, p2, q1, q2) {
   return false;
 }
 
-// Converts polygon coordinates into edges
-function getEdgesFromCoordinates(polygon) {
-  const edges = [];
-  for (let i = 0; i < polygon.length - 1; i++) {
-    const p1 = { x: polygon[i][0], y: polygon[i][1] };
-    const p2 = { x: polygon[i + 1][0], y: polygon[i + 1][1] };
-    edges.push([p1, p2]);
-  }
-  return edges;
-}
-
 // Determines if a point is inside a polygon using the ray-casting algorithm
 function isPointInPolygon(point, polygon) {
+  let x = point.x,
+    y = point.y;
   let inside = false;
+
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i][0],
+    let xi = polygon[i][0],
       yi = polygon[i][1];
-    const xj = polygon[j][0],
+    let xj = polygon[j][0],
       yj = polygon[j][1];
 
-    const intersect =
-      yi > point.y !== yj > point.y && point.x < ((xj - xi) * (point.y - yi)) / (yj - yi + Number.EPSILON) + xi;
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + Number.EPSILON) + xi;
     if (intersect) inside = !inside;
   }
+
   return inside;
 }
 
@@ -515,6 +515,7 @@ function doPolygonsIntersect(polygonA, polygonB) {
   const edgesA = getEdgesFromCoordinates(polygonA);
   const edgesB = getEdgesFromCoordinates(polygonB);
 
+  // Check for edge intersections
   for (const [p1, p2] of edgesA) {
     for (const [q1, q2] of edgesB) {
       if (doLineSegmentsIntersect(p1, p2, q1, q2)) {
@@ -522,20 +523,21 @@ function doPolygonsIntersect(polygonA, polygonB) {
       }
     }
   }
+
+  // Check if a vertex of one polygon is inside the other polygon
+  if (isPointInPolygon({ x: polygonA[0][0], y: polygonA[0][1] }, polygonB)) {
+    return true;
+  }
+  if (isPointInPolygon({ x: polygonB[0][0], y: polygonB[0][1] }, polygonA)) {
+    return true;
+  }
+
   return false;
 }
 
-// Checks if one polygon is entirely within another
 function isPolygonContained(innerPolygon, outerPolygon) {
-  // First, check if polygons intersect
-  if (doPolygonsIntersect(innerPolygon, outerPolygon)) {
-    return false;
-  }
-
-  // Check if all points of innerPolygon are inside outerPolygon
   for (let point of innerPolygon) {
-    const pt = { x: point[0], y: point[1] };
-    if (!isPointInPolygon(pt, outerPolygon)) {
+    if (!isPointInPolygon({ x: point[0], y: point[1] }, outerPolygon)) {
       return false;
     }
   }
