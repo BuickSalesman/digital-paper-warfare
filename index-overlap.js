@@ -294,23 +294,26 @@ io.on("connection", (socket) => {
 
     // Iterate through existing shapes in the room to check for overlaps or containment
     for (let existingShape of room.allPaths) {
+      // Skip shapes drawn by the other player
+      if (existingShape.playerNumber !== playerNumber) {
+        continue;
+      }
+
       const existingShapeCoordinates = buildPolygonCoordinates(existingShape.path);
 
-      // Check for intersection or containment
+      // Check for intersection or containment with the player's own shapes
       if (doPolygonsIntersect(newShapeCoordinates, existingShapeCoordinates)) {
         isIllegalShape = true;
         console.log(`New shape intersects with existing shape drawn by Player ${existingShape.playerNumber}.`);
         break;
       }
 
-      // Optionally, check if the new shape is contained within an existing shape
       if (isPolygonContained(newShapeCoordinates, existingShapeCoordinates)) {
         isIllegalShape = true;
         console.log(`New shape is contained within an existing shape drawn by Player ${existingShape.playerNumber}.`);
         break;
       }
 
-      // Optionally, check if an existing shape is contained within the new shape
       if (isPolygonContained(existingShapeCoordinates, newShapeCoordinates)) {
         isIllegalShape = true;
         console.log(`Existing shape drawn by Player ${existingShape.playerNumber} is contained within the new shape.`);

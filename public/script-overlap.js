@@ -71,7 +71,7 @@ let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
 
-let drawingHistory = [];
+let drawingHistory = { [PLAYER_ONE]: [], [PLAYER_TWO]: [] };
 
 let currentDrawingStart = null;
 
@@ -153,7 +153,11 @@ socket.on("playerDisconnected", (number) => {
   passcodeInput.value = "";
 
   currentGameState = GameState.LOBBY;
-  drawingHistory = [];
+  drawingHistory = {
+    [PLAYER_ONE]: [],
+    [PLAYER_TWO]: [],
+  };
+
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
   roomID = null;
@@ -172,11 +176,8 @@ socket.on("gameFull", () => {
 socket.on("drawingMirror", (data) => {
   const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2, drawingSessionId } = data;
 
-  const shouldTransform =
-    (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
-    (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
-
-  drawingHistory.push({
+  // Add to the appropriate player's history
+  drawingHistory[senderPlayer].push({
     from,
     to,
     color,
@@ -185,24 +186,23 @@ socket.on("drawingMirror", (data) => {
     drawingSessionId: drawingSessionId,
   });
 
+  const shouldTransform = senderPlayer !== playerNumber;
+
   const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
   const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
 
   drawLine(canvasFrom, canvasTo, color, lineWidth);
   drawDividingLine();
-  console.log(data);
 });
 
 // In your client-side code
 socket.on("shapeClosed", (data) => {
   const { playerNumber: senderPlayer, closingLine, drawingSessionId } = data;
 
-  const shouldTransform =
-    (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
-    (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
+  const shouldTransform = senderPlayer !== playerNumber;
 
-  // Add the closing line to drawingHistory
-  drawingHistory.push({
+  // Add the closing line to the correct player's history
+  drawingHistory[senderPlayer].push({
     from: closingLine.from,
     to: closingLine.to,
     color: closingLine.color,
@@ -222,8 +222,10 @@ socket.on("shapeClosed", (data) => {
 socket.on("eraseDrawingSession", (data) => {
   const { drawingSessionId, playerNumber: senderPlayer } = data;
 
-  // Remove the drawing session's segments from drawingHistory
-  drawingHistory = drawingHistory.filter((segment) => segment.drawingSessionId !== drawingSessionId);
+  // Remove the drawing session's segments from the correct player's history
+  drawingHistory[senderPlayer] = drawingHistory[senderPlayer].filter(
+    (segment) => segment.drawingSessionId !== drawingSessionId
+  );
 
   // Redraw the canvas
   redrawCanvas();
@@ -249,18 +251,20 @@ joinButton.addEventListener("click", () => {
 function redrawCanvas() {
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
-  drawingHistory.forEach((path, index) => {
-    const shouldTransform =
-      (path.playerNumber === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
-      (path.playerNumber === PLAYER_TWO && playerNumber === PLAYER_ONE);
+  // Loop over each player's drawing history
+  [PLAYER_ONE, PLAYER_TWO].forEach((playerNumber) => {
+    drawingHistory[playerNumber].forEach((path) => {
+      // Determine if we need to transform the coordinates
+      const shouldTransform = playerNumber !== playerNumber;
 
-    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, shouldTransform, true);
-    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, shouldTransform, true);
+      const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, shouldTransform, true);
+      const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, shouldTransform, true);
 
-    drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
+      drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
+    });
   });
+
   drawDividingLine();
-  drawCtx.restore();
 }
 
 function resizeCanvas() {
@@ -349,14 +353,13 @@ function handleMouseMove(evt) {
   const gwFrom = canvasToGameWorld(lastX, lastY);
   const gwTo = canvasToGameWorld(currentX, currentY);
 
-  // Determine the color based on drawingLegally
   const drawColor = drawingLegally ? "#000000" : "#FF0000";
 
   // Draw locally
   drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, drawColor);
 
-  // Add to drawingHistory, including the color and lineWidth
-  drawingHistory.push({
+  // Add to the correct player's drawing history
+  drawingHistory[playerNumber].push({
     from: gwFrom,
     to: gwTo,
     color: drawColor,
@@ -365,13 +368,13 @@ function handleMouseMove(evt) {
     drawingSessionId: currentDrawingSessionId,
   });
 
-  // Send drawing data to server, including color and lineWidth
+  // Send drawing data to server
   socket.emit("drawing", {
     drawingSessionId: currentDrawingSessionId,
     from: gwFrom,
     to: gwTo,
     color: drawColor,
-    lineWidth: 2, // Assuming lineWidth is 2
+    lineWidth: 2,
   });
 
   lastX = currentX;
