@@ -112,7 +112,6 @@ socket.on("playerInfo", (data) => {
   roomID = data.roomID;
   gameWorldWidth = data.gameWorldWidth;
   gameWorldHeight = data.gameWorldHeight;
-  statusText.textContent = `You are Player ${playerNumber}`;
 
   initializeCanvas();
 });
@@ -160,6 +159,28 @@ function render() {
 }
 
 socket.on("playerDisconnected", (number) => {
+  // Reset client-side variables
+  playerNumber = null;
+  roomID = null;
+  currentGameState = GameState.LOBBY;
+  drawingHistory = {
+    [PLAYER_ONE]: [],
+    [PLAYER_TWO]: [],
+  };
+
+  // Clear the canvas
+  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+
+  // Reset game entities
+  tanks = [];
+  reactors = [];
+  fortresses = [];
+  turrets = [];
+  shells = [];
+  noDrawZones = [];
+  renderingStarted = false;
+
+  // Reset UI elements
   landingPage.style.display = "block";
   gameAndPowerContainer.style.display = "none";
 
@@ -167,18 +188,12 @@ socket.on("playerDisconnected", (number) => {
   passcodeInput.disabled = false;
   passcodeInput.value = "";
 
-  currentGameState = GameState.LOBBY;
-  drawingHistory = {
-    [PLAYER_ONE]: [],
-    [PLAYER_TWO]: [],
-  };
-
-  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-
-  roomID = null;
-  playerNumber = null;
   gameWorldWidth = null;
   gameWorldHeight = null;
+  scaleX = 1;
+  scaleY = 1;
+
+  console.log(`Player ${number} disconnected. Resetting game state.`);
 });
 
 socket.on("gameFull", () => {

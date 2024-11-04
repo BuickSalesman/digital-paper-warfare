@@ -52,6 +52,7 @@ let nextRoomNumber = 1;
 // FPS and deltaTime for Matter.js engine
 const FPS = 60;
 const deltaTime = 1000 / FPS; // Time per frame in ms
+let roomIntervals = {};
 
 // CANVAS AND CONTEXT VARIABLES
 
@@ -182,19 +183,24 @@ io.on("connection", (socket) => {
           console.log(`Player 2 (${socket.id}) disconnected from ${roomID}`);
         }
 
+        // Reset the playerNumber and roomID of the remaining player
+        const remainingPlayerSocketId = room.players.player1 || room.players.player2;
+        if (remainingPlayerSocketId) {
+          const remainingPlayerSocket = io.sockets.sockets.get(remainingPlayerSocketId);
+          if (remainingPlayerSocket) {
+            remainingPlayerSocket.playerNumber = null;
+            remainingPlayerSocket.roomID = null;
+            console.log(`Reset playerNumber and roomID for remaining player ${remainingPlayerSocketId}`);
+          }
+        }
+
         // Emit 'playerDisconnected' to all clients in the room
         io.to(roomID).emit("playerDisconnected", disconnectedPlayer);
         console.log(`Notified room ${roomID} about disconnection of Player ${disconnectedPlayer}`);
 
-        // Delete the room if appropriate
-        if (!room.players.player1 && !room.players.player2) {
-          delete gameRooms[roomID];
-          console.log(`Room ${roomID} has been deleted as both players disconnected.`);
-        } else if (!room.isPasscodeRoom) {
-          // For non-passcode rooms, delete the room if any player disconnects
-          delete gameRooms[roomID];
-          console.log(`Room ${roomID} has been deleted as a player disconnected.`);
-        }
+        // Delete the room completely
+        delete gameRooms[roomID];
+        console.log(`Room ${roomID} has been deleted due to player disconnection.`);
       }
     }
   });
@@ -546,6 +552,8 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     roomWorld: roomWorld,
   };
 
+  startRoomInterval(roomID);
+
   console.log(`Dividing line for room ${roomID} set at Y = ${room.dividingLine} in game world coordinates`);
 
   gameRooms[roomID] = room;
@@ -565,24 +573,29 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
   // Wait for another player to join
 }
 
-setInterval(() => {
-  for (const roomID in gameRooms) {
+// Update the setInterval code
+function startRoomInterval(roomID) {
+  roomIntervals[roomID] = setInterval(() => {
     const room = gameRooms[roomID];
-    Matter.Engine.update(room.roomEngine, deltaTime);
+    if (room) {
+      Matter.Engine.update(room.roomEngine, deltaTime);
 
-    // Only proceed if the game bodies have been created
-    if (room.bodiesCreated) {
-      // Send updated positions to clients
-      io.to(roomID).emit("gameUpdate", {
-        tanks: room.tanks.map(bodyToData),
-        reactors: room.reactors.map(bodyToData),
-        fortresses: room.fortresses.map(bodyToData),
-        turrets: room.turrets.map(bodyToData),
-        shells: room.shells.map(bodyToData), // Include shells if applicable
-      });
+      if (room.bodiesCreated) {
+        io.to(roomID).emit("gameUpdate", {
+          tanks: room.tanks.map(bodyToData),
+          reactors: room.reactors.map(bodyToData),
+          fortresses: room.fortresses.map(bodyToData),
+          turrets: room.turrets.map(bodyToData),
+          shells: room.shells.map(bodyToData),
+        });
+      }
+    } else {
+      // If room doesn't exist, clear the interval
+      clearInterval(roomIntervals[roomID]);
+      delete roomIntervals[roomID];
     }
-  }
-}, deltaTime);
+  }, deltaTime);
+}
 
 // Converts the drawing path to an array of coordinates suitable for polygon-clipping
 function buildPolygonCoordinates(path) {
