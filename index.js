@@ -211,7 +211,9 @@ io.on("connection", (socket) => {
     const playerNumber = socket.playerNumber;
     const drawingSessionId = data.drawingSessionId;
     const room = gameRooms[roomID];
-    if (!room) return;
+    if (!room) {
+      return;
+    }
 
     // Check if the player has reached the maximum number of shapes
     if (room.shapeCounts[playerNumber] >= 5) {
@@ -309,7 +311,9 @@ io.on("connection", (socket) => {
 
       // Check intersection with own shapes
       for (let existingShape of room.allPaths) {
-        if (existingShape.playerNumber !== playerNumber) continue;
+        if (existingShape.playerNumber !== playerNumber) {
+          continue;
+        }
 
         const existingSegments = getSegmentsFromPath(existingShape.path);
 
@@ -321,7 +325,9 @@ io.on("connection", (socket) => {
             break;
           }
         }
-        if (!session.isLegal) break;
+        if (!session.isLegal) {
+          break;
+        }
       }
 
       // Check intersection with no-draw zones
@@ -336,7 +342,9 @@ io.on("connection", (socket) => {
               break;
             }
           }
-          if (!session.isLegal) break;
+          if (!session.isLegal) {
+            break;
+          }
         }
       }
 
@@ -367,17 +375,23 @@ io.on("connection", (socket) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
     const room = gameRooms[roomID];
-    if (!room) return;
+    if (!room) {
+      return;
+    }
 
     if (room.shapeCounts[playerNumber] >= 5) {
       return;
     }
 
     const session = room.drawingSessions[playerNumber];
-    if (!session) return;
+    if (!session) {
+      return;
+    }
 
     const path = session.path;
-    if (path.length === 0) return;
+    if (path.length === 0) {
+      return;
+    }
 
     const startingPoint = path[0].from;
     const endingPoint = path[path.length - 1].to;
@@ -652,7 +666,9 @@ function buildPolygonCoordinates(path) {
 // Determines the orientation of an ordered triplet (p, q, r)
 function orientation(p, q, r) {
   const val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
-  if (Math.abs(val) < Number.EPSILON) return 0; // colinear
+  if (Math.abs(val) < Number.EPSILON) {
+    return 0;
+  } // colinear
   return val > 0 ? 1 : 2; // clock or counterclockwise
 }
 
@@ -692,10 +708,18 @@ function doLineSegmentsIntersect(p1, p2, q1, q2) {
   }
 
   // Special Cases
-  if (o1 === 0 && onSegment(p1, q1, p2)) return true;
-  if (o2 === 0 && onSegment(p1, q2, p2)) return true;
-  if (o3 === 0 && onSegment(q1, p1, q2)) return true;
-  if (o4 === 0 && onSegment(q1, p2, q2)) return true;
+  if (o1 === 0 && onSegment(p1, q1, p2)) {
+    return true;
+  }
+  if (o2 === 0 && onSegment(p1, q2, p2)) {
+    return true;
+  }
+  if (o3 === 0 && onSegment(q1, p1, q2)) {
+    return true;
+  }
+  if (o4 === 0 && onSegment(q1, p2, q2)) {
+    return true;
+  }
 
   return false;
 }
@@ -713,7 +737,9 @@ function isPointInPolygon(point, polygon) {
       yj = polygon[j][1];
 
     const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + Number.EPSILON) + xi;
-    if (intersect) inside = !inside;
+    if (intersect) {
+      inside = !inside;
+    }
   }
 
   return inside;
