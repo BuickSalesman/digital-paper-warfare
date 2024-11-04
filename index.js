@@ -477,6 +477,8 @@ io.on("connection", (socket) => {
         path: session.path,
       });
 
+      createBodiesFromShapes(session.path, room);
+
       room.shapeCounts[playerNumber] += 1;
 
       if (room.shapeCounts[playerNumber] >= 5) {
@@ -930,4 +932,51 @@ function isWithinPlayerArea(y, playerNumber, room) {
   } else {
     return y <= dividingLine;
   }
+}
+
+function createBodiesFromShapes(path, room) {
+  const circleRadius = 2; // Adjust the radius as needed
+
+  // Iterate over each segment in the path
+  for (let i = 0; i < path.length; i++) {
+    const segment = path[i];
+    const startPoint = segment.from;
+    const endPoint = segment.to;
+
+    // Generate points along the line segment
+    const points = getPointsAlongLine(startPoint, endPoint, circleRadius);
+
+    points.forEach((point) => {
+      const circle = Matter.Bodies.circle(point.x, point.y, circleRadius, {
+        isStatic: true,
+        label: "Shape",
+        collisionFilter: {
+          group: 0,
+          category: CATEGORY_SHAPE,
+          mask: CATEGORY_SHELL | CATEGORY_TANK,
+        },
+        friction: 0.005,
+        restitution: 0,
+      });
+      // Add the circle to the room's physics world
+      Matter.World.add(room.roomWorld, circle);
+    });
+  }
+}
+
+function getPointsAlongLine(startPoint, endPoint, interval) {
+  const points = [];
+  const dx = endPoint.x - startPoint.x;
+  const dy = endPoint.y - startPoint.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  const steps = Math.floor(distance / (interval * 2)); // Adjust spacing between circles
+
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const x = startPoint.x + dx * t;
+    const y = startPoint.y + dy * t;
+    points.push({ x, y });
+  }
+
+  return points;
 }
