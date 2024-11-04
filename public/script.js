@@ -253,11 +253,13 @@ function redrawCanvas() {
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
   drawCtx.save();
+  let invertPlayerIds = false;
   if (playerNumber === PLAYER_TWO) {
     // Rotate the canvas by 180 degrees around its center
     drawCtx.translate(drawCanvas.width / 2, drawCanvas.height / 2);
     drawCtx.rotate(Math.PI);
     drawCtx.translate(-drawCanvas.width / 2, -drawCanvas.height / 2);
+    invertPlayerIds = true;
   }
 
   // Draw the opponent's drawings
@@ -279,10 +281,10 @@ function redrawCanvas() {
   });
 
   drawDividingLine();
-  fortresses.forEach(drawFortress);
-  reactors.forEach(drawReactor);
-  turrets.forEach(drawTurret);
-  tanks.forEach(drawTank);
+  fortresses.forEach((fortress) => drawFortress(fortress, invertPlayerIds));
+  reactors.forEach((reactor) => drawReactor(reactor, invertPlayerIds));
+  turrets.forEach((turret) => drawTurret(turret, invertPlayerIds));
+  tanks.forEach((tank) => drawTank(tank, invertPlayerIds));
   drawNoDrawZones();
 
   drawCtx.restore();
@@ -445,7 +447,7 @@ function isWithinPlayerArea(y) {
   }
 }
 
-function drawTank(tank) {
+function drawTank(tank, invertPlayerIds) {
   const size = tank.size;
   const x = tank.position.x * scaleX;
   const y = tank.position.y * scaleY;
@@ -455,7 +457,13 @@ function drawTank(tank) {
   drawCtx.translate(x, y);
   drawCtx.rotate(tank.angle);
 
-  if (tank.playerId === playerNumber) {
+  // Adjust the player ID based on the invertPlayerIds flag
+  let tankPlayerId = tank.playerId;
+  if (invertPlayerIds) {
+    tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  }
+
+  if (tankPlayerId === playerNumber) {
     drawCtx.strokeStyle = "blue"; // Own tank
   } else {
     drawCtx.strokeStyle = "red"; // Opponent's tank
@@ -466,14 +474,21 @@ function drawTank(tank) {
   drawCtx.restore();
 }
 
-function drawReactor(reactor) {
+function drawReactor(reactor, invertPlayerIds) {
   const radius = (reactor.size / 2) * scaleX;
   const x = reactor.position.x * scaleX;
   const y = reactor.position.y * scaleY;
 
   drawCtx.save();
   drawCtx.translate(x, y);
-  if (reactor.playerId === playerNumber) {
+
+  // Adjust the player ID based on the invertPlayerIds flag
+  let reactorPlayerId = reactor.playerId;
+  if (invertPlayerIds) {
+    reactorPlayerId = reactor.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  }
+
+  if (reactorPlayerId === playerNumber) {
     drawCtx.strokeStyle = "blue"; // Own reactor
   } else {
     drawCtx.strokeStyle = "red"; // Opponent's reactor
@@ -486,7 +501,7 @@ function drawReactor(reactor) {
   drawCtx.restore();
 }
 
-function drawFortress(fortress) {
+function drawFortress(fortress, invertPlayerIds) {
   const width = fortress.width * scaleX;
   const height = fortress.height * scaleY;
   const canvasPos = gameWorldToCanvas(fortress.position.x, fortress.position.y);
@@ -495,8 +510,13 @@ function drawFortress(fortress) {
   drawCtx.translate(canvasPos.x, canvasPos.y);
   drawCtx.rotate(fortress.angle);
 
-  // Determine color based on player ownership
-  if (fortress.playerId === playerNumber) {
+  // Adjust the player ID based on the invertPlayerIds flag
+  let fortressPlayerId = fortress.playerId;
+  if (invertPlayerIds) {
+    fortressPlayerId = fortress.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  }
+
+  if (fortressPlayerId === playerNumber) {
     drawCtx.strokeStyle = "blue"; // Own fortress
   } else {
     drawCtx.strokeStyle = "red"; // Opponent's fortress
@@ -507,7 +527,7 @@ function drawFortress(fortress) {
   drawCtx.restore();
 }
 
-function drawTurret(turret) {
+function drawTurret(turret, invertPlayerIds) {
   const radius = (turret.size / 2) * scaleX;
   const x = turret.position.x * scaleX;
   const y = turret.position.y * scaleY;
@@ -516,7 +536,13 @@ function drawTurret(turret) {
   drawCtx.translate(x, y);
   drawCtx.rotate(turret.angle);
 
-  if (turret.playerId === playerNumber) {
+  // Adjust the player ID based on the invertPlayerIds flag
+  let turretPlayerId = turret.playerId;
+  if (invertPlayerIds) {
+    turretPlayerId = turret.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  }
+
+  if (turretPlayerId === playerNumber) {
     drawCtx.strokeStyle = "blue"; // Own turret
   } else {
     drawCtx.strokeStyle = "red"; // Opponent's turret
