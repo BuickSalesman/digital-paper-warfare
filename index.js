@@ -218,6 +218,7 @@ io.on("connection", (socket) => {
       id: drawingSessionId, // Use the drawingSessionId from the client
       totalPixelsDrawn: 0,
       path: [],
+      isLegal: true,
     };
   });
 
@@ -269,6 +270,65 @@ io.on("connection", (socket) => {
         lineWidth: data.lineWidth,
       });
     }
+
+    let becameIllegal = false;
+
+    if (session.isLegal) {
+      const newLine = [from, to];
+
+      // Check intersection with own shapes
+      for (let existingShape of room.allPaths) {
+        if (existingShape.playerNumber !== playerNumber) continue;
+
+        const existingSegments = getSegmentsFromPath(existingShape.path);
+
+        for (let segment of existingSegments) {
+          if (doLineSegmentsIntersect(newLine[0], newLine[1], segment.from, segment.to)) {
+            session.isLegal = false;
+            becameIllegal = true;
+            console.log(`New line segment intersects with existing shape.`);
+            break;
+          }
+        }
+        if (!session.isLegal) break;
+      }
+
+      // Check intersection with no-draw zones
+      if (session.isLegal) {
+        for (let noDrawZone of room.noDrawZones) {
+          const noDrawZoneEdges = getEdgesFromCoordinates(noDrawZone.map((point) => [point.x, point.y]));
+          for (let edge of noDrawZoneEdges) {
+            if (doLineSegmentsIntersect(newLine[0], newLine[1], edge[0], edge[1])) {
+              session.isLegal = false;
+              becameIllegal = true;
+              console.log(`New line segment intersects with no-draw zone.`);
+              break;
+            }
+          }
+          if (!session.isLegal) break;
+        }
+      }
+
+      if (session.isLegal && session.totalPixelsDrawn > inkLimit) {
+        session.isLegal = false;
+        becameIllegal = true;
+      }
+
+      if (becameIllegal) {
+        socket.emit("drawingIllegally", {});
+      }
+    }
+
+    // Send the drawing data to clients with appropriate color
+    const segmentColor = session.isLegal ? data.color : "#FF0000";
+    socket.to(roomID).emit("drawingMirror", {
+      playerNumber,
+      drawingSessionId: session.id,
+      from: data.from,
+      to: data.to,
+      color: segmentColor,
+      lineWidth: data.lineWidth,
+    });
   });
 
   // Handle 'endDrawing' event
@@ -629,6 +689,17 @@ function isPolygonContained(innerPolygon, outerPolygon) {
     }
   }
   return true;
+}
+
+function getSegmentsFromPath(path) {
+  const segments = [];
+  for (let segment of path) {
+    segments.push({
+      from: segment.from,
+      to: segment.to,
+    });
+  }
+  return segments;
 }
 
 function createWalls(width, height) {
