@@ -36,6 +36,7 @@ const drawCanvas = document.getElementById("drawCanvas");
 const powerMeterFill = document.getElementById("powerMeterFill");
 const moveButton = document.getElementById("moveButton");
 const shootButton = document.getElementById("shootButton");
+const removeDrawingButton = document.getElementById("removePreviousDrawingButton");
 const rulesButton = document.getElementById("rulzButton");
 const closeButton = document.querySelector(".close-button");
 const rulesModal = document.getElementById("rulesModal");
