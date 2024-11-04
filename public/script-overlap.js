@@ -251,17 +251,26 @@ joinButton.addEventListener("click", () => {
 function redrawCanvas() {
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
-  // Loop over each player's drawing history
-  [PLAYER_ONE, PLAYER_TWO].forEach((playerNumber) => {
-    drawingHistory[playerNumber].forEach((path) => {
-      // Determine if we need to transform the coordinates
-      const shouldTransform = playerNumber !== playerNumber;
+  // Draw the opponent's drawings on the top half
+  const opponentPlayerNumber = playerNumber === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
 
-      const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, shouldTransform, true);
-      const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, shouldTransform, true);
+  drawingHistory[opponentPlayerNumber].forEach((path) => {
+    const isOpponentDrawing = true;
 
-      drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
-    });
+    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, isOpponentDrawing);
+    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, isOpponentDrawing);
+
+    drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
+  });
+
+  // Draw the local player's drawings on the bottom half
+  drawingHistory[playerNumber].forEach((path) => {
+    const isOpponentDrawing = false;
+
+    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, isOpponentDrawing);
+    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, isOpponentDrawing);
+
+    drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
   });
 
   drawDividingLine();
@@ -284,12 +293,12 @@ function canvasToGameWorld(x, y) {
   };
 }
 
-function gameWorldToCanvas(x, y, shouldTransform = false, isIncoming = false) {
+function gameWorldToCanvas(x, y, isOpponentDrawing = false) {
   let canvasX = x * scaleX;
   let canvasY = y * scaleY;
 
-  if (shouldTransform) {
-    canvasX = drawCanvas.width - canvasX;
+  if (isOpponentDrawing) {
+    // Flip the Y coordinate to map opponent's bottom half to our top half
     canvasY = drawCanvas.height - canvasY;
   }
 
