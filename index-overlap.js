@@ -8,9 +8,6 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// At the top of your server code
-const polygonClipping = require("polygon-clipping");
-
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -39,7 +36,7 @@ const GAME_WORLD_WIDTH = 1885; // Fixed width in game units
 const ASPECT_RATIO = 1 / 1.4142; // A4 aspect ratio
 const GAME_WORLD_HEIGHT = GAME_WORLD_WIDTH / ASPECT_RATIO; // Calculate height based on aspect ratio
 
-const inkLimit = 1500;
+const inkLimit = 2000;
 
 // SERVER VARIABLES
 const PORT = process.env.PORT || 3000;
@@ -403,7 +400,7 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     allPaths: [], // Store all valid drawing paths
     drawingSessions: {}, // Store ongoing drawing sessions
     currentGameState: GameState.LOBBY, // Start with LOBBY
-    readyPlayers: 1, // The creator is ready by default
+    readyPlayers: 0, // The creator is ready by default
     dividingLine: GAME_WORLD_HEIGHT / 2, // Define dividing line in game world coordinates
   };
 

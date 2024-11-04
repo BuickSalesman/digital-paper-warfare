@@ -75,6 +75,14 @@ let drawingHistory = { [PLAYER_ONE]: [], [PLAYER_TWO]: [] };
 
 let currentDrawingStart = null;
 
+let tanks = [];
+let reactors = [];
+let fortresses = [];
+let turrets = [];
+let shells = [];
+
+let noDrawZones = [];
+
 // let shouldRotateCanvas = false
 
 window.addEventListener("load", () => {});
@@ -88,7 +96,7 @@ function initializeCanvas() {
   }
 
   const aspectRatio = gameWorldWidth / gameWorldHeight;
-  const baseWidth = Math.min(window.innerWidth * 0.95, 10000);
+  const baseWidth = Math.min(window.innerWidth * 0.95, 1885);
   let canvasWidth = baseWidth;
   let canvasHeight = canvasWidth / aspectRatio;
 
