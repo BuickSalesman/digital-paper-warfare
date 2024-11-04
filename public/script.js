@@ -49,6 +49,7 @@ let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
 
+let drawingEnabled = true;
 let drawingHistory = { [PLAYER_ONE]: [], [PLAYER_TWO]: [] };
 let currentDrawingStart = null;
 
@@ -254,6 +255,10 @@ socket.on("eraseDrawingSession", (data) => {
   redrawCanvas();
 });
 
+socket.on("drawingDisabled", (data) => {
+  drawingEnabled = false;
+});
+
 joinButton.addEventListener("click", () => {
   const passcode = passcodeInput.value.trim();
   if (passcode) {
@@ -352,7 +357,7 @@ function getMousePos(evt) {
 }
 
 function handleMouseDown(evt) {
-  if (evt.button !== 0) return;
+  if (evt.button !== 0 || !drawingEnabled) return;
   if (currentGameState !== GameState.PRE_GAME && currentGameState !== GameState.GAME_RUNNING) {
     return;
   }
@@ -386,7 +391,7 @@ socket.on("drawingIllegally", (data) => {
 });
 
 function handleMouseMove(evt) {
-  if (evt.buttons !== 1) return;
+  if (evt.buttons !== 1 || !drawingEnabled) return;
 
   if (!isDrawing) {
     return;

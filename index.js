@@ -209,19 +209,26 @@ io.on("connection", (socket) => {
   socket.on("startDrawing", (data) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
-    const drawingSessionId = data.drawingSessionId; // Get the drawingSessionId from the client
+    const drawingSessionId = data.drawingSessionId;
     const room = gameRooms[roomID];
-    if (!room) {
+    if (!room) return;
+
+    // Check if the player has reached the maximum number of shapes
+    if (room.shapeCounts[playerNumber] >= 5) {
+      // Notify the player that they cannot draw more shapes
+      socket.emit("drawingDisabled", {
+        message: "You have reached the maximum number of shapes.",
+      });
       return;
     }
 
-    // Initialize drawing session for the player
+    // Proceed with initializing the drawing session
     if (!room.drawingSessions) {
       room.drawingSessions = {};
     }
 
     room.drawingSessions[playerNumber] = {
-      id: drawingSessionId, // Use the drawingSessionId from the client
+      id: drawingSessionId,
       totalPixelsDrawn: 0,
       path: [],
       isLegal: true,
@@ -235,6 +242,10 @@ io.on("connection", (socket) => {
     console.log(data);
     console.log(socket.id);
     if (!room) {
+      return;
+    }
+
+    if (room.shapeCounts[playerNumber] >= 5) {
       return;
     }
 
@@ -358,6 +369,10 @@ io.on("connection", (socket) => {
     const room = gameRooms[roomID];
     if (!room) return;
 
+    if (room.shapeCounts[playerNumber] >= 5) {
+      return;
+    }
+
     const session = room.drawingSessions[playerNumber];
     if (!session) return;
 
@@ -461,6 +476,21 @@ io.on("connection", (socket) => {
         playerNumber,
         path: session.path,
       });
+
+      room.shapeCounts[playerNumber] += 1;
+
+      if (room.shapeCounts[playerNumber] >= 5) {
+        // Notify the player that they can no longer draw
+        const playerSocketId = room.players[`player${playerNumber}`];
+        if (playerSocketId) {
+          const playerSocket = io.sockets.sockets.get(playerSocketId);
+          if (playerSocket) {
+            playerSocket.emit("drawingDisabled", {
+              message: "You have reached the maximum number of shapes.",
+            });
+          }
+        }
+      }
 
       // Remove the drawing session
       delete room.drawingSessions[playerNumber];
@@ -640,8 +670,11 @@ function getEdgesFromCoordinates(polygon) {
     const p2 = { x: polygon[i + 1][0], y: polygon[i + 1][1] };
     edges.push([p1, p2]);
   }
-  // Optionally close the polygon by connecting the last point to the first
-  // edges.push([{ x: polygon[polygon.length - 1][0], y: polygon[polygon.length - 1][1] }, { x: polygon[0][0], y: polygon[0][1] }]);
+  // Close the polygon by connecting the last point to the first
+  edges.push([
+    { x: polygon[polygon.length - 1][0], y: polygon[polygon.length - 1][1] },
+    { x: polygon[0][0], y: polygon[0][1] },
+  ]);
   return edges;
 }
 
