@@ -2,6 +2,26 @@ const express = require("express");
 const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
+const Matter = require("matter-js");
+
+const { Body, Bodies, Engine, World } = Matter;
+
+// Import game object modules
+const TankModule = require("./objects/tank");
+const ReactorModule = require("./objects/reactor");
+const FortressModule = require("./objects/fortress");
+const TurretModule = require("./objects/turret");
+const ShellModule = require("./objects/shell");
+
+// Assuming collisionCategories.js exports these constants
+const {
+  CATEGORY_SHELL,
+  CATEGORY_TANK,
+  CATEGORY_TURRET,
+  CATEGORY_FORTRESS,
+  CATEGORY_REACTOR,
+  CATEGORY_SHAPE,
+} = require("./objects/collisionCategories");
 
 // Initialize Express app
 const app = express();
@@ -29,12 +49,18 @@ let gameRooms = {};
 // Variable to keep track of the next room number
 let nextRoomNumber = 1;
 
+// FPS and deltaTime for Matter.js engine
+const FPS = 60;
+const deltaTime = 1000 / FPS; // Time per frame in ms
+
 // CANVAS AND CONTEXT VARIABLES
 
 // Fixed game world dimensions
 const GAME_WORLD_WIDTH = 1885; // Fixed width in game units
 const ASPECT_RATIO = 1 / 1.4142; // A4 aspect ratio
 const GAME_WORLD_HEIGHT = GAME_WORLD_WIDTH / ASPECT_RATIO; // Calculate height based on aspect ratio
+
+const DIVIDING_LINE_MARGIN = 10; // Dividing line margin
 
 const inkLimit = 2000;
 
@@ -382,11 +408,27 @@ function joinRoom(socket, room) {
       message: "Two players have joined. Prepare to start the game.",
     });
     console.log(`Emitted 'preGame' to room ${room.roomID}`);
+    createGameBodies(room);
+
+    // Send initial game state to clients
+    io.to(room.roomID).emit("initialGameState", {
+      tanks: room.tanks.map(bodyToData),
+      reactors: room.reactors.map(bodyToData),
+      fortresses: room.fortresses.map(bodyToData),
+      turrets: room.turrets.map(bodyToData),
+    });
   }
 }
 
 // Function to create a new room
 function createNewRoom(roomID, socket, isPasscodeRoom = false) {
+  const roomEngine = Matter.Engine.create();
+  const roomWorld = roomEngine.world;
+
+  // Set gravity if needed.
+  roomEngine.world.gravity.y = 0;
+  roomEngine.world.gravity.x = 0;
+
   const room = {
     roomID: roomID,
     isPasscodeRoom: isPasscodeRoom,
@@ -399,9 +441,17 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     height: GAME_WORLD_HEIGHT,
     allPaths: [], // Store all valid drawing paths
     drawingSessions: {}, // Store ongoing drawing sessions
+    shapeCounts: {
+      [PLAYER_ONE]: 0,
+      [PLAYER_TWO]: 0,
+    },
+    noDrawZones: [], // Initialize no-draw zones
     currentGameState: GameState.LOBBY, // Start with LOBBY
     readyPlayers: 0, // The creator is ready by default
     dividingLine: GAME_WORLD_HEIGHT / 2, // Define dividing line in game world coordinates
+
+    roomEngine: roomEngine,
+    roomWorld: roomWorld,
   };
 
   console.log(`Dividing line for room ${roomID} set at Y = ${room.dividingLine} in game world coordinates`);
@@ -422,6 +472,25 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
 
   // Wait for another player to join
 }
+
+setInterval(() => {
+  for (const roomID in gameRooms) {
+    const room = gameRooms[roomID];
+    Matter.Engine.update(room.roomEngine, deltaTime);
+
+    // Only proceed if the game bodies have been created
+    if (room.bodiesCreated) {
+      // Send updated positions to clients
+      io.to(roomID).emit("gameUpdate", {
+        tanks: room.tanks.map(bodyToData),
+        reactors: room.reactors.map(bodyToData),
+        fortresses: room.fortresses.map(bodyToData),
+        turrets: room.turrets.map(bodyToData),
+        shells: room.shells.map(bodyToData), // Include shells if applicable
+      });
+    }
+  }
+}, deltaTime);
 
 // Converts the drawing path to an array of coordinates suitable for polygon-clipping
 function buildPolygonCoordinates(path) {
@@ -542,4 +611,152 @@ function isPolygonContained(innerPolygon, outerPolygon) {
     }
   }
   return true;
+}
+
+function createWalls(width, height) {
+  return [
+    // Top wall
+    Bodies.rectangle(width / 2, -500, width + 1000, 1000, { isStatic: true }),
+    // Bottom wall
+    Bodies.rectangle(width / 2, height + 500, width + 1000, 1000, { isStatic: true }),
+    // Left wall
+    Bodies.rectangle(-500, height / 2, 1000, height + 1000, { isStatic: true }),
+    // Right wall
+    Bodies.rectangle(width + 500, height / 2, 1000, height + 1000, { isStatic: true }),
+  ];
+}
+
+function createGameBodies(room) {
+  const { width, height } = room;
+  const roomWorld = room.roomWorld;
+
+  // Create walls
+  const walls = createWalls(width, height);
+  Matter.World.add(roomWorld, walls);
+
+  // Calculate sizes based on width and height
+  const tankSize = width * 0.02;
+  const reactorSize = tankSize;
+  const fortressWidth = width * 0.1475;
+  const fortressHeight = height * 0.0575;
+  const turretSize = reactorSize * 1.125;
+
+  // Define player IDs
+  const PLAYER_ONE_ID = PLAYER_ONE;
+  const PLAYER_TWO_ID = PLAYER_TWO;
+
+  // Create tanks for Player One
+  const tank1 = TankModule.createTank(width * 0.3525, height * 0.9, tankSize, PLAYER_ONE_ID);
+  const tank2 = TankModule.createTank(width * 0.4275, height * 0.9, tankSize, PLAYER_ONE_ID);
+
+  // Create tanks for Player Two
+  const tank3 = TankModule.createTank(width * 0.6475, height * 0.1, tankSize, PLAYER_TWO_ID);
+  const tank4 = TankModule.createTank(width * 0.5725, height * 0.1, tankSize, PLAYER_TWO_ID);
+
+  const tanks = [tank1, tank2, tank3, tank4];
+
+  // Create reactors for Player One
+  const reactor1 = ReactorModule.createReactor(width * 0.3525, height * 0.95, reactorSize, PLAYER_ONE_ID);
+  const reactor2 = ReactorModule.createReactor(width * 0.4275, height * 0.95, reactorSize, PLAYER_ONE_ID);
+
+  // Create reactors for Player Two
+  const reactor3 = ReactorModule.createReactor(width * 0.6475, height * 0.05, reactorSize, PLAYER_TWO_ID);
+  const reactor4 = ReactorModule.createReactor(width * 0.5725, height * 0.05, reactorSize, PLAYER_TWO_ID);
+
+  const reactors = [reactor1, reactor2, reactor3, reactor4];
+
+  // Create fortresses
+  const fortress1 = FortressModule.createFortress(
+    width * 0.39,
+    height * 0.95,
+    fortressWidth,
+    fortressHeight,
+    PLAYER_ONE_ID
+  );
+  const fortress2 = FortressModule.createFortress(
+    width * 0.61,
+    height * 0.05,
+    fortressWidth,
+    fortressHeight,
+    PLAYER_TWO_ID
+  );
+
+  const fortresses = [fortress1, fortress2];
+
+  // Create turrets for Player One
+  const turret1 = TurretModule.createTurret(width * 0.31625, height * 0.92125, turretSize, PLAYER_ONE_ID);
+  const turret2 = TurretModule.createTurret(width * 0.46375, height * 0.92125, turretSize, PLAYER_ONE_ID);
+
+  // Create turrets for Player Two
+  const turret3 = TurretModule.createTurret(width * 0.68375, height * 0.07875, turretSize, PLAYER_TWO_ID);
+  const turret4 = TurretModule.createTurret(width * 0.53625, height * 0.07875, turretSize, PLAYER_TWO_ID);
+
+  const turrets = [turret1, turret2, turret3, turret4];
+
+  // Add bodies to the world
+  Matter.World.add(roomWorld, [...tanks, ...reactors, ...fortresses, ...turrets]);
+
+  // Store bodies in the room object
+  room.tanks = tanks;
+  room.reactors = reactors;
+  room.fortresses = fortresses;
+  room.turrets = turrets;
+
+  // Store sizes if needed later
+  room.tankSize = tankSize;
+  room.reactorSize = reactorSize;
+  room.fortressWidth = fortressWidth;
+  room.fortressHeight = fortressHeight;
+  room.turretSize = turretSize;
+
+  // Initialize an array for shells
+  room.shells = [];
+
+  // Initialize no-draw zones around fortresses
+  fortressNoDrawZone(room);
+
+  room.bodiesCreated = true;
+}
+
+function bodyToData(body) {
+  return {
+    id: body.id,
+    label: body.label,
+    position: { x: body.position.x, y: body.position.y },
+    angle: body.angle,
+    size: body.size || 0, // Use the size property, default to 0 if undefined
+    width: body.width || 0, // Use the width property, default to 0 if undefined
+    height: body.height || 0, // Use the height property, default to 0 if undefined
+    playerId: body.playerId,
+  };
+}
+
+// Initialize no-draw zones around fortresses
+function fortressNoDrawZone(room) {
+  room.noDrawZones = []; // Reset the noDrawZones array
+
+  room.fortresses.forEach((fortress) => {
+    const zone = createRectangularZone(
+      fortress.position.x,
+      fortress.position.y,
+      fortress.width,
+      fortress.height,
+      DIVIDING_LINE_MARGIN // Padding as per dividing line margin
+    );
+    // Add the no-draw zone to the array
+    room.noDrawZones.push(zone);
+  });
+}
+
+// Creates a rectangular no-draw zone with padding.
+function createRectangularZone(centerX, centerY, width, height, padding) {
+  const halfWidth = width / 2 + padding;
+  const halfHeight = height / 2 + padding;
+
+  return [
+    { x: centerX - halfWidth, y: centerY - halfHeight }, // Top-Left
+    { x: centerX + halfWidth, y: centerY - halfHeight }, // Top-Right
+    { x: centerX + halfWidth, y: centerY + halfHeight }, // Bottom-Right
+    { x: centerX - halfWidth, y: centerY + halfHeight }, // Bottom-Left
+  ];
 }

@@ -143,6 +143,30 @@ socket.on("startPreGame", () => {
   currentGameState = GameState.PRE_GAME;
 });
 
+socket.on("initialGameState", (data) => {
+  tanks = data.tanks;
+  reactors = data.reactors;
+  fortresses = data.fortresses;
+  turrets = data.turrets;
+
+  fortressNoDrawZone();
+
+  if (!renderingStarted) {
+    renderingStarted = true;
+    requestAnimationFrame(render);
+  }
+});
+
+socket.on("gameUpdate", (data) => {
+  tanks = data.tanks;
+  reactors = data.reactors;
+  fortresses = data.fortresses;
+  turrets = data.turrets;
+  shells = data.shells || [];
+
+  fortressNoDrawZone();
+});
+
 function render() {
   // Redraw the canvas
   redrawCanvas();
@@ -282,6 +306,12 @@ function redrawCanvas() {
   });
 
   drawDividingLine();
+  fortresses.forEach(drawFortress);
+  reactors.forEach(drawReactor);
+  turrets.forEach(drawTurret);
+  tanks.forEach(drawTank);
+  drawNoDrawZones();
+  drawCtx.restore();
 }
 
 function resizeCanvas() {
@@ -434,4 +464,158 @@ function drawDividingLine() {
 
 function isWithinPlayerArea(y) {
   return y >= dividingLine;
+}
+
+function drawTank(tank) {
+  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
+
+  const size = tank.size;
+  const x = tank.position.x * scaleX;
+  const y = tank.position.y * scaleY;
+  const scaledSize = size * scaleX;
+
+  drawCtx.save();
+  drawCtx.translate(x, y);
+  drawCtx.rotate(tank.angle);
+
+  if (tank.playerId === playerNumber) {
+    drawCtx.strokeStyle = "blue"; // Own fortress
+  } else {
+    drawCtx.strokeStyle = "red"; // Opponent's fortress
+  }
+
+  drawCtx.lineWidth = 2;
+  drawCtx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
+  drawCtx.restore();
+}
+
+function drawReactor(reactor) {
+  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
+
+  const radius = (reactor.size / 2) * scaleX;
+  const x = reactor.position.x * scaleX;
+  const y = reactor.position.y * scaleY;
+
+  drawCtx.save();
+  drawCtx.translate(x, y);
+  if (reactor.playerId === playerNumber) {
+    drawCtx.strokeStyle = "blue"; // Own fortress
+  } else {
+    drawCtx.strokeStyle = "red"; // Opponent's fortress
+  }
+
+  drawCtx.lineWidth = 2;
+  drawCtx.beginPath();
+  drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
+  drawCtx.stroke();
+  drawCtx.restore();
+}
+
+function drawFortress(fortress) {
+  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
+
+  const width = fortress.width * scaleX;
+  const height = fortress.height * scaleY;
+  const canvasPos = gameWorldToCanvas(fortress.position.x, fortress.position.y);
+
+  drawCtx.save();
+  drawCtx.translate(canvasPos.x, canvasPos.y);
+  drawCtx.rotate(fortress.angle);
+
+  // Determine color based on player ownership
+  if (fortress.playerId === playerNumber) {
+    drawCtx.strokeStyle = "blue"; // Own fortress
+  } else {
+    drawCtx.strokeStyle = "red"; // Opponent's fortress
+  }
+
+  drawCtx.lineWidth = 2;
+  drawCtx.strokeRect(-width / 2, -height / 2, width, height);
+  drawCtx.restore();
+}
+
+function drawTurret(turret) {
+  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
+
+  const radius = (turret.size / 2) * scaleX;
+  const x = turret.position.x * scaleX;
+  const y = turret.position.y * scaleY;
+
+  drawCtx.save();
+  drawCtx.translate(x, y);
+  drawCtx.rotate(turret.angle);
+
+  if (turret.playerId === playerNumber) {
+    drawCtx.strokeStyle = "blue"; // Own fortress
+  } else {
+    drawCtx.strokeStyle = "red"; // Opponent's fortress
+  }
+
+  drawCtx.lineWidth = 2;
+  drawCtx.beginPath();
+  drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
+  drawCtx.stroke();
+  drawCtx.restore();
+}
+
+function fortressNoDrawZone() {
+  noDrawZones = [];
+
+  fortresses.forEach((fortress) => {
+    const zone = createRectangularZone(
+      fortress.position.x,
+      fortress.position.y,
+      fortress.width,
+      fortress.height,
+      gameWorldHeight * 0.05
+    );
+
+    noDrawZones.push(zone);
+  });
+}
+
+function createRectangularZone(centerX, centerY, width, height, padding) {
+  const halfWidth = width / 2 + padding;
+  const halfHeight = height / 2 + padding;
+
+  return [
+    { x: centerX - halfWidth, y: centerY - halfHeight }, // Top-Left
+    { x: centerX + halfWidth, y: centerY - halfHeight }, // Top-Right
+    { x: centerX + halfWidth, y: centerY + halfHeight }, // Bottom-Right
+    { x: centerX - halfWidth, y: centerY + halfHeight }, // Bottom-Left
+  ];
+}
+
+function drawNoDrawZones() {
+  drawCtx.strokeStyle = "rgba(255, 0, 0, 0.7)";
+  drawCtx.lineWidth = 2;
+  drawCtx.fillStyle = "rgba(255, 0, 0, 0.1)";
+
+  noDrawZones.forEach((zone) => {
+    drawCtx.beginPath();
+    const transformedPoints = zone.map((point) => {
+      const shouldTransform = false;
+      return gameWorldToCanvas(point.x, point.y, shouldTransform);
+    });
+
+    drawCtx.moveTo(transformedPoints[0].x, transformedPoints[0].y);
+    for (let i = 1; i < transformedPoints.length; i++) {
+      drawCtx.lineTo(transformedPoints[i].x, transformedPoints[i].y);
+    }
+    drawCtx.closePath();
+    drawCtx.fill();
+    drawCtx.stroke();
+
+    // Draw the X inside the rectangle.
+    drawCtx.beginPath();
+    // Diagonal from Top-Left to Bottom-Right.
+    drawCtx.moveTo(transformedPoints[0].x, transformedPoints[0].y);
+    drawCtx.lineTo(transformedPoints[2].x, transformedPoints[2].y);
+    // Diagonal from Top-Right to Bottom-Left.
+    drawCtx.moveTo(transformedPoints[1].x, transformedPoints[1].y);
+    drawCtx.lineTo(transformedPoints[3].x, transformedPoints[3].y);
+    drawCtx.strokeStyle = "rgba(255, 0, 0, 0.7)";
+    drawCtx.lineWidth = 2;
+    drawCtx.stroke();
+  });
 }
