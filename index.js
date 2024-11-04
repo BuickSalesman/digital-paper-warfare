@@ -239,6 +239,20 @@ io.on("connection", (socket) => {
 
     const { from, to, color, lineWidth } = data;
 
+    // Validate coordinates
+    if (!isValidCoordinate(from) || !isValidCoordinate(to)) {
+      console.log(`Invalid coordinates received from player ${playerNumber}`);
+      return;
+    }
+
+    // Validate that drawing is within player's area
+    if (!isWithinPlayerArea(from.y, playerNumber, room) || !isWithinPlayerArea(to.y, playerNumber, room)) {
+      console.log(`Player ${playerNumber} attempted to draw outside their area.`);
+      session.isLegal = false;
+      socket.emit("drawingIllegally", {});
+      return;
+    }
+
     // Calculate the distance between the two points
     const dx = to.x - from.x;
     const dy = to.y - from.y;
@@ -850,4 +864,24 @@ function createRectangularZone(centerX, centerY, width, height, padding) {
     { x: centerX + halfWidth, y: centerY + halfHeight }, // Bottom-Right
     { x: centerX - halfWidth, y: centerY + halfHeight }, // Bottom-Left
   ];
+}
+
+function isValidCoordinate(point) {
+  return (
+    typeof point.x === "number" &&
+    typeof point.y === "number" &&
+    point.x >= 0 &&
+    point.x <= GAME_WORLD_WIDTH &&
+    point.y >= 0 &&
+    point.y <= GAME_WORLD_HEIGHT
+  );
+}
+
+function isWithinPlayerArea(y, playerNumber, room) {
+  const dividingLine = room.dividingLine;
+  if (playerNumber === PLAYER_ONE) {
+    return y >= dividingLine;
+  } else {
+    return y <= dividingLine;
+  }
 }

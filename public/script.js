@@ -65,6 +65,14 @@ const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
 window.addEventListener("load", () => {});
 window.addEventListener("resize", resizeCanvas);
 
+drawCanvas.addEventListener(
+  "contextmenu",
+  function (e) {
+    e.preventDefault();
+  },
+  false
+);
+
 // Initialize Canvas
 function initializeCanvas() {
   if (!gameWorldWidth || !gameWorldHeight) {
@@ -329,6 +337,7 @@ function getMousePos(evt) {
 }
 
 function handleMouseDown(evt) {
+  if (evt.button !== 0) return;
   if (currentGameState !== GameState.PRE_GAME && currentGameState !== GameState.GAME_RUNNING) {
     return;
   }
@@ -362,6 +371,8 @@ socket.on("drawingIllegally", (data) => {
 });
 
 function handleMouseMove(evt) {
+  if (evt.buttons !== 1) return;
+
   if (!isDrawing) {
     return;
   }
