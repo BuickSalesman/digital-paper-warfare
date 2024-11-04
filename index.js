@@ -1,16 +1,9 @@
-// SERVER SIDE:
-
-// VARIABLES
-
-// GAME AND PLAYER VARIABLES
-
 const express = require("express");
 const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const Matter = require("matter-js");
 
-// Import Matter components.
 const { Body, Bodies, Engine, World } = Matter;
 
 // Import game object modules
@@ -56,12 +49,6 @@ let gameRooms = {};
 // Variable to keep track of the next room number
 let nextRoomNumber = 1;
 
-// Game constants
-const DIVIDING_LINE_MARGIN = 10; // Dividing line margin
-const DRAWING_MARGIN_X = 20; // Drawing margin X
-const DRAWING_MARGIN_Y = 20; // Drawing margin Y
-const MAX_SHAPES_PER_PLAYER = 5; // Maximum shapes per player
-
 // FPS and deltaTime for Matter.js engine
 const FPS = 60;
 const deltaTime = 1000 / FPS; // Time per frame in ms
@@ -69,9 +56,13 @@ const deltaTime = 1000 / FPS; // Time per frame in ms
 // CANVAS AND CONTEXT VARIABLES
 
 // Fixed game world dimensions
-const GAME_WORLD_WIDTH = 10000; // Fixed width in game units
+const GAME_WORLD_WIDTH = 1885; // Fixed width in game units
 const ASPECT_RATIO = 1 / 1.4142; // A4 aspect ratio
 const GAME_WORLD_HEIGHT = GAME_WORLD_WIDTH / ASPECT_RATIO; // Calculate height based on aspect ratio
+
+const DIVIDING_LINE_MARGIN = 10; // Dividing line margin
+
+const inkLimit = 2000;
 
 // SERVER VARIABLES
 const PORT = process.env.PORT || 3000;
@@ -210,7 +201,7 @@ io.on("connection", (socket) => {
   socket.on("startDrawing", (data) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
-    const position = data.position;
+    const drawingSessionId = data.drawingSessionId; // Get the drawingSessionId from the client
     const room = gameRooms[roomID];
     if (!room) {
       return;
@@ -222,118 +213,181 @@ io.on("connection", (socket) => {
     }
 
     room.drawingSessions[playerNumber] = {
-      path: [position],
-      totalInkUsed: 0,
+      id: drawingSessionId, // Use the drawingSessionId from the client
+      totalPixelsDrawn: 0,
+      path: [],
     };
   });
 
-  // Handle 'drawing' event by forwarding it to other clients
   socket.on("drawing", (data) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
     const room = gameRooms[roomID];
+    console.log(data);
+    console.log(socket.id);
     if (!room) {
-      return;
-    }
-
-    // Emit the drawing data to other clients in the room
-    socket.to(roomID).emit("drawing", {
-      playerNumber,
-      from: data.from,
-      to: data.to,
-      color: data.color,
-      lineWidth: data.lineWidth,
-    });
-  });
-
-  // Handle 'endDrawing' event
-  socket.on("endDrawing", (data) => {
-    const roomID = socket.roomID;
-    const playerNumber = socket.playerNumber;
-    const room = gameRooms[roomID];
-    if (!room || !room.drawingSessions || !room.drawingSessions[playerNumber]) {
       return;
     }
 
     const session = room.drawingSessions[playerNumber];
-
-    // Close the shape by connecting the last point to the first point if necessary.
-    const firstPoint = session.path[0];
-    const lastPoint = session.path[session.path.length - 1];
-    const distance = Math.hypot(lastPoint.x - firstPoint.x, lastPoint.y - firstPoint.y);
-    const snapThreshold = 10; // 10 game units
-
-    if (distance > snapThreshold) {
-      session.path.push({ x: firstPoint.x, y: firstPoint.y });
-    } else {
-      session.path[session.path.length - 1] = { x: firstPoint.x, y: firstPoint.y };
-    }
-
-    // Validate the drawing
-    const isValid = validateDrawing(room, session.path, playerNumber);
-
-    if (!isValid) {
-      // Invalid shape, notify the player
-      socket.emit("invalidShape", { message: "Shapes cannot overlap, or be in no draw zones. Try drawing again." });
-      console.log(`Player ${playerNumber} attempted to draw an invalid shape in room ${roomID}.`);
-
-      // Remove the drawing session
-      delete room.drawingSessions[playerNumber];
+    if (!session) {
       return;
     }
 
-    // Shape is valid, add it to allPaths
-    room.allPaths.push({ path: [...session.path], playerNumber });
+    const { from, to, color, lineWidth } = data;
 
-    // Increment shape counts and handle game state transitions
-    handleShapeCount(room, playerNumber);
+    // Calculate the distance between the two points
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    session.totalPixelsDrawn += distance;
 
-    // Broadcast the valid shape to all clients
-    io.to(roomID).emit("drawing", {
-      path: session.path,
-      playerNumber,
-    });
+    // Add the line segment to the path
+    session.path.push({ from, to, color, lineWidth });
 
-    console.log(`Player ${playerNumber} successfully drew a shape in room ${roomID}.`);
-
-    // Remove the drawing session
-    delete room.drawingSessions[playerNumber];
+    if (session.totalPixelsDrawn > inkLimit) {
+      // Exceeded the limit, erase the drawing session
+      socket.to(roomID).emit("drawingMirror", {
+        playerNumber,
+        drawingSessionId: session.id,
+        from: data.from,
+        to: data.to,
+        color: "#FF0000", // Red color for illegal drawing
+        lineWidth: data.lineWidth,
+      });
+      socket.emit("drawingIllegally", {});
+    } else {
+      // Forward the drawing data to other clients, including color and lineWidth
+      socket.to(roomID).emit("drawingMirror", {
+        playerNumber,
+        drawingSessionId: session.id,
+        from: data.from,
+        to: data.to,
+        color: data.color,
+        lineWidth: data.lineWidth,
+      });
+    }
   });
 
-  // Handle 'snapClose' event by forwarding it to other clients
-  socket.on("snapClose", (data) => {
+  // Handle 'endDrawing' event
+  socket.on("endDrawing", () => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
     const room = gameRooms[roomID];
-    if (!room) {
+    if (!room) return;
+
+    const session = room.drawingSessions[playerNumber];
+    if (!session) return;
+
+    const path = session.path;
+    if (path.length === 0) return;
+
+    const startingPoint = path[0].from;
+    const endingPoint = path[path.length - 1].to;
+
+    // Compute closing distance
+    const dx = endingPoint.x - startingPoint.x;
+    const dy = endingPoint.y - startingPoint.y;
+    const closingDistance = Math.sqrt(dx * dx + dy * dy);
+    session.totalPixelsDrawn += closingDistance; // Update total pixels drawn with closing distance
+
+    if (session.totalPixelsDrawn > inkLimit) {
+      // Exceeded pixel limit
+      socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
+      socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
+      delete room.drawingSessions[playerNumber];
+      console.log(`Player ${playerNumber}'s drawing exceeded pixel limit after closing and was erased.`);
       return;
     }
 
-    // Emit the snapClose data to other clients in the room
-    socket.to(roomID).emit("snapClose", {
-      playerNumber,
-      from: data.from,
-      to: data.to,
-      color: data.color,
-      lineWidth: data.lineWidth,
-    });
-  });
+    // Close the shape by adding the closing line
+    const closingLine = {
+      from: endingPoint,
+      to: startingPoint,
+      color: "#000000",
+      lineWidth: 2,
+    };
+    session.path.push(closingLine);
 
-  // Handle 'finalizeDrawingPhase' event
-  socket.on("finalizeDrawingPhase", () => {
-    const roomID = socket.roomID;
-    const room = gameRooms[roomID];
-    if (!room) {
-      return;
+    // Convert the new shape to polygon coordinates
+    const newShapeCoordinates = buildPolygonCoordinates(session.path);
+
+    let isIllegalShape = false;
+
+    // Existing checks for overlaps or containment with other shapes
+    for (let existingShape of room.allPaths) {
+      // Skip shapes drawn by the other player
+      if (existingShape.playerNumber !== playerNumber) {
+        continue;
+      }
+
+      const existingShapeCoordinates = buildPolygonCoordinates(existingShape.path);
+
+      if (doPolygonsIntersect(newShapeCoordinates, existingShapeCoordinates)) {
+        isIllegalShape = true;
+        console.log(`New shape intersects with existing shape drawn by Player ${existingShape.playerNumber}.`);
+        break;
+      }
+
+      if (isPolygonContained(newShapeCoordinates, existingShapeCoordinates)) {
+        isIllegalShape = true;
+        console.log(`New shape is contained within an existing shape drawn by Player ${existingShape.playerNumber}.`);
+        break;
+      }
+
+      if (isPolygonContained(existingShapeCoordinates, newShapeCoordinates)) {
+        isIllegalShape = true;
+        console.log(`Existing shape drawn by Player ${existingShape.playerNumber} is contained within the new shape.`);
+        break;
+      }
     }
 
-    finalizeDrawingPhase(room);
+    // New check for intersection with no-draw zones
+    if (!isIllegalShape) {
+      for (let noDrawZone of room.noDrawZones) {
+        const noDrawZoneCoordinates = noDrawZone.map((point) => [point.x, point.y]);
+        // Close the no-draw zone polygon if not already closed
+        if (
+          noDrawZoneCoordinates[0][0] !== noDrawZoneCoordinates[noDrawZoneCoordinates.length - 1][0] ||
+          noDrawZoneCoordinates[0][1] !== noDrawZoneCoordinates[noDrawZoneCoordinates.length - 1][1]
+        ) {
+          noDrawZoneCoordinates.push(noDrawZoneCoordinates[0]);
+        }
+
+        if (doPolygonsIntersect(newShapeCoordinates, noDrawZoneCoordinates)) {
+          isIllegalShape = true;
+          console.log(`New shape intersects with no-draw zone.`);
+          break;
+        }
+      }
+    }
+
+    if (isIllegalShape) {
+      // Shape is illegal, erase it
+      socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
+      socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
+      delete room.drawingSessions[playerNumber];
+      console.log(`Player ${playerNumber}'s drawing was illegal and was erased.`);
+    } else {
+      // Shape is legal, send 'shapeClosed' event
+      io.to(roomID).emit("shapeClosed", {
+        playerNumber,
+        drawingSessionId: session.id,
+        closingLine: closingLine,
+      });
+
+      // Add the completed path to allPaths
+      room.allPaths.push({
+        playerNumber,
+        path: session.path,
+      });
+
+      // Remove the drawing session
+      delete room.drawingSessions[playerNumber];
+      console.log(`Player ${playerNumber}'s drawing was legal and added to allPaths.`);
+    }
   });
 });
-
-// FUNCTIONS
-
-// GAME ROOM FUNCTIONS
 
 // Function to join an existing room
 function joinRoom(socket, room) {
@@ -372,8 +426,6 @@ function joinRoom(socket, room) {
       message: "Two players have joined. Prepare to start the game.",
     });
     console.log(`Emitted 'preGame' to room ${room.roomID}`);
-
-    // Create game bodies
     createGameBodies(room);
 
     // Send initial game state to clients
@@ -392,8 +444,8 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
   const roomWorld = roomEngine.world;
 
   // Set gravity if needed.
-  roomEngine.world.gravity.y = 0;
-  roomEngine.world.gravity.x = 0;
+  // roomEngine.world.gravity.y = 0;
+  // roomEngine.world.gravity.x = 0;
 
   const room = {
     roomID: roomID,
@@ -402,11 +454,9 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
       player1: socket.id,
       player2: null,
     },
-    roomEngine: roomEngine,
-    roomWorld: roomWorld,
+
     width: GAME_WORLD_WIDTH,
     height: GAME_WORLD_HEIGHT,
-    bodiesCreated: false,
     allPaths: [], // Store all valid drawing paths
     drawingSessions: {}, // Store ongoing drawing sessions
     shapeCounts: {
@@ -414,10 +464,12 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
       [PLAYER_TWO]: 0,
     },
     noDrawZones: [], // Initialize no-draw zones
-    totalShapesDrawn: 0,
     currentGameState: GameState.LOBBY, // Start with LOBBY
-    readyPlayers: 1, // The creator is ready by default
+    readyPlayers: 0, // The creator is ready by default
     dividingLine: GAME_WORLD_HEIGHT / 2, // Define dividing line in game world coordinates
+
+    roomEngine: roomEngine,
+    roomWorld: roomWorld,
   };
 
   console.log(`Dividing line for room ${roomID} set at Y = ${room.dividingLine} in game world coordinates`);
@@ -439,8 +491,6 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
   // Wait for another player to join
 }
 
-// MATTER RUNNING AND RENDERING FUNCTIONS
-
 setInterval(() => {
   for (const roomID in gameRooms) {
     const room = gameRooms[roomID];
@@ -460,9 +510,126 @@ setInterval(() => {
   }
 }, deltaTime);
 
-// MATTER BODY FUNCTIONS
+// Converts the drawing path to an array of coordinates suitable for polygon-clipping
+function buildPolygonCoordinates(path) {
+  const coordinates = [];
+  // Start with the first 'from' point
+  coordinates.push([path[0].from.x, path[0].from.y]);
+  // Add 'to' points from each segment
+  for (let segment of path) {
+    coordinates.push([segment.to.x, segment.to.y]);
+  }
+  // Ensure the polygon is closed by adding the starting point at the end
+  if (
+    coordinates.length > 0 &&
+    (coordinates[0][0] !== coordinates[coordinates.length - 1][0] ||
+      coordinates[0][1] !== coordinates[coordinates.length - 1][1])
+  ) {
+    coordinates.push(coordinates[0]);
+  }
+  return coordinates;
+}
 
-// BODY CREATION FUNCTIONS
+// Determines the orientation of an ordered triplet (p, q, r)
+function orientation(p, q, r) {
+  const val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
+  if (Math.abs(val) < Number.EPSILON) return 0; // colinear
+  return val > 0 ? 1 : 2; // clock or counterclockwise
+}
+
+function onSegment(p, q, r) {
+  return (
+    Math.min(p.x, r.x) - Number.EPSILON <= q.x &&
+    q.x <= Math.max(p.x, r.x) + Number.EPSILON &&
+    Math.min(p.y, r.y) - Number.EPSILON <= q.y &&
+    q.y <= Math.max(p.y, r.y) + Number.EPSILON
+  );
+}
+
+function getEdgesFromCoordinates(polygon) {
+  const edges = [];
+  for (let i = 0; i < polygon.length - 1; i++) {
+    const p1 = { x: polygon[i][0], y: polygon[i][1] };
+    const p2 = { x: polygon[i + 1][0], y: polygon[i + 1][1] };
+    edges.push([p1, p2]);
+  }
+  // Optionally close the polygon by connecting the last point to the first
+  // edges.push([{ x: polygon[polygon.length - 1][0], y: polygon[polygon.length - 1][1] }, { x: polygon[0][0], y: polygon[0][1] }]);
+  return edges;
+}
+
+function doLineSegmentsIntersect(p1, p2, q1, q2) {
+  const o1 = orientation(p1, p2, q1);
+  const o2 = orientation(p1, p2, q2);
+  const o3 = orientation(q1, q2, p1);
+  const o4 = orientation(q1, q2, p2);
+
+  // General case
+  if (o1 !== o2 && o3 !== o4) {
+    return true;
+  }
+
+  // Special Cases
+  if (o1 === 0 && onSegment(p1, q1, p2)) return true;
+  if (o2 === 0 && onSegment(p1, q2, p2)) return true;
+  if (o3 === 0 && onSegment(q1, p1, q2)) return true;
+  if (o4 === 0 && onSegment(q1, p2, q2)) return true;
+
+  return false;
+}
+
+// Determines if a point is inside a polygon using the ray-casting algorithm
+function isPointInPolygon(point, polygon) {
+  let x = point.x,
+    y = point.y;
+  let inside = false;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    let xi = polygon[i][0],
+      yi = polygon[i][1];
+    let xj = polygon[j][0],
+      yj = polygon[j][1];
+
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + Number.EPSILON) + xi;
+    if (intersect) inside = !inside;
+  }
+
+  return inside;
+}
+
+// Checks if two polygons intersect by checking all edges
+function doPolygonsIntersect(polygonA, polygonB) {
+  const edgesA = getEdgesFromCoordinates(polygonA);
+  const edgesB = getEdgesFromCoordinates(polygonB);
+
+  // Check for edge intersections
+  for (const [p1, p2] of edgesA) {
+    for (const [q1, q2] of edgesB) {
+      if (doLineSegmentsIntersect(p1, p2, q1, q2)) {
+        return true;
+      }
+    }
+  }
+
+  // Check if a vertex of one polygon is inside the other polygon
+  if (isPointInPolygon({ x: polygonA[0][0], y: polygonA[0][1] }, polygonB)) {
+    return true;
+  }
+  if (isPointInPolygon({ x: polygonB[0][0], y: polygonB[0][1] }, polygonA)) {
+    return true;
+  }
+
+  return false;
+}
+
+function isPolygonContained(innerPolygon, outerPolygon) {
+  for (let point of innerPolygon) {
+    if (!isPointInPolygon({ x: point[0], y: point[1] }, outerPolygon)) {
+      return false;
+    }
+  }
+  return true;
+}
 
 function createWalls(width, height) {
   return [
@@ -581,101 +748,6 @@ function bodyToData(body) {
     playerId: body.playerId,
   };
 }
-
-// DRAWING VALIDATION FUNCTIONS
-
-function validateDrawing(room, path, playerNumber) {
-  // Enforce drawing area per player.
-  // Player 1 draws below the dividing line.
-  // Player 2 draws above the dividing line.
-  const dividingLine = room.height / 2;
-
-  if (room.shapeCounts[playerNumber] >= MAX_SHAPES_PER_PLAYER) {
-    return false; // Reject the shape
-  }
-
-  for (const point of path) {
-    if (playerNumber === PLAYER_ONE) {
-      if (point.y < dividingLine + DIVIDING_LINE_MARGIN) {
-        return false;
-      }
-    } else if (playerNumber === PLAYER_TWO) {
-      if (point.y > dividingLine - DIVIDING_LINE_MARGIN) {
-        return false;
-      }
-    }
-  }
-
-  // Clamp mouse position within drawable area horizontally.
-  for (const point of path) {
-    if (point.x < DRAWING_MARGIN_X || point.x > room.width - DRAWING_MARGIN_X) {
-      return false;
-    }
-    if (point.y < DRAWING_MARGIN_Y || point.y > room.height - DRAWING_MARGIN_Y) {
-      return false;
-    }
-  }
-
-  // Check for overlaps with existing shapes in allPaths.
-  for (const existingPath of room.allPaths) {
-    if (polygonsOverlap(path, existingPath.path)) {
-      return false;
-    }
-  }
-
-  // Check overlap with no-draw zones.
-  for (const zone of room.noDrawZones) {
-    if (polygonsOverlap(path, zone)) {
-      return false;
-    }
-  }
-
-  // If all checks pass, the drawing is valid.
-  return true;
-}
-
-// Implements polygon overlap detection using the Separating Axis Theorem (SAT).
-function polygonsOverlap(polygonA, polygonB) {
-  // Helper functions...
-  // (Include the same helper functions as in the second file)
-}
-
-// DRAWING HANDLING FUNCTIONS
-
-// Function to handle the end of a drawing session
-function endDrawingSession(room, playerNumber) {
-  // Implement additional logic if needed
-}
-
-// Function to handle shape counts and game state transitions
-function handleShapeCount(room, playerNumber) {
-  room.shapeCounts[playerNumber] += 1;
-  room.totalShapesDrawn += 1;
-
-  if (room.shapeCounts[playerNumber] >= MAX_SHAPES_PER_PLAYER) {
-    console.log(`Player ${playerNumber} has reached the maximum number of shapes.`);
-    // Optionally, send a message to the player
-    const playerSocketId = room.players[`player${playerNumber}`];
-    io.to(playerSocketId).emit("maxShapesReached", {
-      message: "You have reached the maximum number of shapes allowed.",
-    });
-  }
-
-  // Check if both players have finished drawing
-  if (room.shapeCounts[PLAYER_ONE] >= MAX_SHAPES_PER_PLAYER && room.shapeCounts[PLAYER_TWO] >= MAX_SHAPES_PER_PLAYER) {
-    finalizeDrawingPhase(room);
-  }
-}
-
-// Function to finalize the drawing phase
-function finalizeDrawingPhase(room) {
-  room.currentGameState = GameState.GAME_RUNNING;
-  io.to(room.roomID).emit("finalizeDrawingPhase");
-  console.log(`Drawing phase finalized for room ${room.roomID}. Game is now running.`);
-  // Implement additional game start logic here
-}
-
-// GAME ROOM FUNCTIONS
 
 // Initialize no-draw zones around fortresses
 function fortressNoDrawZone(room) {

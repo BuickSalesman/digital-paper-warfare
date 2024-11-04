@@ -24,11 +24,11 @@ const GameState = {
 
 let currentGameState = GameState.LOBBY;
 
-let shapeCountPlayer1 = 0;
-let shapeCountPlayer2 = 0;
-const maxShapesPerPlayer = 5;
+let totalPixelsDrawn = 0;
 
-let width = 10000; // Placeholder, will be updated
+let currentDrawingSessionId = null;
+
+let width = 1885; // Placeholder, will be updated
 let height = 1414; // Placeholder, will be updated
 
 const PLAYER_ONE = 1;
@@ -71,7 +71,7 @@ let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
 
-let drawingHistory = [];
+let drawingHistory = { [PLAYER_ONE]: [], [PLAYER_TWO]: [] };
 
 let currentDrawingStart = null;
 
@@ -96,7 +96,7 @@ function initializeCanvas() {
   }
 
   const aspectRatio = gameWorldWidth / gameWorldHeight;
-  const baseWidth = Math.min(window.innerWidth * 0.95, 10000);
+  const baseWidth = Math.min(window.innerWidth * 0.95, 1885);
   let canvasWidth = baseWidth;
   let canvasHeight = canvasWidth / aspectRatio;
 
@@ -157,14 +157,6 @@ socket.on("initialGameState", (data) => {
   }
 });
 
-function render() {
-  // Redraw the canvas
-  redrawCanvas();
-
-  // Continue the loop
-  requestAnimationFrame(render);
-}
-
 socket.on("gameUpdate", (data) => {
   tanks = data.tanks;
   reactors = data.reactors;
@@ -174,6 +166,14 @@ socket.on("gameUpdate", (data) => {
 
   fortressNoDrawZone();
 });
+
+function render() {
+  // Redraw the canvas
+  redrawCanvas();
+
+  // Continue the loop
+  requestAnimationFrame(render);
+}
 
 socket.on("playerDisconnected", (number) => {
   landingPage.style.display = "block";
@@ -185,7 +185,11 @@ socket.on("playerDisconnected", (number) => {
   passcodeInput.value = "";
 
   currentGameState = GameState.LOBBY;
-  drawingHistory = [];
+  drawingHistory = {
+    [PLAYER_ONE]: [],
+    [PLAYER_TWO]: [],
+  };
+
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
   roomID = null;
@@ -200,68 +204,64 @@ socket.on("gameFull", () => {
   // passcodeInput.disabled = false;
 });
 
-socket.on("drawing", (data) => {
-  const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2 } = data;
+// In your client-side code
+socket.on("drawingMirror", (data) => {
+  const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2, drawingSessionId } = data;
 
-  const isValid = senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME;
+  // Add to the appropriate player's history
+  drawingHistory[senderPlayer].push({
+    from,
+    to,
+    color,
+    lineWidth,
+    playerNumber: senderPlayer,
+    drawingSessionId: drawingSessionId,
+  });
 
-  isValid &&
-    (() => {
-      const shouldTransform =
-        (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
-        (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
+  const shouldTransform = senderPlayer !== playerNumber;
 
-      drawingHistory.push({
-        from,
-        to,
-        color,
-        lineWidth,
-        playerNumber: senderPlayer,
-      });
+  const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
+  const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
 
-      const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
-      const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
-
-      drawLine(canvasFrom, canvasTo, color, lineWidth);
-      drawDividingLine();
-    })();
+  drawLine(canvasFrom, canvasTo, color, lineWidth);
+  drawDividingLine();
 });
 
-socket.on("snapClose", (data) => {
-  const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2 } = data;
+// In your client-side code
+socket.on("shapeClosed", (data) => {
+  const { playerNumber: senderPlayer, closingLine, drawingSessionId } = data;
 
-  const isValid = senderPlayer !== playerNumber && currentGameState === GameState.PRE_GAME;
+  const shouldTransform = senderPlayer !== playerNumber;
 
-  isValid &&
-    (() => {
-      const shouldTransform =
-        (senderPlayer === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
-        (senderPlayer === PLAYER_TWO && playerNumber === PLAYER_ONE);
+  // Add the closing line to the correct player's history
+  drawingHistory[senderPlayer].push({
+    from: closingLine.from,
+    to: closingLine.to,
+    color: closingLine.color,
+    lineWidth: closingLine.lineWidth,
+    playerNumber: senderPlayer,
+    drawingSessionId: drawingSessionId,
+  });
 
-      drawingHistory.push({
-        from,
-        to,
-        color,
-        lineWidth,
-        playerNumber: senderPlayer,
-      });
+  // Draw the closing line
+  const canvasFrom = gameWorldToCanvas(closingLine.from.x, closingLine.from.y, shouldTransform, true);
+  const canvasTo = gameWorldToCanvas(closingLine.to.x, closingLine.to.y, shouldTransform, true);
 
-      const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
-      const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
-
-      drawLine(canvasFrom, canvasTo, color, lineWidth);
-      drawDividingLine();
-    })();
+  drawLine(canvasFrom, canvasTo, closingLine.color, closingLine.lineWidth);
+  drawDividingLine();
 });
 
-socket.on("maxShapesReached", (data) => {
-  disableDrawing();
-});
+socket.on("eraseDrawingSession", (data) => {
+  const { drawingSessionId, playerNumber: senderPlayer } = data;
 
-// socket.on("finalizeDrawingPhase", () => {
-//   currentGameState = GameState.GAME_RUNNING;
-//   console.log("Drawing phase finalized. Game is now running.");
-// });
+  // Remove the drawing session's segments from the correct player's history
+  drawingHistory[senderPlayer] = drawingHistory[senderPlayer].filter(
+    (segment) => segment.drawingSessionId !== drawingSessionId
+  );
+
+  // Redraw the canvas
+  redrawCanvas();
+});
 
 joinButton.addEventListener("click", () => {
   const passcode = passcodeInput.value.trim();
@@ -283,16 +283,28 @@ joinButton.addEventListener("click", () => {
 function redrawCanvas() {
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
-  drawingHistory.forEach((path, index) => {
-    const shouldTransform =
-      (path.playerNumber === PLAYER_ONE && playerNumber === PLAYER_TWO) ||
-      (path.playerNumber === PLAYER_TWO && playerNumber === PLAYER_ONE);
+  // Draw the opponent's drawings with 180-degree rotation
+  const opponentPlayerNumber = playerNumber === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
 
-    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, shouldTransform, true);
-    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, shouldTransform, true);
+  drawingHistory[opponentPlayerNumber].forEach((path) => {
+    const isOpponentDrawing = true;
+
+    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, isOpponentDrawing);
+    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, isOpponentDrawing);
 
     drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
   });
+
+  // Draw the local player's drawings without transformation
+  drawingHistory[playerNumber].forEach((path) => {
+    const isOpponentDrawing = false;
+
+    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, isOpponentDrawing);
+    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, isOpponentDrawing);
+
+    drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
+  });
+
   drawDividingLine();
   fortresses.forEach(drawFortress);
   reactors.forEach(drawReactor);
@@ -319,11 +331,12 @@ function canvasToGameWorld(x, y) {
   };
 }
 
-function gameWorldToCanvas(x, y, shouldTransform = false, isIncoming = false) {
+function gameWorldToCanvas(x, y, isOpponentDrawing = false) {
   let canvasX = x * scaleX;
   let canvasY = y * scaleY;
 
-  if (shouldTransform) {
+  if (isOpponentDrawing) {
+    // Rotate the coordinates 180 degrees around the center of the canvas
     canvasX = drawCanvas.width - canvasX;
     canvasY = drawCanvas.height - canvasY;
   }
@@ -339,24 +352,8 @@ function getMousePos(evt) {
   };
 }
 
-function getTouchPos(touch) {
-  const rect = drawCanvas.getBoundingClientRect();
-  return {
-    x: touch.clientX - rect.left,
-    y: touch.clientY - rect.top,
-  };
-}
-
 function handleMouseDown(evt) {
   if (currentGameState !== GameState.PRE_GAME && currentGameState !== GameState.GAME_RUNNING) {
-    return;
-  }
-
-  // Check if player has reached max shapes
-  if (
-    (playerNumber === PLAYER_ONE && shapeCountPlayer1 >= maxShapesPerPlayer) ||
-    (playerNumber === PLAYER_TWO && shapeCountPlayer2 >= maxShapesPerPlayer)
-  ) {
     return;
   }
 
@@ -369,13 +366,30 @@ function handleMouseDown(evt) {
   isDrawing = true;
   lastX = pos.x;
   lastY = pos.y;
-  currentDrawingStart = { x: pos.x, y: pos.y };
+
+  // Reset drawingLegally and color at the start of a new drawing
+  drawingLegally = true;
+  color = "#000000"; // Default color for legal drawing
+
+  currentDrawingSessionId = `${playerNumber}-${Date.now()}-${Math.random()}`;
+
+  const gwPos = canvasToGameWorld(pos.x, pos.y);
+  socket.emit("startDrawing", { position: gwPos, drawingSessionId: currentDrawingSessionId });
 }
+
+let color = null;
+let drawingLegally = true;
+
+socket.on("drawingIllegally", (data) => {
+  drawingLegally = false;
+  color = "#FF0000";
+});
 
 function handleMouseMove(evt) {
   if (!isDrawing) {
     return;
   }
+
   const pos = getMousePos(evt);
   const currentX = pos.x;
   const currentY = pos.y;
@@ -387,20 +401,27 @@ function handleMouseMove(evt) {
   const gwFrom = canvasToGameWorld(lastX, lastY);
   const gwTo = canvasToGameWorld(currentX, currentY);
 
-  drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
+  const drawColor = drawingLegally ? "#000000" : "#FF0000";
 
-  drawingHistory.push({
+  // Draw locally
+  drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, drawColor);
+
+  // Add to the correct player's drawing history
+  drawingHistory[playerNumber].push({
     from: gwFrom,
     to: gwTo,
-    color: "#000000",
-    lineWidth: 2,
+    color: drawColor,
+    lineWidth: 2, // Assuming lineWidth is 2
     playerNumber: playerNumber,
+    drawingSessionId: currentDrawingSessionId,
   });
 
+  // Send drawing data to server
   socket.emit("drawing", {
+    drawingSessionId: currentDrawingSessionId,
     from: gwFrom,
     to: gwTo,
-    color: "#000000",
+    color: drawColor,
     lineWidth: 2,
   });
 
@@ -413,171 +434,24 @@ function handleMouseUpOut() {
     return;
   }
   isDrawing = false;
-  snapCloseDrawing();
+
+  // Notify the server that the drawing has ended
+  socket.emit("endDrawing");
 }
 
-function handleTouchStart(evt) {
-  if (currentGameState !== GameState.PRE_GAME && currentGameState !== GameState.GAME_RUNNING) {
-    return;
-  }
-
-  // Check if player has reached max shapes
-  if (
-    (playerNumber === PLAYER_ONE && shapeCountPlayer1 >= maxShapesPerPlayer) ||
-    (playerNumber === PLAYER_TWO && shapeCountPlayer2 >= maxShapesPerPlayer)
-  ) {
-    return;
-  }
-
-  evt.preventDefault();
-  if (evt.touches.length > 0) {
-    const pos = getTouchPos(evt.touches[0]);
-
-    if (!isWithinPlayerArea(pos.y)) {
-      return;
-    }
-
-    isDrawing = true;
-    lastX = pos.x;
-    lastY = pos.y;
-    currentDrawingStart = { x: pos.x, y: pos.y };
-  }
-}
-
-function handleTouchMove(evt) {
-  if (!isDrawing) {
-    return;
-  }
-  evt.preventDefault();
-  if (evt.touches.length > 0) {
-    const pos = getTouchPos(evt.touches[0]);
-    const currentX = pos.x;
-    const currentY = pos.y;
-
-    if (!isWithinPlayerArea(currentY)) {
-      return;
-    }
-
-    const gwFrom = canvasToGameWorld(lastX, lastY);
-    const gwTo = canvasToGameWorld(currentX, currentY);
-
-    drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, "#000000", 2);
-
-    drawingHistory.push({
-      from: gwFrom,
-      to: gwTo,
-      color: "#000000",
-      lineWidth: 2,
-      playerNumber: playerNumber,
-    });
-
-    socket.emit("drawing", {
-      from: gwFrom,
-      to: gwTo,
-      color: "#000000",
-      lineWidth: 2,
-    });
-
-    lastX = currentX;
-    lastY = currentY;
-  }
-}
-
-function handleTouchEndCancel() {
-  if (!isDrawing) {
-    return;
-  }
-  isDrawing = false;
-  snapCloseDrawing();
-}
-
-function drawLine(fromCanvas, toCanvas, color, lineWidth) {
+function drawLine(fromCanvas, toCanvas, color = "#000000", lineWidth = 2) {
   drawCtx.beginPath();
   drawCtx.moveTo(fromCanvas.x, fromCanvas.y);
   drawCtx.lineTo(toCanvas.x, toCanvas.y);
   drawCtx.strokeStyle = color;
   drawCtx.lineWidth = lineWidth;
   drawCtx.stroke();
-  drawCtx.closePath();
 }
-
-function snapCloseDrawing() {
-  if (!currentDrawingStart) {
-    return;
-  }
-
-  const startX = currentDrawingStart.x;
-  const startY = currentDrawingStart.y;
-
-  const endX = lastX;
-  const endY = lastY;
-
-  drawLine({ x: endX, y: endY }, { x: startX, y: startY }, "#000000", 2);
-
-  const gwFrom = canvasToGameWorld(endX, endY);
-  const gwTo = canvasToGameWorld(startX, startY);
-
-  drawingHistory.push({
-    from: gwFrom,
-    to: gwTo,
-    color: "#000000",
-    lineWidth: 2,
-    playerNumber: playerNumber,
-  });
-
-  socket.emit("snapClose", {
-    from: gwFrom,
-    to: gwTo,
-    color: "#000000",
-    lineWidth: 2,
-  });
-
-  if (playerNumber === PLAYER_ONE) {
-    shapeCountPlayer1++;
-    if (shapeCountPlayer1 >= maxShapesPerPlayer) {
-      disableDrawing();
-    }
-  } else if (playerNumber === PLAYER_TWO) {
-    shapeCountPlayer2++;
-    if (shapeCountPlayer2 >= maxShapesPerPlayer) {
-      disableDrawing();
-    }
-  }
-
-  currentDrawingStart = null;
-
-  drawDividingLine();
-}
-
-rulesButton.addEventListener("click", () => {
-  rulesModal.style.display = "flex";
-});
-
-closeButton.addEventListener("click", () => {
-  rulesModal.style.display = "none";
-});
 
 drawCanvas.addEventListener("mousedown", handleMouseDown, false);
 drawCanvas.addEventListener("mousemove", handleMouseMove, false);
 drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
 drawCanvas.addEventListener("mouseout", handleMouseUpOut, false);
-
-drawCanvas.addEventListener("touchstart", handleTouchStart, false);
-drawCanvas.addEventListener("touchmove", handleTouchMove, false);
-drawCanvas.addEventListener("touchend", handleTouchEndCancel, false);
-drawCanvas.addEventListener("touchcancel", handleTouchEndCancel, false);
-
-function disableDrawing() {
-  drawCanvas.removeEventListener("mousedown", handleMouseDown, false);
-  drawCanvas.removeEventListener("mousemove", handleMouseMove, false);
-  drawCanvas.removeEventListener("mouseup", handleMouseUpOut, false);
-  drawCanvas.removeEventListener("mouseout", handleMouseUpOut, false);
-
-  drawCanvas.removeEventListener("touchstart", handleTouchStart, false);
-  drawCanvas.removeEventListener("touchmove", handleTouchMove, false);
-  drawCanvas.removeEventListener("touchend", handleTouchEndCancel, false);
-  drawCanvas.removeEventListener("touchcancel", handleTouchEndCancel, false);
-}
 
 function drawDividingLine() {
   drawCtx.beginPath();
