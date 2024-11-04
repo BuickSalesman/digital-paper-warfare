@@ -59,6 +59,7 @@ let turrets = [];
 let shells = [];
 
 let noDrawZones = [];
+const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
 
 // Event Listeners
 window.addEventListener("load", () => {});
@@ -537,7 +538,7 @@ function fortressNoDrawZone() {
       fortress.position.y,
       fortress.width,
       fortress.height,
-      gameWorldHeight * 0.05
+      gameWorldHeight * NO_DRAW_ZONE_PADDING_RATIO
     );
 
     noDrawZones.push(zone);

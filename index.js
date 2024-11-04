@@ -62,6 +62,8 @@ const GAME_WORLD_HEIGHT = GAME_WORLD_WIDTH / ASPECT_RATIO; // Calculate height b
 
 const DIVIDING_LINE_MARGIN = 10; // Dividing line margin
 
+const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
+
 const inkLimit = 2000;
 
 // SERVER VARIABLES
@@ -753,13 +755,15 @@ function bodyToData(body) {
 function fortressNoDrawZone(room) {
   room.noDrawZones = []; // Reset the noDrawZones array
 
+  const padding = room.height * NO_DRAW_ZONE_PADDING_RATIO; // Match client-side padding
+
   room.fortresses.forEach((fortress) => {
     const zone = createRectangularZone(
       fortress.position.x,
       fortress.position.y,
       fortress.width,
       fortress.height,
-      DIVIDING_LINE_MARGIN // Padding as per dividing line margin
+      padding
     );
     // Add the no-draw zone to the array
     room.noDrawZones.push(zone);
