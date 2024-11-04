@@ -2,17 +2,11 @@
 const socket = io();
 
 let playerNumber = null;
-
 let roomID = null;
-
 let renderingStarted = false;
-
 let gameWorldHeight = null;
-
 let gameWorldWidth = null;
-
 let scaleX = 1;
-
 let scaleY = 1;
 
 const GameState = {
@@ -23,9 +17,7 @@ const GameState = {
 };
 
 let currentGameState = GameState.LOBBY;
-
 let totalPixelsDrawn = 0;
-
 let currentDrawingSessionId = null;
 
 let width = 1885; // Placeholder, will be updated
@@ -35,44 +27,29 @@ const PLAYER_ONE = 1;
 const PLAYER_TWO = 2;
 
 const landingPage = document.getElementById("landing-page");
-
 const joinButton = document.getElementById("join-button");
-
 const statusText = document.getElementById("status");
-
 const passcodeInput = document.getElementById("passcode-input");
-
 const gameAndPowerContainer = document.getElementById("gameAndPowerContainer");
-
 const gameContainer = document.getElementById("gameContainer");
-
 const drawCanvas = document.getElementById("drawCanvas");
 const powerMeterFill = document.getElementById("powerMeterFill");
-
 const moveButton = document.getElementById("moveButton");
-
 const shootButton = document.getElementById("shootButton");
-
 const rulesButton = document.getElementById("rulzButton");
-
 const closeButton = document.querySelector(".close-button");
-
 const rulesModal = document.getElementById("rulesModal");
-
 const endDrawButton = document.getElementById("endDrawButton");
-
 const timerElement = document.getElementById("Timer");
 
 const drawCtx = drawCanvas.getContext("2d");
 
 let dividingLine;
-
 let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
 
 let drawingHistory = { [PLAYER_ONE]: [], [PLAYER_TWO]: [] };
-
 let currentDrawingStart = null;
 
 let tanks = [];
@@ -83,12 +60,11 @@ let shells = [];
 
 let noDrawZones = [];
 
-// let shouldRotateCanvas = false
-
+// Event Listeners
 window.addEventListener("load", () => {});
-
 window.addEventListener("resize", resizeCanvas);
 
+// Initialize Canvas
 function initializeCanvas() {
   if (!gameWorldWidth || !gameWorldHeight) {
     console.error("Game world dimensions are not set.");
@@ -117,12 +93,11 @@ function initializeCanvas() {
   dividingLine = drawCanvas.height / 2;
 
   updateScalingFactors();
-
   redrawCanvas();
-
   drawDividingLine();
 }
 
+// Socket Events
 socket.on("playerInfo", (data) => {
   playerNumber = data.playerNumber;
   roomID = data.roomID;
@@ -181,7 +156,6 @@ socket.on("playerDisconnected", (number) => {
 
   joinButton.disabled = false;
   passcodeInput.disabled = false;
-  // passcodeInput = false
   passcodeInput.value = "";
 
   currentGameState = GameState.LOBBY;
@@ -201,10 +175,8 @@ socket.on("playerDisconnected", (number) => {
 socket.on("gameFull", () => {
   alert("The game is full.");
   joinButton.disabled = false;
-  // passcodeInput.disabled = false;
 });
 
-// In your client-side code
 socket.on("drawingMirror", (data) => {
   const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2, drawingSessionId } = data;
 
@@ -218,20 +190,15 @@ socket.on("drawingMirror", (data) => {
     drawingSessionId: drawingSessionId,
   });
 
-  const shouldTransform = senderPlayer !== playerNumber;
-
-  const canvasFrom = gameWorldToCanvas(from.x, from.y, shouldTransform, true);
-  const canvasTo = gameWorldToCanvas(to.x, to.y, shouldTransform, true);
+  const canvasFrom = gameWorldToCanvas(from.x, from.y);
+  const canvasTo = gameWorldToCanvas(to.x, to.y);
 
   drawLine(canvasFrom, canvasTo, color, lineWidth);
   drawDividingLine();
 });
 
-// In your client-side code
 socket.on("shapeClosed", (data) => {
   const { playerNumber: senderPlayer, closingLine, drawingSessionId } = data;
-
-  const shouldTransform = senderPlayer !== playerNumber;
 
   // Add the closing line to the correct player's history
   drawingHistory[senderPlayer].push({
@@ -244,8 +211,8 @@ socket.on("shapeClosed", (data) => {
   });
 
   // Draw the closing line
-  const canvasFrom = gameWorldToCanvas(closingLine.from.x, closingLine.from.y, shouldTransform, true);
-  const canvasTo = gameWorldToCanvas(closingLine.to.x, closingLine.to.y, shouldTransform, true);
+  const canvasFrom = gameWorldToCanvas(closingLine.from.x, closingLine.from.y);
+  const canvasTo = gameWorldToCanvas(closingLine.to.x, closingLine.to.y);
 
   drawLine(canvasFrom, canvasTo, closingLine.color, closingLine.lineWidth);
   drawDividingLine();
@@ -280,27 +247,32 @@ joinButton.addEventListener("click", () => {
   currentGameState = GameState.LOBBY;
 });
 
+// Redraw Canvas Function
 function redrawCanvas() {
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
-  // Draw the opponent's drawings with 180-degree rotation
+  drawCtx.save();
+  if (playerNumber === PLAYER_TWO) {
+    // Rotate the canvas by 180 degrees around its center
+    drawCtx.translate(drawCanvas.width / 2, drawCanvas.height / 2);
+    drawCtx.rotate(Math.PI);
+    drawCtx.translate(-drawCanvas.width / 2, -drawCanvas.height / 2);
+  }
+
+  // Draw the opponent's drawings
   const opponentPlayerNumber = playerNumber === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
 
   drawingHistory[opponentPlayerNumber].forEach((path) => {
-    const isOpponentDrawing = true;
-
-    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, isOpponentDrawing);
-    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, isOpponentDrawing);
+    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y);
+    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y);
 
     drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
   });
 
-  // Draw the local player's drawings without transformation
+  // Draw the local player's drawings
   drawingHistory[playerNumber].forEach((path) => {
-    const isOpponentDrawing = false;
-
-    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y, isOpponentDrawing);
-    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y, isOpponentDrawing);
+    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y);
+    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y);
 
     drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
   });
@@ -311,6 +283,7 @@ function redrawCanvas() {
   turrets.forEach(drawTurret);
   tanks.forEach(drawTank);
   drawNoDrawZones();
+
   drawCtx.restore();
 }
 
@@ -331,25 +304,25 @@ function canvasToGameWorld(x, y) {
   };
 }
 
-function gameWorldToCanvas(x, y, isOpponentDrawing = false) {
-  let canvasX = x * scaleX;
-  let canvasY = y * scaleY;
-
-  if (isOpponentDrawing) {
-    // Rotate the coordinates 180 degrees around the center of the canvas
-    canvasX = drawCanvas.width - canvasX;
-    canvasY = drawCanvas.height - canvasY;
-  }
-
-  return { x: canvasX, y: canvasY };
+function gameWorldToCanvas(x, y) {
+  return {
+    x: x * scaleX,
+    y: y * scaleY,
+  };
 }
 
 function getMousePos(evt) {
   const rect = drawCanvas.getBoundingClientRect();
-  return {
-    x: evt.clientX - rect.left,
-    y: evt.clientY - rect.top,
-  };
+  let x = evt.clientX - rect.left;
+  let y = evt.clientY - rect.top;
+
+  if (playerNumber === PLAYER_TWO) {
+    // Adjust for canvas rotation
+    x = drawCanvas.width - x;
+    y = drawCanvas.height - y;
+  }
+
+  return { x, y };
 }
 
 function handleMouseDown(evt) {
@@ -464,12 +437,14 @@ function drawDividingLine() {
 }
 
 function isWithinPlayerArea(y) {
-  return y >= dividingLine;
+  if (playerNumber === PLAYER_TWO) {
+    return y <= dividingLine;
+  } else {
+    return y >= dividingLine;
+  }
 }
 
 function drawTank(tank) {
-  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
-
   const size = tank.size;
   const x = tank.position.x * scaleX;
   const y = tank.position.y * scaleY;
@@ -480,9 +455,9 @@ function drawTank(tank) {
   drawCtx.rotate(tank.angle);
 
   if (tank.playerId === playerNumber) {
-    drawCtx.strokeStyle = "blue"; // Own fortress
+    drawCtx.strokeStyle = "blue"; // Own tank
   } else {
-    drawCtx.strokeStyle = "red"; // Opponent's fortress
+    drawCtx.strokeStyle = "red"; // Opponent's tank
   }
 
   drawCtx.lineWidth = 2;
@@ -491,8 +466,6 @@ function drawTank(tank) {
 }
 
 function drawReactor(reactor) {
-  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
-
   const radius = (reactor.size / 2) * scaleX;
   const x = reactor.position.x * scaleX;
   const y = reactor.position.y * scaleY;
@@ -500,9 +473,9 @@ function drawReactor(reactor) {
   drawCtx.save();
   drawCtx.translate(x, y);
   if (reactor.playerId === playerNumber) {
-    drawCtx.strokeStyle = "blue"; // Own fortress
+    drawCtx.strokeStyle = "blue"; // Own reactor
   } else {
-    drawCtx.strokeStyle = "red"; // Opponent's fortress
+    drawCtx.strokeStyle = "red"; // Opponent's reactor
   }
 
   drawCtx.lineWidth = 2;
@@ -513,8 +486,6 @@ function drawReactor(reactor) {
 }
 
 function drawFortress(fortress) {
-  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
-
   const width = fortress.width * scaleX;
   const height = fortress.height * scaleY;
   const canvasPos = gameWorldToCanvas(fortress.position.x, fortress.position.y);
@@ -536,8 +507,6 @@ function drawFortress(fortress) {
 }
 
 function drawTurret(turret) {
-  const shouldTransform = playerNumber === PLAYER_TWO; // Transform if player is Player 2
-
   const radius = (turret.size / 2) * scaleX;
   const x = turret.position.x * scaleX;
   const y = turret.position.y * scaleY;
@@ -547,9 +516,9 @@ function drawTurret(turret) {
   drawCtx.rotate(turret.angle);
 
   if (turret.playerId === playerNumber) {
-    drawCtx.strokeStyle = "blue"; // Own fortress
+    drawCtx.strokeStyle = "blue"; // Own turret
   } else {
-    drawCtx.strokeStyle = "red"; // Opponent's fortress
+    drawCtx.strokeStyle = "red"; // Opponent's turret
   }
 
   drawCtx.lineWidth = 2;
@@ -595,8 +564,7 @@ function drawNoDrawZones() {
   noDrawZones.forEach((zone) => {
     drawCtx.beginPath();
     const transformedPoints = zone.map((point) => {
-      const shouldTransform = false;
-      return gameWorldToCanvas(point.x, point.y, shouldTransform);
+      return gameWorldToCanvas(point.x, point.y);
     });
 
     drawCtx.moveTo(transformedPoints[0].x, transformedPoints[0].y);
