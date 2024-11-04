@@ -290,8 +290,6 @@ io.on("connection", (socket) => {
     // Compute closing distance
     const dx = endingPoint.x - startingPoint.x;
     const dy = endingPoint.y - startingPoint.y;
-    const closingDistance = Math.sqrt(dx * dx + dy * dy);
-    session.totalPixelsDrawn += closingDistance; // Update total pixels drawn with closing distance
 
     if (session.totalPixelsDrawn > inkLimit) {
       // Exceeded pixel limit
