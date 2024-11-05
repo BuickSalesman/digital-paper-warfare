@@ -62,6 +62,8 @@ let actionMode = null;
 
 let activeExplosions = [];
 
+const EXPLOSION_BASE_SIZE = 500; // Base size in game world units
+
 // Load explosion frames
 const explosionFrames = Array.from({ length: 25 }, (_, i) => {
   const img = new Image();
@@ -269,31 +271,34 @@ function redrawCanvas() {
   // Draw active explosions within the rotated context
   activeExplosions.forEach((explosion, index) => {
     if (explosion.frame < explosionFrames.length) {
+      // Calculate explosion size based on scaling factors
+      const explosionScale = (scaleX + scaleY) / 2; // Average scaling
+      const explosionSize = EXPLOSION_BASE_SIZE * explosionScale;
+
       if (playerNumber === PLAYER_TWO) {
-        drawCtx.save();
-        // Translate to the explosion position
-        drawCtx.translate(explosion.x, explosion.y);
-        // Rotate 180 degrees to counteract the canvas rotation
-        drawCtx.rotate(Math.PI);
-        // Draw the explosion centered at (0, 0)
-        drawCtx.drawImage(
+        // Draw rotated explosion to counteract canvas rotation
+        drawImageRotated(
+          drawCtx,
           explosionFrames[explosion.frame],
-          -50, // Adjust based on explosion image size
-          -50,
-          100, // Width of the explosion image
-          100 // Height of the explosion image
+          explosion.x,
+          explosion.y,
+          explosionSize, // Scaled width
+          explosionSize, // Scaled height
+          Math.PI // Rotation in radians
         );
-        drawCtx.restore();
       } else {
-        // For Player One, draw normally
-        drawCtx.drawImage(
+        // Draw explosion normally
+        drawImageRotated(
+          drawCtx,
           explosionFrames[explosion.frame],
-          explosion.x - 50, // Adjust based on explosion image size
-          explosion.y - 50, // Adjust based on explosion image size
-          100, // Width of the explosion image
-          100 // Height of the explosion image
+          explosion.x,
+          explosion.y,
+          explosionSize, // Scaled width
+          explosionSize, // Scaled height
+          0 // No rotation
         );
       }
+
       // Advance to the next frame
       explosion.frame += 1;
     } else {
@@ -559,4 +564,12 @@ function increasePower() {
 function resetPower() {
   powerLevel = 0;
   powerMeterFill.style.height = "0%";
+}
+
+function drawImageRotated(ctx, img, x, y, width, height, rotation = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.drawImage(img, -width / 2, -height / 2, width, height);
+  ctx.restore();
 }
