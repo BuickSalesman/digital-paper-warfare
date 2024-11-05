@@ -134,7 +134,9 @@ socket.on("initialGameState", (data) => {
   fortresses = data.fortresses;
   turrets = data.turrets;
 
-  fortressNoDrawZone();
+  if (currentGameState === GameState.PRE_GAME) {
+    fortressNoDrawZone();
+  }
 
   if (!renderingStarted) {
     renderingStarted = true;
@@ -149,7 +151,9 @@ socket.on("gameUpdate", (data) => {
   turrets = data.turrets;
   shells = data.shells || [];
 
-  fortressNoDrawZone();
+  if (currentGameState === GameState.PRE_GAME) {
+    fortressNoDrawZone();
+  }
 });
 
 function render() {
@@ -260,6 +264,13 @@ socket.on("drawingDisabled", (data) => {
   drawingEnabled = false;
 });
 
+socket.on("gameRunning", (data) => {
+  currentGameState = GameState.GAME_RUNNING;
+  noDrawZones = [];
+  drawingEnabled = false;
+  redrawCanvas();
+});
+
 joinButton.addEventListener("click", () => {
   const passcode = passcodeInput.value.trim();
   if (passcode) {
@@ -361,7 +372,7 @@ function handleMouseDown(evt) {
   if (evt.button !== 0 || !drawingEnabled) {
     return;
   }
-  if (currentGameState !== GameState.PRE_GAME && currentGameState !== GameState.GAME_RUNNING) {
+  if (currentGameState !== GameState.PRE_GAME) {
     return;
   }
 
@@ -592,6 +603,10 @@ function drawTurret(turret, invertPlayerIds) {
 }
 
 function fortressNoDrawZone() {
+  if (currentGameState !== GameState.PRE_GAME) {
+    return;
+  }
+
   noDrawZones = [];
 
   fortresses.forEach((fortress) => {

@@ -44,35 +44,6 @@ const explosionFrames = Array.from({ length: 25 }, (_, i) => {
 // Declare variable to store the which player is currently drawing, starting with player 1.
 let currentPlayerDrawing = PLAYER_ONE;
 
-// Declare counter for number of total shapes drawn.
-let shapeCount = 0;
-
-// Declare the maximum number of shapes for each player.
-let maxShapeCountPlayer1 = 5;
-let maxShapeCountPlayer2 = 5;
-
-// Initialize shape counts for each player
-let shapeCountPlayer1 = 0;
-let shapeCountPlayer2 = 0;
-
-// Declare maximum amount of ink allocated per shape.
-const maxInkPerShape = baseHeight * 0.6;
-
-// Declare variable to help track how much ink a player has used on the shape currently being drawn.
-let totalInkUsed = 0;
-
-// Declare variable to store if player is drawing below the dividing line.
-let isDrawingBelow = true;
-
-// Declare whether the player is currently drawing.
-let isDrawing = false;
-
-// Declare an array to store points creating during drawing.
-let drawingPath = [];
-
-// Declare and array to store completed drawing paths.
-let allPaths = [];
-
 //#region DRAWING MARGIN VARIABLES
 
 // Declare width of the drawing margin so that it is wide enough for tanks to pass through.
@@ -498,18 +469,6 @@ function handleBodyExplosion(body) {
 //#endregion EXPLOSION!!! FUNCTIONS
 
 //#region DIVIDING LINE FUNCTIONS
-
-// Draws the dividing line on the canvas.
-function drawDividingLine() {
-  drawCtx.beginPath();
-  drawCtx.moveTo(0, dividingLine);
-  drawCtx.lineTo(drawCanvas.width, dividingLine);
-  drawCtx.strokeStyle = "black";
-  drawCtx.lineWidth = 2;
-  drawCtx.stroke();
-}
-
-//#endregion DIVIDING LINE FUNCTIONS
 
 //#region SHAPE DRAWING FUNCTIONS
 

@@ -256,6 +256,10 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (room.currentGameState !== GameState.PRE_GAME) {
+      return;
+    }
+
     const { from, to, color, lineWidth } = data;
 
     // Validate coordinates
@@ -506,6 +510,17 @@ io.on("connection", (socket) => {
             });
           }
         }
+      }
+
+      const shapeLimit = 5;
+      if (room.shapeCounts[PLAYER_ONE] >= shapeLimit && room.shapeCounts[PLAYER_TWO] >= shapeLimit) {
+        // Both players have reached the limit
+        room.currentGameState = GameState.GAME_RUNNING;
+
+        // Notify both clients
+        io.to(roomID).emit("gameRunning", {
+          message: "Both players have completed their shapes. The game is now running.",
+        });
       }
 
       // Remove the drawing session
