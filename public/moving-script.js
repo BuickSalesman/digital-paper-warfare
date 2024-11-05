@@ -60,6 +60,15 @@ let powerInterval = null;
 
 let actionMode = null;
 
+let activeExplosions = [];
+
+// Load explosion frames
+const explosionFrames = Array.from({ length: 25 }, (_, i) => {
+  const img = new Image();
+  img.src = `assets/EXPLOSION/explosion4/${i + 1}.png`; // Adjust path as necessary
+  return img;
+});
+
 // Event Listeners
 window.addEventListener("load", () => {});
 window.addEventListener("resize", resizeCanvas);
@@ -152,7 +161,6 @@ socket.on("gameUpdate", (data) => {
   turrets = data.turrets;
   shells = data.shells || [];
 });
-
 function render() {
   // Redraw the canvas
   redrawCanvas();
@@ -226,7 +234,18 @@ socket.on("invalidClick", () => {
   // alert("You must click on one of your tanks!");
 });
 
-// Redraw Canvas Function
+socket.on("explosion", (data) => {
+  const { x, y } = data;
+  // Convert game world coordinates to canvas coordinates
+  const canvasPos = gameWorldToCanvas(x, y);
+  activeExplosions.push({
+    x: canvasPos.x,
+    y: canvasPos.y,
+    frame: 0,
+    timeoutId: null,
+  });
+});
+
 function redrawCanvas() {
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
@@ -246,6 +265,42 @@ function redrawCanvas() {
   turrets.forEach((turret) => drawTurret(turret, invertPlayerIds));
   tanks.forEach((tank) => drawTank(tank, invertPlayerIds));
   shells.forEach((shell) => drawShell(shell, invertPlayerIds));
+
+  // Draw active explosions within the rotated context
+  activeExplosions.forEach((explosion, index) => {
+    if (explosion.frame < explosionFrames.length) {
+      if (playerNumber === PLAYER_TWO) {
+        drawCtx.save();
+        // Translate to the explosion position
+        drawCtx.translate(explosion.x, explosion.y);
+        // Rotate 180 degrees to counteract the canvas rotation
+        drawCtx.rotate(Math.PI);
+        // Draw the explosion centered at (0, 0)
+        drawCtx.drawImage(
+          explosionFrames[explosion.frame],
+          -50, // Adjust based on explosion image size
+          -50,
+          100, // Width of the explosion image
+          100 // Height of the explosion image
+        );
+        drawCtx.restore();
+      } else {
+        // For Player One, draw normally
+        drawCtx.drawImage(
+          explosionFrames[explosion.frame],
+          explosion.x - 50, // Adjust based on explosion image size
+          explosion.y - 50, // Adjust based on explosion image size
+          100, // Width of the explosion image
+          100 // Height of the explosion image
+        );
+      }
+      // Advance to the next frame
+      explosion.frame += 1;
+    } else {
+      // Remove explosion from activeExplosions array
+      activeExplosions.splice(index, 1);
+    }
+  });
 
   drawCtx.restore();
 }

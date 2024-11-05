@@ -366,13 +366,29 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     const pairs = event.pairs;
     pairs.forEach((pair) => {
       const { bodyA, bodyB } = pair;
-      if (bodyA.label === "Shell" || bodyB.label === "Shell") {
-        const shell = bodyA.label === "Shell" ? bodyA : bodyB;
+
+      // Identify if the collision is between a shell and a tank/reactor
+      const shell = bodyA.label === "Shell" ? bodyA : bodyB.label === "Shell" ? bodyB : null;
+      const target = shell === bodyA ? bodyB : shell === bodyB ? bodyA : null;
+
+      if (shell && (target.label === "Tank" || target.label === "Reactor")) {
+        // Emit explosion event to clients in the room
+        const roomID = room.roomID;
+        const collisionPosition = shell.position;
+
+        io.to(roomID).emit("explosion", {
+          x: collisionPosition.x,
+          y: collisionPosition.y,
+        });
+
+        // Remove the shell from the world and room's shell array
         Matter.World.remove(room.roomWorld, shell);
         const index = room.shells.findIndex((s) => s.localId === shell.localId);
         if (index !== -1) {
           room.shells.splice(index, 1);
         }
+
+        //probably handle damage calculations here
       }
     });
   });
