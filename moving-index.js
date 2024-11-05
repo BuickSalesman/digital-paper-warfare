@@ -200,6 +200,32 @@ io.on("connection", (socket) => {
       }
     }
   });
+
+  // Server-side code (add this within your 'io.on("connection")' function)
+
+  // Handle 'mouseDown' event
+  socket.on("mouseDown", (data) => {
+    const roomID = socket.roomID;
+    const playerNumber = socket.playerNumber;
+
+    if (roomID && playerNumber) {
+      const room = gameRooms[roomID];
+      if (room) {
+        const { x, y } = data;
+
+        // Validate the click
+        const isValid = validateClickOnTank(room, playerNumber, x, y);
+
+        if (isValid) {
+          // Send confirmation to the client
+          socket.emit("validClick");
+        } else {
+          // Send invalid click response
+          socket.emit("invalidClick");
+        }
+      }
+    }
+  });
 });
 
 // Function to join an existing room
@@ -439,4 +465,22 @@ function bodyToData(body) {
     height: body.height || 0, // Use the height property, default to 0 if undefined
     playerId: body.playerId,
   };
+}
+
+function validateClickOnTank(room, playerNumber, x, y) {
+  // Get the tanks belonging to the player
+  const playerTanks = room.tanks.filter((tank) => tank.playerId === playerNumber);
+
+  // Check if the click is within any of the player's tanks
+  for (const tank of playerTanks) {
+    if (isPointInBody(tank, { x, y })) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Helper function to check if a point is inside a Matter.Body
+function isPointInBody(body, point) {
+  return Matter.Bounds.contains(body.bounds, point) && Matter.Vertices.contains(body.vertices, point);
 }

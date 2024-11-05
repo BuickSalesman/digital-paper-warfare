@@ -53,6 +53,11 @@ let fortresses = [];
 let turrets = [];
 let shells = [];
 
+let isMouseDown = false;
+let powerLevel = 0;
+const maxPowerLevel = 100;
+let powerInterval = null;
+
 // Event Listeners
 window.addEventListener("load", () => {});
 window.addEventListener("resize", resizeCanvas);
@@ -201,6 +206,18 @@ joinButton.addEventListener("click", () => {
   currentGameState = GameState.LOBBY;
 });
 
+socket.on("validClick", () => {
+  isMouseDown = true;
+
+  // Start increasing the power meter
+  powerInterval = setInterval(increasePower, 100); // Adjust interval as needed
+});
+
+socket.on("invalidClick", () => {
+  // Click was not on a valid tank
+  alert("You must click on one of your tanks!");
+});
+
 // Redraw Canvas Function
 function redrawCanvas() {
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
@@ -262,7 +279,18 @@ function getMousePos(evt) {
   return { x, y };
 }
 
-function handleMouseDown(evt) {}
+function handleMouseDown(evt) {
+  const mousePos = getMousePos(evt);
+
+  // Convert canvas coordinates to game world coordinates
+  const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
+
+  // Emit 'mouseDown' event to the server with position data
+  socket.emit("mouseDown", {
+    x: gameWorldPos.x,
+    y: gameWorldPos.y,
+  });
+}
 
 let color = null;
 let drawingLegally = true;
@@ -274,7 +302,21 @@ socket.on("drawingIllegally", (data) => {
 
 function handleMouseMove(evt) {}
 
-function handleMouseUpOut() {}
+function handleMouseUpOut() {
+  if (isMouseDown) {
+    isMouseDown = false;
+
+    // Reset power meter
+    resetPower();
+
+    // Stop the power increase interval
+    clearInterval(powerInterval);
+    powerInterval = null;
+
+    // You can also send the final powerLevel to the server here if needed
+    // socket.emit("shoot", { power: powerLevel });
+  }
+}
 
 drawCanvas.addEventListener("mousedown", handleMouseDown, false);
 drawCanvas.addEventListener("mousemove", handleMouseMove, false);
@@ -397,4 +439,18 @@ function drawTurret(turret, invertPlayerIds) {
   drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
   drawCtx.stroke();
   drawCtx.restore();
+}
+
+function increasePower() {
+  if (powerLevel >= maxPowerLevel) {
+    powerLevel = maxPowerLevel;
+  } else {
+    powerLevel += 3.5; // Adjust increment as needed
+  }
+  powerMeterFill.style.height = `${powerLevel}%`;
+}
+
+function resetPower() {
+  powerLevel = 0;
+  powerMeterFill.style.height = "0%";
 }
