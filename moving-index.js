@@ -657,7 +657,6 @@ function fixTankPosition(tank, roomWorld) {
       render: { visible: false },
     });
     World.add(roomWorld, tank.fixedConstraint);
-    console.log(`Fixing tank position for tank ID: ${tank.localId}`);
   }
 }
 
@@ -666,7 +665,6 @@ function releaseTank(tank, roomWorld) {
   if (tank.fixedConstraint) {
     World.remove(roomWorld, tank.fixedConstraint);
     tank.fixedConstraint = null;
-    console.log(`Releasing tank from fixed position for tank ID: ${tank.localId}`);
   }
 }
 
@@ -721,10 +719,6 @@ function createAndLaunchShell(unit, vector, forceMagnitude, room) {
   shell.localId = generateUniqueId(); // Ensure each shell has a unique ID
   room.shells.push(shell);
   Matter.World.add(room.roomWorld, shell);
-
-  console.log(
-    `Shell Created: ID=${shell.localId}, Position=(${shell.position.x}, ${shell.position.y}), Velocity=(${shell.velocity.x}, ${shell.velocity.y}), PlayerID=${playerId}, Size=${shell.size}`
-  );
 }
 
 function generateUniqueId() {

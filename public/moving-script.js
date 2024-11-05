@@ -190,8 +190,6 @@ socket.on("playerDisconnected", (number) => {
   gameWorldHeight = null;
   scaleX = 1;
   scaleY = 1;
-
-  console.log(`Player ${number} disconnected. Resetting game state.`);
 });
 
 socket.on("gameFull", () => {
@@ -259,7 +257,6 @@ function resizeCanvas() {
 function updateScalingFactors() {
   scaleX = drawCanvas.width / gameWorldWidth;
   scaleY = drawCanvas.height / gameWorldHeight;
-  console.log(`Updated scaling factors: scaleX=${scaleX}, scaleY=${scaleY}`);
 }
 
 function canvasToGameWorld(x, y) {
@@ -459,9 +456,9 @@ function drawTurret(turret, invertPlayerIds) {
   }
 
   if (turretPlayerId === playerNumber) {
-    drawCtx.strokeStyle = "blue"; // Own turret
+    drawCtx.strokeStyle = "blue";
   } else {
-    drawCtx.strokeStyle = "red"; // Opponent's turret
+    drawCtx.strokeStyle = "red";
   }
 
   drawCtx.lineWidth = 2;
@@ -478,9 +475,6 @@ function drawShell(shell, invertPlayerIds) {
   const radius = shell.size * scaleX;
   const x = shell.position.x * scaleX;
   const y = shell.position.y * scaleY;
-
-  // Optional: Log shell rendering details
-  console.log(`Drawing shell ID: ${shell.id} at (${x}, ${y}) with radius: ${radius}`);
 
   drawCtx.save();
   drawCtx.translate(x, y);
