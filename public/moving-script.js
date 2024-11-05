@@ -280,16 +280,16 @@ function getMousePos(evt) {
 }
 
 function handleMouseDown(evt) {
-  const mousePos = getMousePos(evt);
+  // Only proceed if the left mouse button is pressed
+  if (evt.button === 0) {
+    const mousePos = getMousePos(evt);
+    const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
 
-  // Convert canvas coordinates to game world coordinates
-  const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
-
-  // Emit 'mouseDown' event to the server with position data
-  socket.emit("mouseDown", {
-    x: gameWorldPos.x,
-    y: gameWorldPos.y,
-  });
+    socket.emit("mouseDown", {
+      x: gameWorldPos.x,
+      y: gameWorldPos.y,
+    });
+  }
 }
 
 let color = null;
@@ -300,9 +300,12 @@ socket.on("drawingIllegally", (data) => {
   color = "#FF0000";
 });
 
-function handleMouseMove(evt) {}
+function handleMouseMove(evt) {
+  return;
+}
 
-function handleMouseUpOut() {
+function handleMouseUpOut(evt) {
+  // Proceed if any mouse button was previously pressed
   if (isMouseDown) {
     isMouseDown = false;
 
@@ -312,9 +315,6 @@ function handleMouseUpOut() {
     // Stop the power increase interval
     clearInterval(powerInterval);
     powerInterval = null;
-
-    // You can also send the final powerLevel to the server here if needed
-    // socket.emit("shoot", { power: powerLevel });
   }
 }
 
