@@ -201,29 +201,72 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Server-side code (add this within your 'io.on("connection")' function)
-
-  // Handle 'mouseDown' event
   socket.on("mouseDown", (data) => {
-    if (data.button === 0) {
-      const roomID = socket.roomID;
-      const playerNumber = socket.playerNumber;
+    const roomID = socket.roomID;
+    const playerNumber = socket.playerNumber;
 
-      if (roomID && playerNumber) {
-        const room = gameRooms[roomID];
-        if (room) {
-          const { x, y } = data;
+    if (roomID && playerNumber) {
+      const room = gameRooms[roomID];
+      if (room) {
+        const { x, y } = data;
 
-          // Validate the click
-          const isValid = validateClickOnTank(room, playerNumber, x, y);
+        // Validate the click is on a tank owned by the player
+        const tank = getTankAtPosition(room, playerNumber, x, y);
 
-          if (isValid) {
-            // Send confirmation to the client
-            socket.emit("validClick");
-          } else {
-            // Send invalid click response
-            socket.emit("invalidClick");
-          }
+        if (tank) {
+          // Record the server-side start time and data
+          socket.mouseDownData = {
+            startTime: Date.now(), // Server-side timestamp
+            startPosition: { x, y },
+            tankId: tank.id,
+          };
+
+          // Send confirmation to the client
+          socket.emit("validClick");
+        } else {
+          // Send invalid click response
+          socket.emit("invalidClick");
+        }
+      }
+    }
+  });
+
+  socket.on("mouseUp", (data) => {
+    const roomID = socket.roomID;
+    const playerNumber = socket.playerNumber;
+
+    if (roomID && playerNumber) {
+      const room = gameRooms[roomID];
+      if (room && socket.mouseDownData) {
+        const { x, y } = data;
+
+        const { startTime, startPosition, tankId } = socket.mouseDownData;
+
+        const endTime = Date.now();
+
+        // Calculate the duration between mousedown and mouseup
+        const duration = endTime - startTime; // in milliseconds
+
+        // Limit the duration to prevent cheating
+        const maxDuration = 3000; // 3 seconds
+        const minDuration = 100; // 0.1 second
+        const clampedDuration = Math.max(minDuration, Math.min(duration, maxDuration));
+
+        // Calculate the force based on the duration
+        const force = calculateForceFromDuration(clampedDuration);
+
+        // Calculate the vector from start to end position
+        const vector = calculateVector(startPosition, { x, y });
+
+        // Get the tank by ID
+        const tank = room.tanks.find((t) => t.id === tankId);
+
+        if (tank) {
+          // Apply the force to the tank
+          applyForceToTank(tank, vector, force);
+
+          // Clean up mouseDownData
+          delete socket.mouseDownData;
         }
       }
     }
@@ -485,4 +528,53 @@ function validateClickOnTank(room, playerNumber, x, y) {
 // Helper function to check if a point is inside a Matter.Body
 function isPointInBody(body, point) {
   return Matter.Bounds.contains(body.bounds, point) && Matter.Vertices.contains(body.vertices, point);
+}
+
+function getTankAtPosition(room, playerNumber, x, y) {
+  const playerTanks = room.tanks.filter((tank) => tank.playerId === playerNumber);
+
+  for (const tank of playerTanks) {
+    if (isPointInBody(tank, { x, y })) {
+      return tank;
+    }
+  }
+  return null;
+}
+
+function calculateForceFromDuration(duration) {
+  // Map duration to force
+  const minDuration = 100; // 0.1 second
+  const maxDuration = 3000; // 3 seconds
+
+  const minForce = 0.005; // Adjust as needed
+  const maxForce = 5; // Adjust as needed
+
+  // Linear interpolation
+  const normalizedDuration = (duration - minDuration) / (maxDuration - minDuration);
+  const clampedNormalized = Math.max(0, Math.min(normalizedDuration, 1));
+  const force = minForce + clampedNormalized * (maxForce - minForce);
+
+  return force;
+}
+
+function calculateVector(start, end) {
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  const length = Math.hypot(deltaX, deltaY);
+
+  if (length === 0) {
+    return { x: 0, y: 0 };
+  }
+
+  return { x: deltaX / length, y: deltaY / length };
+}
+
+function applyForceToTank(tank, vector, forceMagnitude) {
+  // Apply force in the direction of the vector
+  const force = {
+    x: -vector.x * forceMagnitude,
+    y: -vector.y * forceMagnitude,
+  };
+
+  Matter.Body.applyForce(tank, tank.position, force);
 }

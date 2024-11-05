@@ -894,3 +894,87 @@ function createAndLaunchShell(position, size, velocity, playerId) {
 // When shapes are snapped shut after using the maximum amount of ink, it throws the shapes cannot overlap alert.
 // It is possible to shoot yourself if your power is low enough.
 //#endregion BUG LOG
+
+// To apply normalized force and direction to the unit based on action mode.
+function releaseAndApplyForce(endingMousePosition) {
+  if (!isMouseDown || !selectedUnit) {
+    return;
+  }
+
+  isMouseDown = false;
+
+  if (isWobbling) {
+    stopWobble();
+  }
+
+  const vector = calculateVector(startingMousePosition, endingMousePosition);
+  if (!vector) {
+    resetPower();
+    return;
+  }
+
+  const { normalizedVector, forceMagnitude } = calculateForce(vector);
+
+  let actionTaken = false;
+
+  if (powerLevel > 0) {
+    if (actionMode === "move") {
+      actionTaken = applyMoveForce(normalizedVector, forceMagnitude);
+    } else if (actionMode === "shoot") {
+      actionTaken = applyShootForce(normalizedVector, forceMagnitude);
+    }
+  }
+
+  resetPower();
+
+  if (actionTaken && !hasMovedOrShotThisTurn) {
+    hasMovedOrShotThisTurn = true;
+    endTurn();
+  }
+}
+
+// Helper function to calculate the vector between two points.
+function calculateVector(start, end) {
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  const length = Math.hypot(deltaX, deltaY);
+
+  if (length === 0) {
+    return null;
+  }
+
+  return { x: deltaX / length, y: deltaY / length };
+}
+
+// Helper function to calculate normalized vector and force magnitude.
+function calculateForce(vector) {
+  const scaledPower = Math.pow(powerLevel, 1.5);
+  let forceMagnitude = scaledPower * forceScalingFactor * 0.1;
+
+  // Adjust force based on power level.
+  const adjustment = getForceAdjustment(powerLevel);
+  forceMagnitude *= 1 + adjustment / 100;
+
+  return { normalizedVector: vector, forceMagnitude };
+}
+
+// Helper function to determine force adjustment based on power level.
+function getForceAdjustment(power) {
+  if (power > 95) {
+    return -5 * (power - 95);
+  } else if (power >= 85 && power <= 95) {
+    return 5 * (power - 85);
+  }
+  return 0;
+}
+
+// Helper function to apply force in move mode.
+function applyMoveForce(normalizedVector, forceMagnitude) {
+  Body.applyForce(selectedUnit, selectedUnit.position, {
+    x: -normalizedVector.x * forceMagnitude,
+    y: -normalizedVector.y * forceMagnitude,
+  });
+
+  console.log(forceMagnitude);
+  return true;
+}

@@ -210,7 +210,7 @@ socket.on("validClick", () => {
   isMouseDown = true;
 
   // Start increasing the power meter
-  powerInterval = setInterval(increasePower, 100); // Adjust interval as needed
+  powerInterval = setInterval(increasePower, 1.2); // Adjust interval as needed
 });
 
 socket.on("invalidClick", () => {
@@ -309,6 +309,14 @@ function handleMouseUpOut(evt) {
   // Proceed if any mouse button was previously pressed
   if (isMouseDown) {
     isMouseDown = false;
+
+    const mousePos = getMousePos(evt);
+    const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
+
+    socket.emit("mouseUp", {
+      x: gameWorldPos.x,
+      y: gameWorldPos.y,
+    });
 
     // Reset power meter
     resetPower();
@@ -458,7 +466,7 @@ function increasePower() {
   if (powerLevel >= maxPowerLevel) {
     powerLevel = maxPowerLevel;
   } else {
-    powerLevel += 3.5; // Adjust increment as needed
+    powerLevel += 1; // Adjust increment as needed
   }
   powerMeterFill.style.height = `${powerLevel}%`;
 }
