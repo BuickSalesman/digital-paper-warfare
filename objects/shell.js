@@ -30,6 +30,8 @@ module.exports = {
     // Apply initial velocity to the shell
     Body.setVelocity(shell, initialVelocity);
 
+    shell.size = shellSize;
+
     return shell;
   },
 };

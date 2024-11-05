@@ -210,28 +210,41 @@ io.on("connection", (socket) => {
   socket.on("mouseDown", (data) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
+    const actionMode = data.actionMode;
 
     if (roomID && playerNumber) {
       const room = gameRooms[roomID];
       if (room) {
         const { x, y } = data;
 
-        // Validate the click is on a tank owned by the player
-        const tank = validateClickOnTank(room, playerNumber, x, y);
-
-        if (tank) {
-          // Record the server-side start time and data
-          socket.mouseDownData = {
-            startTime: Date.now(), // Server-side timestamp
-            startPosition: { x, y },
-            tankId: tank.id,
-          };
-
-          // Send confirmation to the client
-          socket.emit("validClick");
+        if (actionMode === "move") {
+          const tank = validateClickOnTank(room, playerNumber, x, y);
+          if (tank) {
+            socket.mouseDownData = {
+              startTime: Date.now(),
+              startPosition: { x, y },
+              tankId: tank.id,
+              actionMode: actionMode,
+            };
+            socket.emit("validClick");
+          } else {
+            socket.emit("invalidClick");
+          }
+        } else if (actionMode === "shoot") {
+          const unit = validateClickOnShootingUnit(room, playerNumber, x, y);
+          if (unit) {
+            socket.mouseDownData = {
+              startTime: Date.now(),
+              startPosition: { x, y },
+              unitId: unit.id,
+              actionMode: actionMode,
+            };
+            socket.emit("validClick");
+          } else {
+            socket.emit("invalidClick");
+          }
         } else {
-          // Send invalid click response
-          socket.emit("invalidClick");
+          socket.emit("invalidActionMode");
         }
       }
     }
@@ -245,34 +258,27 @@ io.on("connection", (socket) => {
       const room = gameRooms[roomID];
       if (room && socket.mouseDownData) {
         const { x, y } = data;
-
-        const { startTime, startPosition, tankId } = socket.mouseDownData;
-
+        const { startTime, startPosition, tankId, unitId, actionMode } = socket.mouseDownData;
         const endTime = Date.now();
-
-        // Calculate the duration between mousedown and mouseup
-        const duration = endTime - startTime; // in milliseconds
-
-        // Limit the duration to prevent cheating
-        const maxDuration = 3000; // 3 seconds
-        const minDuration = 100; // 0.1 second
-        const clampedDuration = Math.max(minDuration, Math.min(duration, maxDuration));
-
-        // Calculate the force based on the duration
+        const duration = endTime - startTime;
+        const clampedDuration = Math.max(100, Math.min(duration, 3000));
         const force = calculateForceFromDuration(clampedDuration);
-
-        // Calculate the vector from start to end position
         const vector = calculateVector(startPosition, { x, y });
 
-        // Get the tank by ID
-        const tank = room.tanks.find((t) => t.id === tankId);
-
-        if (tank) {
-          // Apply the force to the tank
-          applyForceToTank(tank, vector, force, room.roomWorld);
-
-          // Clean up mouseDownData
-          delete socket.mouseDownData;
+        if (actionMode === "move") {
+          const tank = room.tanks.find((t) => t.id === tankId);
+          if (tank) {
+            applyForceToTank(tank, vector, force, room.roomWorld);
+            delete socket.mouseDownData;
+          }
+        } else if (actionMode === "shoot") {
+          const unit = getShootingUnitById(room, unitId);
+          if (unit) {
+            createAndLaunchShell(unit, vector, force, room);
+            delete socket.mouseDownData;
+          }
+        } else {
+          socket.emit("invalidActionMode");
         }
       }
     }
@@ -352,7 +358,33 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
 
     roomEngine: roomEngine,
     roomWorld: roomWorld,
+
+    shells: [],
   };
+
+  Matter.Events.on(roomEngine, "collisionStart", (event) => {
+    const pairs = event.pairs;
+    pairs.forEach((pair) => {
+      const { bodyA, bodyB } = pair;
+      if (bodyA.label === "Shell" || bodyB.label === "Shell") {
+        const shell = bodyA.label === "Shell" ? bodyA : bodyB;
+        Matter.World.remove(room.roomWorld, shell);
+        const index = room.shells.findIndex((s) => s.localId === shell.localId);
+        if (index !== -1) {
+          room.shells.splice(index, 1);
+        }
+      }
+    });
+  });
+
+  // In your interval function
+  for (let i = room.shells.length - 1; i >= 0; i--) {
+    const shell = room.shells[i];
+    if (isResting(shell)) {
+      Matter.World.remove(room.roomWorld, shell);
+      room.shells.splice(i, 1);
+    }
+  }
 
   startRoomInterval(roomID);
 
@@ -380,6 +412,18 @@ function startRoomInterval(roomID) {
     if (room) {
       Matter.Engine.update(room.roomEngine, deltaTime);
 
+      // **Ensure room.shells exists before iterating**
+      if (room.shells && Array.isArray(room.shells)) {
+        // Handle resting shells
+        for (let i = room.shells.length - 1; i >= 0; i--) {
+          const shell = room.shells[i];
+          if (isResting(shell)) {
+            Matter.World.remove(room.roomWorld, shell);
+            room.shells.splice(i, 1);
+          }
+        }
+      }
+
       if (room.bodiesCreated) {
         room.tanks.forEach((tank) => {
           if (tank.isActive) {
@@ -398,6 +442,7 @@ function startRoomInterval(roomID) {
           }
         });
 
+        // Emit the game update to clients
         io.to(roomID).emit("gameUpdate", {
           tanks: room.tanks.map(bodyToData),
           reactors: room.reactors.map(bodyToData),
@@ -512,7 +557,9 @@ function createGameBodies(room) {
   room.turretSize = turretSize;
 
   // Initialize an array for shells
-  room.shells = [];
+  if (!room.shells) {
+    room.shells = [];
+  }
 
   // Initialize no-draw zones around fortresses
 
@@ -621,4 +668,65 @@ function releaseTank(tank, roomWorld) {
     tank.fixedConstraint = null;
     console.log(`Releasing tank from fixed position for tank ID: ${tank.localId}`);
   }
+}
+
+function validateClickOnShootingUnit(room, playerNumber, x, y) {
+  const shootingUnits = [...room.tanks, ...room.turrets].filter((unit) => unit.playerId === playerNumber);
+  for (const unit of shootingUnits) {
+    if (isPointInBody(unit, { x, y })) {
+      return unit;
+    }
+  }
+  return null;
+}
+
+function getShootingUnitById(room, unitId) {
+  return [...room.tanks, ...room.turrets].find((unit) => unit.id === unitId);
+}
+
+function createAndLaunchShell(unit, vector, forceMagnitude, room) {
+  const shellSize = 10; // Adjust as needed
+  const unitSize = unit.size || Math.max(unit.width, unit.height);
+  const shellOffset = unitSize / 2 + shellSize / 2;
+
+  // Invert the vector for opposite direction
+  const invertedVector = {
+    x: -vector.x,
+    y: -vector.y,
+  };
+
+  // Position the shell **behind** the unit relative to launch direction
+  const shellPosition = {
+    x: unit.position.x + invertedVector.x * shellOffset,
+    y: unit.position.y + invertedVector.y * shellOffset,
+  };
+
+  // Launch the shell in the **opposite** direction of the mouse drag
+  const initialVelocity = {
+    x: invertedVector.x * forceMagnitude * 50,
+    y: invertedVector.y * forceMagnitude * 50,
+  };
+
+  const playerId = unit.playerId;
+
+  // Pass 'unitSize' as the sixth parameter
+  const shell = ShellModule.createShell(
+    shellPosition.x,
+    shellPosition.y,
+    shellSize,
+    initialVelocity,
+    playerId,
+    unitSize // Added tankSize
+  );
+  shell.localId = generateUniqueId(); // Ensure each shell has a unique ID
+  room.shells.push(shell);
+  Matter.World.add(room.roomWorld, shell);
+
+  console.log(
+    `Shell Created: ID=${shell.localId}, Position=(${shell.position.x}, ${shell.position.y}), Velocity=(${shell.velocity.x}, ${shell.velocity.y}), PlayerID=${playerId}, Size=${shell.size}`
+  );
+}
+
+function generateUniqueId() {
+  return "_" + Math.random().toString(36).substr(2, 9);
 }

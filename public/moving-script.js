@@ -58,9 +58,19 @@ let powerLevel = 0;
 const maxPowerLevel = 100;
 let powerInterval = null;
 
+let actionMode = null;
+
 // Event Listeners
 window.addEventListener("load", () => {});
 window.addEventListener("resize", resizeCanvas);
+
+moveButton.addEventListener("click", () => {
+  actionMode = "move";
+});
+
+shootButton.addEventListener("click", () => {
+  actionMode = "shoot";
+});
 
 drawCanvas.addEventListener(
   "contextmenu",
@@ -237,6 +247,7 @@ function redrawCanvas() {
   reactors.forEach((reactor) => drawReactor(reactor, invertPlayerIds));
   turrets.forEach((turret) => drawTurret(turret, invertPlayerIds));
   tanks.forEach((tank) => drawTank(tank, invertPlayerIds));
+  shells.forEach((shell) => drawShell(shell, invertPlayerIds));
 
   drawCtx.restore();
 }
@@ -289,6 +300,7 @@ function handleMouseDown(evt) {
       x: gameWorldPos.x,
       y: gameWorldPos.y,
       button: evt.button,
+      actionMode: actionMode,
     });
   }
 }
@@ -306,7 +318,6 @@ function handleMouseMove(evt) {
 }
 
 function handleMouseUpOut(evt) {
-  // Proceed if any mouse button was previously pressed
   if (isMouseDown) {
     isMouseDown = false;
 
@@ -316,12 +327,10 @@ function handleMouseUpOut(evt) {
     socket.emit("mouseUp", {
       x: gameWorldPos.x,
       y: gameWorldPos.y,
+      actionMode: actionMode,
     });
 
-    // Reset power meter
     resetPower();
-
-    // Stop the power increase interval
     clearInterval(powerInterval);
     powerInterval = null;
   }
@@ -459,6 +468,33 @@ function drawTurret(turret, invertPlayerIds) {
   drawCtx.beginPath();
   drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
   drawCtx.stroke();
+  drawCtx.restore();
+}
+
+function drawShell(shell, invertPlayerIds) {
+  if (!shell.size || shell.size <= 0) {
+    return;
+  }
+  const radius = shell.size * scaleX;
+  const x = shell.position.x * scaleX;
+  const y = shell.position.y * scaleY;
+
+  // Optional: Log shell rendering details
+  console.log(`Drawing shell ID: ${shell.id} at (${x}, ${y}) with radius: ${radius}`);
+
+  drawCtx.save();
+  drawCtx.translate(x, y);
+
+  let shellPlayerId = shell.playerId;
+  if (invertPlayerIds) {
+    shellPlayerId = shell.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  }
+
+  drawCtx.fillStyle = shellPlayerId === playerNumber ? "blue" : "red";
+
+  drawCtx.beginPath();
+  drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
+  drawCtx.fill();
   drawCtx.restore();
 }
 

@@ -718,11 +718,6 @@ function getCurrentMousePosition() {
   };
 }
 
-//////////////////////////////
-/////////////////////////////
-/////////////////////////////
-///////////////////////////
-
 // To save the x,y coords of mouse click within a unit (tank or turret).
 function saveClickPoint(event) {
   isMouseMoving = false;
