@@ -205,23 +205,25 @@ io.on("connection", (socket) => {
 
   // Handle 'mouseDown' event
   socket.on("mouseDown", (data) => {
-    const roomID = socket.roomID;
-    const playerNumber = socket.playerNumber;
+    if (data.button === 0) {
+      const roomID = socket.roomID;
+      const playerNumber = socket.playerNumber;
 
-    if (roomID && playerNumber) {
-      const room = gameRooms[roomID];
-      if (room) {
-        const { x, y } = data;
+      if (roomID && playerNumber) {
+        const room = gameRooms[roomID];
+        if (room) {
+          const { x, y } = data;
 
-        // Validate the click
-        const isValid = validateClickOnTank(room, playerNumber, x, y);
+          // Validate the click
+          const isValid = validateClickOnTank(room, playerNumber, x, y);
 
-        if (isValid) {
-          // Send confirmation to the client
-          socket.emit("validClick");
-        } else {
-          // Send invalid click response
-          socket.emit("invalidClick");
+          if (isValid) {
+            // Send confirmation to the client
+            socket.emit("validClick");
+          } else {
+            // Send invalid click response
+            socket.emit("invalidClick");
+          }
         }
       }
     }

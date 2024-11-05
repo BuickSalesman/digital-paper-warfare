@@ -215,7 +215,7 @@ socket.on("validClick", () => {
 
 socket.on("invalidClick", () => {
   // Click was not on a valid tank
-  alert("You must click on one of your tanks!");
+  // alert("You must click on one of your tanks!");
 });
 
 // Redraw Canvas Function
@@ -288,6 +288,7 @@ function handleMouseDown(evt) {
     socket.emit("mouseDown", {
       x: gameWorldPos.x,
       y: gameWorldPos.y,
+      button: evt.button,
     });
   }
 }
@@ -318,10 +319,22 @@ function handleMouseUpOut(evt) {
   }
 }
 
+function handleContextMenu(evt) {
+  // Reset power meter
+  if (isMouseDown) {
+    isMouseDown = false;
+    resetPower();
+    clearInterval(powerInterval);
+    powerInterval = null;
+  }
+}
+
 drawCanvas.addEventListener("mousedown", handleMouseDown, false);
 drawCanvas.addEventListener("mousemove", handleMouseMove, false);
 drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
 drawCanvas.addEventListener("mouseout", handleMouseUpOut, false);
+drawCanvas.addEventListener("mouseleave", handleMouseUpOut, false);
+drawCanvas.addEventListener("contextmenu", handleContextMenu, false);
 
 function drawDividingLine() {
   drawCtx.beginPath();
