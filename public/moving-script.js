@@ -17,8 +17,6 @@ const GameState = {
 };
 
 let currentGameState = GameState.LOBBY;
-let totalPixelsDrawn = 0;
-let currentDrawingSessionId = null;
 
 let width = 1885; // Placeholder, will be updated
 let height = 1414; // Placeholder, will be updated
@@ -46,22 +44,14 @@ const timerElement = document.getElementById("Timer");
 const drawCtx = drawCanvas.getContext("2d");
 
 let dividingLine;
-let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
-
-let drawingEnabled = true;
-let drawingHistory = { [PLAYER_ONE]: [], [PLAYER_TWO]: [] };
-let currentDrawingStart = null;
 
 let tanks = [];
 let reactors = [];
 let fortresses = [];
 let turrets = [];
 let shells = [];
-
-let noDrawZones = [];
-const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
 
 // Event Listeners
 window.addEventListener("load", () => {});
@@ -134,10 +124,6 @@ socket.on("initialGameState", (data) => {
   fortresses = data.fortresses;
   turrets = data.turrets;
 
-  if (currentGameState === GameState.PRE_GAME) {
-    fortressNoDrawZone();
-  }
-
   if (!renderingStarted) {
     renderingStarted = true;
     requestAnimationFrame(render);
@@ -150,10 +136,6 @@ socket.on("gameUpdate", (data) => {
   fortresses = data.fortresses;
   turrets = data.turrets;
   shells = data.shells || [];
-
-  if (currentGameState === GameState.PRE_GAME) {
-    fortressNoDrawZone();
-  }
 });
 
 function render() {
@@ -169,10 +151,6 @@ socket.on("playerDisconnected", (number) => {
   playerNumber = null;
   roomID = null;
   currentGameState = GameState.LOBBY;
-  drawingHistory = {
-    [PLAYER_ONE]: [],
-    [PLAYER_TWO]: [],
-  };
 
   // Clear the canvas
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
@@ -183,7 +161,6 @@ socket.on("playerDisconnected", (number) => {
   fortresses = [];
   turrets = [];
   shells = [];
-  noDrawZones = [];
   renderingStarted = false;
 
   // Reset UI elements
@@ -205,70 +182,6 @@ socket.on("playerDisconnected", (number) => {
 socket.on("gameFull", () => {
   alert("The game is full.");
   joinButton.disabled = false;
-});
-
-socket.on("drawingMirror", (data) => {
-  const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2, drawingSessionId } = data;
-
-  // Add to the appropriate player's history
-  drawingHistory[senderPlayer].push({
-    from,
-    to,
-    color,
-    lineWidth,
-    playerNumber: senderPlayer,
-    drawingSessionId: drawingSessionId,
-  });
-
-  const canvasFrom = gameWorldToCanvas(from.x, from.y);
-  const canvasTo = gameWorldToCanvas(to.x, to.y);
-
-  drawLine(canvasFrom, canvasTo, color, lineWidth);
-  drawDividingLine();
-});
-
-socket.on("shapeClosed", (data) => {
-  const { playerNumber: senderPlayer, closingLine, drawingSessionId } = data;
-
-  // Add the closing line to the correct player's history
-  drawingHistory[senderPlayer].push({
-    from: closingLine.from,
-    to: closingLine.to,
-    color: closingLine.color,
-    lineWidth: closingLine.lineWidth,
-    playerNumber: senderPlayer,
-    drawingSessionId: drawingSessionId,
-  });
-
-  // Draw the closing line
-  const canvasFrom = gameWorldToCanvas(closingLine.from.x, closingLine.from.y);
-  const canvasTo = gameWorldToCanvas(closingLine.to.x, closingLine.to.y);
-
-  drawLine(canvasFrom, canvasTo, closingLine.color, closingLine.lineWidth);
-  drawDividingLine();
-});
-
-socket.on("eraseDrawingSession", (data) => {
-  const { drawingSessionId, playerNumber: senderPlayer } = data;
-
-  // Remove the drawing session's segments from the correct player's history
-  drawingHistory[senderPlayer] = drawingHistory[senderPlayer].filter(
-    (segment) => segment.drawingSessionId !== drawingSessionId
-  );
-
-  // Redraw the canvas
-  redrawCanvas();
-});
-
-socket.on("drawingDisabled", (data) => {
-  drawingEnabled = false;
-});
-
-socket.on("gameRunning", (data) => {
-  currentGameState = GameState.GAME_RUNNING;
-  noDrawZones = [];
-  drawingEnabled = false;
-  redrawCanvas();
 });
 
 joinButton.addEventListener("click", () => {
@@ -302,30 +215,11 @@ function redrawCanvas() {
     invertPlayerIds = true;
   }
 
-  // Draw the opponent's drawings
-  const opponentPlayerNumber = playerNumber === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
-
-  drawingHistory[opponentPlayerNumber].forEach((path) => {
-    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y);
-    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y);
-
-    drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
-  });
-
-  // Draw the local player's drawings
-  drawingHistory[playerNumber].forEach((path) => {
-    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y);
-    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y);
-
-    drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
-  });
-
   drawDividingLine();
   fortresses.forEach((fortress) => drawFortress(fortress, invertPlayerIds));
   reactors.forEach((reactor) => drawReactor(reactor, invertPlayerIds));
   turrets.forEach((turret) => drawTurret(turret, invertPlayerIds));
   tanks.forEach((tank) => drawTank(tank, invertPlayerIds));
-  drawNoDrawZones();
 
   drawCtx.restore();
 }
@@ -368,33 +262,7 @@ function getMousePos(evt) {
   return { x, y };
 }
 
-function handleMouseDown(evt) {
-  if (evt.button !== 0 || !drawingEnabled) {
-    return;
-  }
-  if (currentGameState !== GameState.PRE_GAME) {
-    return;
-  }
-
-  const pos = getMousePos(evt);
-
-  if (!isWithinPlayerArea(pos.y)) {
-    return;
-  }
-
-  isDrawing = true;
-  lastX = pos.x;
-  lastY = pos.y;
-
-  // Reset drawingLegally and color at the start of a new drawing
-  drawingLegally = true;
-  color = "#000000"; // Default color for legal drawing
-
-  currentDrawingSessionId = `${playerNumber}-${Date.now()}-${Math.random()}`;
-
-  const gwPos = canvasToGameWorld(pos.x, pos.y);
-  socket.emit("startDrawing", { position: gwPos, drawingSessionId: currentDrawingSessionId });
-}
+function handleMouseDown(evt) {}
 
 let color = null;
 let drawingLegally = true;
@@ -404,72 +272,9 @@ socket.on("drawingIllegally", (data) => {
   color = "#FF0000";
 });
 
-function handleMouseMove(evt) {
-  if (evt.buttons !== 1 || !drawingEnabled) {
-    return;
-  }
+function handleMouseMove(evt) {}
 
-  if (!isDrawing) {
-    return;
-  }
-
-  const pos = getMousePos(evt);
-  const currentX = pos.x;
-  const currentY = pos.y;
-
-  if (!isWithinPlayerArea(currentY)) {
-    return;
-  }
-
-  const gwFrom = canvasToGameWorld(lastX, lastY);
-  const gwTo = canvasToGameWorld(currentX, currentY);
-
-  const drawColor = drawingLegally ? "#000000" : "#FF0000";
-
-  // Draw locally
-  drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, drawColor);
-
-  // Add to the correct player's drawing history
-  drawingHistory[playerNumber].push({
-    from: gwFrom,
-    to: gwTo,
-    color: drawColor,
-    lineWidth: 2, // Assuming lineWidth is 2
-    playerNumber: playerNumber,
-    drawingSessionId: currentDrawingSessionId,
-  });
-
-  // Send drawing data to server
-  socket.emit("drawing", {
-    drawingSessionId: currentDrawingSessionId,
-    from: gwFrom,
-    to: gwTo,
-    color: drawColor,
-    lineWidth: 2,
-  });
-
-  lastX = currentX;
-  lastY = currentY;
-}
-
-function handleMouseUpOut() {
-  if (!isDrawing) {
-    return;
-  }
-  isDrawing = false;
-
-  // Notify the server that the drawing has ended
-  socket.emit("endDrawing");
-}
-
-function drawLine(fromCanvas, toCanvas, color = "#000000", lineWidth = 2) {
-  drawCtx.beginPath();
-  drawCtx.moveTo(fromCanvas.x, fromCanvas.y);
-  drawCtx.lineTo(toCanvas.x, toCanvas.y);
-  drawCtx.strokeStyle = color;
-  drawCtx.lineWidth = lineWidth;
-  drawCtx.stroke();
-}
+function handleMouseUpOut() {}
 
 drawCanvas.addEventListener("mousedown", handleMouseDown, false);
 drawCanvas.addEventListener("mousemove", handleMouseMove, false);
@@ -484,14 +289,6 @@ function drawDividingLine() {
   drawCtx.lineWidth = 2;
   drawCtx.stroke();
   drawCtx.closePath();
-}
-
-function isWithinPlayerArea(y) {
-  if (playerNumber === PLAYER_TWO) {
-    return y <= dividingLine;
-  } else {
-    return y >= dividingLine;
-  }
 }
 
 function drawTank(tank, invertPlayerIds) {
@@ -600,69 +397,4 @@ function drawTurret(turret, invertPlayerIds) {
   drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
   drawCtx.stroke();
   drawCtx.restore();
-}
-
-function fortressNoDrawZone() {
-  if (currentGameState !== GameState.PRE_GAME) {
-    return;
-  }
-
-  noDrawZones = [];
-
-  fortresses.forEach((fortress) => {
-    const zone = createRectangularZone(
-      fortress.position.x,
-      fortress.position.y,
-      fortress.width,
-      fortress.height,
-      gameWorldHeight * NO_DRAW_ZONE_PADDING_RATIO
-    );
-
-    noDrawZones.push(zone);
-  });
-}
-
-function createRectangularZone(centerX, centerY, width, height, padding) {
-  const halfWidth = width / 2 + padding;
-  const halfHeight = height / 2 + padding;
-
-  return [
-    { x: centerX - halfWidth, y: centerY - halfHeight }, // Top-Left
-    { x: centerX + halfWidth, y: centerY - halfHeight }, // Top-Right
-    { x: centerX + halfWidth, y: centerY + halfHeight }, // Bottom-Right
-    { x: centerX - halfWidth, y: centerY + halfHeight }, // Bottom-Left
-  ];
-}
-
-function drawNoDrawZones() {
-  drawCtx.strokeStyle = "rgba(255, 0, 0, 0.7)";
-  drawCtx.lineWidth = 2;
-  drawCtx.fillStyle = "rgba(255, 0, 0, 0.1)";
-
-  noDrawZones.forEach((zone) => {
-    drawCtx.beginPath();
-    const transformedPoints = zone.map((point) => {
-      return gameWorldToCanvas(point.x, point.y);
-    });
-
-    drawCtx.moveTo(transformedPoints[0].x, transformedPoints[0].y);
-    for (let i = 1; i < transformedPoints.length; i++) {
-      drawCtx.lineTo(transformedPoints[i].x, transformedPoints[i].y);
-    }
-    drawCtx.closePath();
-    drawCtx.fill();
-    drawCtx.stroke();
-
-    // Draw the X inside the rectangle.
-    drawCtx.beginPath();
-    // Diagonal from Top-Left to Bottom-Right.
-    drawCtx.moveTo(transformedPoints[0].x, transformedPoints[0].y);
-    drawCtx.lineTo(transformedPoints[2].x, transformedPoints[2].y);
-    // Diagonal from Top-Right to Bottom-Left.
-    drawCtx.moveTo(transformedPoints[1].x, transformedPoints[1].y);
-    drawCtx.lineTo(transformedPoints[3].x, transformedPoints[3].y);
-    drawCtx.strokeStyle = "rgba(255, 0, 0, 0.7)";
-    drawCtx.lineWidth = 2;
-    drawCtx.stroke();
-  });
 }
