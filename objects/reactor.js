@@ -5,10 +5,11 @@ const { Bodies } = Matter;
 const { CATEGORY_SHELL, CATEGORY_REACTOR } = require("./collisionCategories");
 
 module.exports = {
-  createReactor: function (x, y, reactorSize, playerId) {
+  createReactor: function (x, y, reactorSize, playerId, localId) {
     const reactor = Bodies.circle(x, y, reactorSize / 2, {
       label: "Reactor",
       playerId: playerId,
+      localId: localId,
       isStatic: true,
       render: {
         fillStyle: "transparent",

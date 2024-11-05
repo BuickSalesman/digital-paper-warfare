@@ -11,7 +11,7 @@ const {
 } = require("./collisionCategories");
 
 module.exports = {
-  createTank: function (x, y, tankSize, playerId) {
+  createTank: function (x, y, tankSize, playerId, localId) {
     const area = tankSize * tankSize;
     const desiredMass = 100;
     const density = desiredMass / area;
@@ -19,6 +19,7 @@ module.exports = {
     const tank = Bodies.rectangle(x, y, tankSize, tankSize, {
       label: "Tank",
       playerId: playerId,
+      localId: localId,
       restitution: 0,
       friction: 0.005,
       frictionAir: 0.1,

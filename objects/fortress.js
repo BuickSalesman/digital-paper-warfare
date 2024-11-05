@@ -5,10 +5,11 @@ const { Bodies } = Matter;
 const { CATEGORY_TANK, CATEGORY_FORTRESS } = require("./collisionCategories");
 
 module.exports = {
-  createFortress: function (x, y, fortressWidth, fortressHeight, playerId) {
+  createFortress: function (x, y, fortressWidth, fortressHeight, playerId, localId) {
     const fortress = Bodies.rectangle(x, y, fortressWidth, fortressHeight, {
       label: "Fortress",
       playerId: playerId,
+      localId: localId,
       isStatic: true,
       render: {
         fillStyle: "transparent",

@@ -5,10 +5,11 @@ const { Bodies } = Matter;
 const { CATEGORY_TANK, CATEGORY_TURRET } = require("./collisionCategories");
 
 module.exports = {
-  createTurret: function (x, y, turretSize, playerId) {
+  createTurret: function (x, y, turretSize, playerId, localId) {
     const turret = Bodies.circle(x, y, turretSize / 2, {
       label: "Turret",
       playerId: playerId,
+      localId: localId,
       isStatic: true,
       render: {
         fillStyle: "transparent",
