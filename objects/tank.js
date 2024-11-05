@@ -24,11 +24,6 @@ module.exports = {
       frictionAir: 0.1,
       density: density,
       isStatic: false,
-      render: {
-        fillStyle: "transparent",
-        strokeStyle: "black",
-        lineWidth: 2,
-      },
       collisionFilter: {
         group: 0,
         category: CATEGORY_TANK,
@@ -41,6 +36,7 @@ module.exports = {
 
     // Set explicit size property
     tank.size = tankSize;
+    tank.isActive = false;
 
     return tank;
   },

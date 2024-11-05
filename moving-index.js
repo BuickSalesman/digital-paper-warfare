@@ -4,7 +4,7 @@ const path = require("path");
 const { Server } = require("socket.io");
 const Matter = require("matter-js");
 
-const { Body, Bodies, Engine, World } = Matter;
+const { Body, Bodies, Engine, World, Constraint } = Matter;
 
 // Import game object modules
 const TankModule = require("./objects/tank");
@@ -263,7 +263,7 @@ io.on("connection", (socket) => {
 
         if (tank) {
           // Apply the force to the tank
-          applyForceToTank(tank, vector, force);
+          applyForceToTank(tank, vector, force, room.roomWorld);
 
           // Clean up mouseDownData
           delete socket.mouseDownData;
@@ -379,6 +379,23 @@ function startRoomInterval(roomID) {
       Matter.Engine.update(room.roomEngine, deltaTime);
 
       if (room.bodiesCreated) {
+        room.tanks.forEach((tank) => {
+          if (tank.isActive) {
+            // If the tank is active, check if it has come to rest
+            if (isResting(tank)) {
+              // Tank has come to rest, fix its position and mark as inactive
+              fixTankPosition(tank, room.roomWorld);
+              tank.isActive = false;
+            } else {
+              // Tank is still moving, ensure it's not constrained
+              releaseTank(tank, room.roomWorld);
+            }
+          } else {
+            // Tank is not active, ensure it's fixed in place
+            fixTankPosition(tank, room.roomWorld);
+          }
+        });
+
         io.to(roomID).emit("gameUpdate", {
           tanks: room.tanks.map(bodyToData),
           reactors: room.reactors.map(bodyToData),
@@ -388,7 +405,6 @@ function startRoomInterval(roomID) {
         });
       }
     } else {
-      // If room doesn't exist, clear the interval
       clearInterval(roomIntervals[roomID]);
       delete roomIntervals[roomID];
     }
@@ -569,12 +585,49 @@ function calculateVector(start, end) {
   return { x: deltaX / length, y: deltaY / length };
 }
 
-function applyForceToTank(tank, vector, forceMagnitude) {
-  // Apply force in the direction of the vector
+function applyForceToTank(tank, vector, forceMagnitude, roomWorld) {
+  tank.isActive = true;
+
+  releaseTank(tank, roomWorld);
+
+  // Apply force in the opposite direction of the vector
   const force = {
     x: -vector.x * forceMagnitude * 10,
     y: -vector.y * forceMagnitude * 10,
   };
 
   Matter.Body.applyForce(tank, tank.position, force);
+}
+
+// Helper function to check if a body is resting (i.e., has negligible velocity).
+function isResting(body, threshold = 0.1) {
+  const velocityMagnitude = Math.hypot(body.velocity.x, body.velocity.y);
+  return velocityMagnitude < threshold;
+}
+
+// Helper function to fix the tank's position by adding a constraint.
+function fixTankPosition(tank, roomWorld) {
+  Body.setVelocity(tank, { x: 0, y: 0 });
+  Body.setAngularVelocity(tank, 0);
+
+  if (!tank.fixedConstraint) {
+    tank.fixedConstraint = Constraint.create({
+      bodyA: tank,
+      pointB: { x: tank.position.x, y: tank.position.y },
+      stiffness: 1,
+      length: 0,
+      render: { visible: false },
+    });
+    World.add(roomWorld, tank.fixedConstraint);
+    console.log(`Fixing tank position for tank ID: ${tank.id}`);
+  }
+}
+
+// Helper function to remove the fixed constraint from a tank.
+function releaseTank(tank, roomWorld) {
+  if (tank.fixedConstraint) {
+    World.remove(roomWorld, tank.fixedConstraint);
+    tank.fixedConstraint = null;
+    console.log(`Releasing tank from fixed position for tank ID: ${tank.id}`);
+  }
 }
