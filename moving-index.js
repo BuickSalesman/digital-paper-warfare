@@ -572,8 +572,8 @@ function calculateVector(start, end) {
 function applyForceToTank(tank, vector, forceMagnitude) {
   // Apply force in the direction of the vector
   const force = {
-    x: -vector.x * forceMagnitude,
-    y: -vector.y * forceMagnitude,
+    x: -vector.x * forceMagnitude * 10,
+    y: -vector.y * forceMagnitude * 10,
   };
 
   Matter.Body.applyForce(tank, tank.position, force);
