@@ -1,25 +1,5 @@
 const physicsCanvas = document.getElementById("physicsCanvas"); // For Matter.js rendering.
 
-// Declare a mouse input object for capturing interactions on the physics canvas.
-let mouse = Mouse.create(render.canvas);
-
-// Declare and create the ability for objects to be able to interact with the mouse input object.
-let mouseConstraint = MouseConstraint.create(engine, {
-  mouse: mouse,
-  constraint: {
-    // Stiffness controls the mouse's ability to be able to move objects around. 0 for non-interactivity.
-    stiffness: 0,
-    render: {
-      visible: false,
-    },
-  },
-  collisionFilter: {
-    mask: 0xffffffff, // Allows interaction with all objects in the world.
-  },
-});
-
-//#endregion MATTER SETUP VARIABLES
-
 //#region SHELL VARIABLES
 let shells = [];
 
@@ -30,16 +10,6 @@ const playerOneUnits = [tank1, tank2, turret1, turret2];
 const playerTwoUnits = [tank3, tank4, turret3, turret4];
 
 //#endregion BODY VARIABLES
-
-//#region DRAWING VARIABLES
-
-//#region EXPLOSIONS!!!
-const explosionFrames = Array.from({ length: 25 }, (_, i) => {
-  const img = new Image();
-  img.src = `assets/EXPLOSION/explosion4/${i + 1}.png`; // Adjusted index for 1-based filenames
-  return img;
-});
-//#endregion EXPLOSIONS!!!
 
 // Declare variable to store the which player is currently drawing, starting with player 1.
 let currentPlayerDrawing = PLAYER_ONE;
@@ -90,25 +60,6 @@ let isMouseDown = false;
 
 // Declare if mouse is moving.
 let isMouseMoving = false;
-
-//#region WOBBLE EFFECT VARIABLES
-
-// Declare if an object is wobling.
-let isWobbling = false;
-
-// Declare the moment at which the wobble effect is applied.
-let wobbleStartTime = 0;
-
-// Declare the initial angle of the wobble effect.
-let initialWobbleAngle = 0;
-
-// Declare number of frames between wobble oscilation.
-const wobbleFrequency = 60;
-
-// Declare maximum rotation angle in radians from the neutral position (about 2.86 degrees).
-const wobbleAmplitude = 0.1;
-
-//#endregion WOBBLE EFFECT VARIABLES
 
 //#endregion MOVE AND SHOOT VARIABLES
 
@@ -173,79 +124,12 @@ class Timer {
   }
 }
 
-//#endregion CLASSES
-
-//#region SOCKET SETUP
-
-//#endregion SOCKET SETUP
-
-//#region WORLD SETUP
-
 // Start the game with the draw phase!
 initializeDrawPhase();
-
-//#endregion WORLD SETUP
-
-//#region EVENT HANDLERS
-
-//#region AFTER RENDER HANDLER
-// After Render Handler
-Events.on(render, "afterRender", function () {
-  // Redraw the dividing line and drawings after every engine tick.
-  updateAfterRender();
-
-  // Add the ability to draw after every engine tick, provided it is the draw phase.
-  if (currentGameState === GameState.PRE_GAME) {
-    draw(); // Ensure that the draw function is called during the draw phase.
-  }
-});
-
-//#endregion AFTER RENDER HANDLER
-
-//#region BEFORE UPDATE HANDLER
-Events.on(engine, "beforeUpdate", () => {
-  if (currentGameState === GameState.GAME_RUNNING) {
-    if (isMouseDown && isMouseMoving) {
-      // Ensure power meter cannot increase if the action mode is "move" and the selected unit is a turret.
-      processTurretControl();
-    }
-
-    // Apply wobble effect if selected unit is a tank.
-    if (isWobbling && selectedUnit) {
-      applyWobbleEffect();
-    }
-  }
-});
-
-//#endregion BEFORE UPDATE HANDLER
-
-//#region AFTER UPDATE HANDLER
-
-Events.on(engine, "afterUpdate", function () {
-  // Handle the resting state of the shell.
-  handleShellResting();
-
-  // Handle the resting state of tanks.
-  tanks.forEach(function (tank) {
-    if (isResting(tank)) {
-      fixTankPosition(tank);
-    }
-  });
-});
 
 //#endregion AFTER UPDATE HANDLER
 
 //#region BUTTON EVENT HANDLERS
-
-// Change action mode to "move" if move button is clicked.
-moveButton.addEventListener("click", function () {
-  actionMode = "move";
-});
-
-// Change action mode to "shoot" if shoot button is clicked.
-shootButton.addEventListener("click", function () {
-  actionMode = "shoot";
-});
 
 // Close modal if user clicks outside the children of the rules modal.
 window.addEventListener("click", function (event) {
@@ -673,21 +557,6 @@ function checkAllTanksDestroyed() {
 
 //#region MOVE AND SHOOT FUNCTIONS
 
-// INCREASE POWER CALLED IN BEFOREUPDATE
-function startWobble() {
-  if (!isWobbling && selectedUnit && selectedUnit.label === "Tank") {
-    isWobbling = true;
-    wobbleStartTime = Date.now();
-    initialWobbleAngle = selectedUnit.angle;
-  }
-}
-
-function applyWobbleEffect() {
-  const elapsedTime = Date.now() - wobbleStartTime;
-  const wobbleAngle = wobbleAmplitude * Math.cos(elapsedTime / wobbleFrequency);
-  Body.setAngle(selectedUnit, initialWobbleAngle + wobbleAngle);
-}
-
 // To increase power meter when called.
 function increasePower() {
   if (!actionMode || powerLevel >= maxPowerLevel) {
@@ -781,12 +650,6 @@ function releaseAndApplyForce(endingMousePosition) {
     hasMovedOrShotThisTurn = true;
     endTurn();
   }
-}
-
-// Helper function to stop the wobble effect.
-function stopWobble() {
-  isWobbling = false;
-  Body.setAngle(selectedUnit, initialWobbleAngle);
 }
 
 // Helper function to calculate the vector between two points.

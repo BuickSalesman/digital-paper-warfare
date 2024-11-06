@@ -165,12 +165,23 @@ socket.on("initialGameState", (data) => {
 });
 
 socket.on("gameUpdate", (data) => {
-  tanks = data.tanks;
-  reactors = data.reactors;
-  fortresses = data.fortresses;
-  turrets = data.turrets;
+  tanks = data.tanks.map((tank) => ({
+    ...tank,
+    hitPoints: tank.hitPoints, // Ensure hitPoints are present
+  }));
+  reactors = data.reactors.map((reactor) => ({
+    ...reactor,
+    hitPoints: reactor.hitPoints, // Ensure hitPoints are present
+  }));
+  fortresses = data.fortresses.map((fortress) => ({
+    ...fortress,
+  }));
+  turrets = data.turrets.map((turret) => ({
+    ...turret,
+  }));
   shells = data.shells || [];
 });
+
 function render() {
   // Redraw the canvas
   redrawCanvas();
@@ -256,6 +267,60 @@ socket.on("explosion", (data) => {
     frame: 0,
     timeoutId: null,
   });
+});
+
+// Client-side code
+
+socket.on("updateHitPoints", (data) => {
+  const { bodyId, hitPoints } = data;
+
+  // Update hitPoints for tanks
+  tanks = tanks.map((tank) => {
+    if (tank.id === bodyId) {
+      return { ...tank, hitPoints };
+    }
+    return tank;
+  });
+
+  // Update hitPoints for reactors
+  reactors = reactors.map((reactor) => {
+    if (reactor.id === bodyId) {
+      return { ...reactor, hitPoints };
+    }
+    return reactor;
+  });
+});
+
+// Client-side code
+
+// Listen for tankDestroyed event
+socket.on("tankDestroyed", (data) => {
+  const { tankId, playerId } = data;
+
+  // Remove the destroyed tank from the local state
+  tanks = tanks.filter((tank) => tank.id !== tankId);
+
+  // Optionally, display a destruction animation or sound
+});
+
+// Listen for reactorDestroyed event
+socket.on("reactorDestroyed", (data) => {
+  const { reactorId, playerId } = data;
+
+  // Remove the destroyed reactor from the local state
+  reactors = reactors.filter((reactor) => reactor.id !== reactorId);
+
+  // Optionally, display a destruction animation or sound
+});
+
+// Client-side code
+
+socket.on("gameOver", (data) => {
+  const { winner, reason } = data;
+  alert(`Player ${winner} wins! Reason: ${reason}`);
+
+  // Optionally, reset the game state or redirect to a lobby
+  location.reload(); // Simple way to restart the game
 });
 
 function redrawCanvas() {
@@ -486,20 +551,30 @@ function drawTank(tank, invertPlayerIds) {
   drawCtx.translate(x, y);
   drawCtx.rotate(tank.angle + wobbleAngle); // Apply wobble to the rotation
 
-  // Adjust the player ID based on the invertPlayerIds flag
-  let tankPlayerId = tank.playerId;
-  if (invertPlayerIds) {
-    tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
-  }
-
-  if (tankPlayerId === playerNumber) {
-    drawCtx.strokeStyle = "blue"; // Own tank
+  // Determine the tank's color based on hitPoints first
+  if (tank.hitPoints < 2) {
+    drawCtx.strokeStyle = "orange"; // Critical hitpoints
   } else {
-    drawCtx.strokeStyle = "red"; // Opponent's tank
+    // Adjust the player ID based on the invertPlayerIds flag
+    let tankPlayerId = tank.playerId;
+    if (invertPlayerIds) {
+      tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+    }
+
+    if (tankPlayerId === playerNumber) {
+      drawCtx.strokeStyle = "blue"; // Own tank
+    } else {
+      drawCtx.strokeStyle = "red"; // Opponent's tank
+    }
   }
 
   drawCtx.lineWidth = 2;
   drawCtx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
+
+  // Current HP
+  const hpColor = tank.hitPoints < 2 ? "orange" : "green";
+  drawCtx.fillStyle = hpColor;
+
   drawCtx.restore();
 }
 

@@ -361,34 +361,40 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
 
     shells: [],
   };
+  // Inside createNewRoom(roomID, socket, isPasscodeRoom = false) { ... }
 
   Matter.Events.on(roomEngine, "collisionStart", (event) => {
     const pairs = event.pairs;
+
     pairs.forEach((pair) => {
       const { bodyA, bodyB } = pair;
 
-      // Identify if the collision is between a shell and a tank/reactor
-      const shell = bodyA.label === "Shell" ? bodyA : bodyB.label === "Shell" ? bodyB : null;
-      const target = shell === bodyA ? bodyB : shell === bodyB ? bodyA : null;
+      // Check for Tank-Shell collision
+      if (bodiesMatch(bodyA, bodyB, "Tank", "Shell")) {
+        const tank = bodyA.label === "Tank" ? bodyA : bodyB;
+        const shell = bodyA.label === "Shell" ? bodyA : bodyB;
 
-      if (shell && (target.label === "Tank" || target.label === "Reactor")) {
-        // Emit explosion event to clients in the room
-        const roomID = room.roomID;
-        const collisionPosition = shell.position;
+        handleTankDestruction(room, tank, shell);
+      }
 
-        io.to(roomID).emit("explosion", {
-          x: collisionPosition.x,
-          y: collisionPosition.y,
-        });
+      // Check for Reactor-Shell collision
+      if (bodiesMatch(bodyA, bodyB, "Reactor", "Shell")) {
+        const reactor = bodyA.label === "Reactor" ? bodyA : bodyB;
+        const shell = bodyA.label === "Shell" ? bodyA : bodyB;
 
-        // Remove the shell from the world and room's shell array
-        Matter.World.remove(room.roomWorld, shell);
-        const index = room.shells.findIndex((s) => s.localId === shell.localId);
+        handleReactorDestruction(room, reactor, shell);
+      }
+
+      // Remove the shell if it hits a Shape
+      if (bodiesMatch(bodyA, bodyB, "Shell", "Shape")) {
+        const shell = bodyA.label === "Shell" ? bodyA : bodyB;
+        Matter.World.remove(roomWorld, shell);
+
+        // Also remove from room.shells array
+        const index = room.shells.findIndex((s) => s.id === shell.id);
         if (index !== -1) {
           room.shells.splice(index, 1);
         }
-
-        //probably handle damage calculations here
       }
     });
   });
@@ -592,6 +598,7 @@ function bodyToData(body) {
     width: body.width,
     height: body.height,
     playerId: body.playerId,
+    hitPoints: body.hitPoints,
   };
 }
 
@@ -739,4 +746,153 @@ function createAndLaunchShell(unit, vector, forceMagnitude, room) {
 
 function generateUniqueId() {
   return "_" + Math.random().toString(36).substr(2, 9);
+}
+
+function bodiesMatch(bodyA, bodyB, label1, label2) {
+  return (bodyA.label === label1 && bodyB.label === label2) || (bodyA.label === label2 && bodyB.label === label1);
+}
+
+// Helper function to reduce hit points and remove the body if destroyed
+function reduceHitPoints(body, engine, removalCallback) {
+  body.hitPoints -= 1; // Decrease hitPoints by 1 or adjust based on shell damage
+  if (body.hitPoints <= 0) {
+    Matter.World.remove(engine.world, body);
+    removalCallback();
+  } else {
+    // Optionally, update body appearance to indicate damage
+    // For server-side, you might skip this or handle it via client-side rendering
+  }
+}
+
+// Handle Tank Destruction
+function handleTankDestruction(room, tank, shell) {
+  // Emit explosion to clients
+  io.to(room.roomID).emit("explosion", {
+    x: tank.position.x,
+    y: tank.position.y,
+  });
+
+  // Remove the shell from the world and room's shell array
+  Matter.World.remove(room.roomWorld, shell);
+  room.shells = room.shells.filter((s) => s.id !== shell.id);
+
+  // Reduce hitPoints of the tank
+  reduceHitPoints(
+    tank,
+    room.roomEngine,
+    () => {
+      // Emit tank destruction to clients
+      io.to(room.roomID).emit("tankDestroyed", {
+        tankId: tank.id,
+        playerId: tank.playerId,
+      });
+
+      // Remove the tank from the room's tanks array
+      room.tanks = room.tanks.filter((t) => t.id !== tank.id);
+
+      // Check if all tanks of the player are destroyed
+      checkAllTanksDestroyed(room, tank.playerId);
+    },
+    1
+  ); // Damage value can be adjusted
+
+  // Emit updated hitPoints to clients if the tank is still alive
+  if (tank.hitPoints > 0) {
+    io.to(room.roomID).emit("updateHitPoints", {
+      bodyId: tank.id,
+      hitPoints: tank.hitPoints,
+    });
+  }
+}
+
+// Handle Reactor Destruction
+function handleReactorDestruction(room, reactor, shell) {
+  // Emit explosion to clients
+  io.to(room.roomID).emit("explosion", {
+    x: reactor.position.x,
+    y: reactor.position.y,
+  });
+
+  // Remove the shell from the world and room's shell array
+  Matter.World.remove(room.roomWorld, shell);
+  room.shells = room.shells.filter((s) => s.id !== shell.id);
+
+  // Reduce hitPoints of the reactor
+  reduceHitPoints(
+    reactor,
+    room.roomEngine,
+    () => {
+      // Emit reactor destruction to clients
+      io.to(room.roomID).emit("reactorDestroyed", {
+        reactorId: reactor.id,
+        playerId: reactor.playerId,
+      });
+
+      // Remove the reactor from the room's reactors array
+      room.reactors = room.reactors.filter((r) => r.id !== reactor.id);
+
+      // Declare the winner based on reactor destruction
+      declareReactorWinner(room, reactor.playerId);
+    },
+    1
+  ); // Damage value can be adjusted
+
+  // Emit updated hitPoints to clients if the reactor is still alive
+  if (reactor.hitPoints > 0) {
+    io.to(room.roomID).emit("updateHitPoints", {
+      bodyId: reactor.id,
+      hitPoints: reactor.hitPoints,
+    });
+  }
+}
+
+// Check if all tanks of a player are destroyed
+function checkAllTanksDestroyed(room, playerId) {
+  const playerTanks = room.tanks.filter((tank) => tank.playerId === playerId);
+  const allDestroyed = playerTanks.every((tank) => tank.hitPoints <= 0);
+
+  if (allDestroyed) {
+    // Determine the winning player
+    const winningPlayerId = playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+
+    // Notify clients about the game result
+    io.to(room.roomID).emit("gameOver", {
+      winner: winningPlayerId,
+      reason: "All Tanks Destroyed",
+    });
+
+    // Optionally, end the game or reset the room
+    endGame(room.roomID);
+  }
+}
+
+// Declare the winner based on reactor destruction
+function declareReactorWinner(room, losingPlayerId) {
+  const winningPlayerId = losingPlayerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+
+  // Notify clients about the game result
+  io.to(room.roomID).emit("gameOver", {
+    winner: winningPlayerId,
+    reason: "Reactor Destroyed",
+  });
+
+  // Optionally, end the game or reset the room
+  endGame(room.roomID);
+}
+
+// Function to handle game over scenarios
+function endGame(roomID) {
+  // Clear the physics engine and interval
+  const room = gameRooms[roomID];
+  if (room) {
+    Matter.World.clear(room.roomWorld, false);
+    Matter.Engine.clear(room.roomEngine);
+    clearInterval(roomIntervals[roomID]);
+    delete roomIntervals[roomID];
+    delete gameRooms[roomID];
+    console.log(`Game in room ${roomID} has ended.`);
+  }
+
+  // Optionally, inform clients to reset their state
+  io.to(roomID).emit("resetGame");
 }
