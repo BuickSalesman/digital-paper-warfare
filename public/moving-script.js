@@ -71,6 +71,14 @@ const explosionFrames = Array.from({ length: 25 }, (_, i) => {
   return img;
 });
 
+// Wobble State Variables
+let isWobbling = false;
+let wobbleStartTime = 0;
+let initialWobbleAngle = 0;
+const wobbleFrequency = 60; // Adjust as needed for speed
+const wobbleAmplitude = 0.1; // Maximum wobble angle in radians (~5.7 degrees)
+let selectedUnit = null;
+
 // Event Listeners
 window.addEventListener("load", () => {});
 window.addEventListener("resize", resizeCanvas);
@@ -200,6 +208,8 @@ socket.on("playerDisconnected", (number) => {
   gameWorldHeight = null;
   scaleX = 1;
   scaleY = 1;
+
+  stopWobble();
 });
 
 socket.on("gameFull", () => {
@@ -348,30 +358,64 @@ function getMousePos(evt) {
 }
 
 function handleMouseDown(evt) {
-  // Only proceed if the left mouse button is pressed
   if (evt.button === 0) {
+    // Left mouse button
     const mousePos = getMousePos(evt);
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
 
+    // Emit mouseDown event to the server
     socket.emit("mouseDown", {
       x: gameWorldPos.x,
       y: gameWorldPos.y,
       button: evt.button,
       actionMode: actionMode,
     });
+
+    // Check if clicking on a player's own tank to start wobble
+    const playerTanks = tanks.filter((tank) => tank.playerId === playerNumber);
+    for (const tank of playerTanks) {
+      const tankSize = tank.size;
+      const dx = gameWorldPos.x - tank.position.x;
+      const dy = gameWorldPos.y - tank.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance <= tankSize / 2) {
+        selectedUnit = tank;
+        startWobble();
+        break;
+      }
+    }
   }
 }
 
-let color = null;
-let drawingLegally = true;
-
-socket.on("drawingIllegally", (data) => {
-  drawingLegally = false;
-  color = "#FF0000";
-});
-
 function handleMouseMove(evt) {
-  return;
+  const mousePos = getMousePos(evt);
+  const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
+
+  // Find if the mouse is over any of the player's own tanks
+  const playerTanks = tanks.filter((tank) => tank.playerId === playerNumber);
+  let unitUnderMouse = null;
+
+  for (const tank of playerTanks) {
+    const tankSize = tank.size;
+    const dx = gameWorldPos.x - tank.position.x;
+    const dy = gameWorldPos.y - tank.position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance <= tankSize / 2) {
+      unitUnderMouse = tank;
+      break;
+    }
+  }
+
+  if (unitUnderMouse && !isWobbling && !isMouseDown) {
+    // Start wobble if hovering over a player's tank and not currently clicking
+    selectedUnit = unitUnderMouse;
+    startWobble();
+  } else if ((!unitUnderMouse || playerNumber !== selectedUnit?.playerId) && isWobbling && !isMouseDown) {
+    // Stop wobble if not hovering or hovering over opponent's tank
+    stopWobble();
+  }
 }
 
 function handleMouseUpOut(evt) {
@@ -381,6 +425,7 @@ function handleMouseUpOut(evt) {
     const mousePos = getMousePos(evt);
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
 
+    // Emit mouseUp event to the server
     socket.emit("mouseUp", {
       x: gameWorldPos.x,
       y: gameWorldPos.y,
@@ -390,6 +435,11 @@ function handleMouseUpOut(evt) {
     resetPower();
     clearInterval(powerInterval);
     powerInterval = null;
+
+    // Stop wobble after force is applied
+    if (isWobbling) {
+      stopWobble();
+    }
   }
 }
 
@@ -426,9 +476,15 @@ function drawTank(tank, invertPlayerIds) {
   const y = tank.position.y * scaleY;
   const scaledSize = size * scaleX;
 
+  let wobbleAngle = 0;
+  if (isWobbling && selectedUnit && tank.id === selectedUnit.id) {
+    const elapsedTime = Date.now() - wobbleStartTime;
+    wobbleAngle = wobbleAmplitude * Math.cos(elapsedTime / wobbleFrequency);
+  }
+
   drawCtx.save();
   drawCtx.translate(x, y);
-  drawCtx.rotate(tank.angle);
+  drawCtx.rotate(tank.angle + wobbleAngle); // Apply wobble to the rotation
 
   // Adjust the player ID based on the invertPlayerIds flag
   let tankPlayerId = tank.playerId;
@@ -572,4 +628,19 @@ function drawImageRotated(ctx, img, x, y, width, height, rotation = 0) {
   ctx.rotate(rotation);
   ctx.drawImage(img, -width / 2, -height / 2, width, height);
   ctx.restore();
+}
+
+function startWobble() {
+  if (!isWobbling && selectedUnit && selectedUnit.label === "Tank") {
+    isWobbling = true;
+    wobbleStartTime = Date.now();
+    initialWobbleAngle = selectedUnit.angle || 0;
+  }
+}
+
+function stopWobble() {
+  if (isWobbling) {
+    isWobbling = false;
+    selectedUnit = null;
+  }
 }
