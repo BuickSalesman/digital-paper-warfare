@@ -588,9 +588,9 @@ function bodyToData(body) {
     label: body.label,
     position: { x: body.position.x, y: body.position.y },
     angle: body.angle,
-    size: body.size || 0, // Use the size property, default to 0 if undefined
-    width: body.width || 0, // Use the width property, default to 0 if undefined
-    height: body.height || 0, // Use the height property, default to 0 if undefined
+    size: body.size,
+    width: body.width,
+    height: body.height,
     playerId: body.playerId,
   };
 }
@@ -681,6 +681,7 @@ function releaseTank(tank, roomWorld) {
   if (tank.fixedConstraint) {
     World.remove(roomWorld, tank.fixedConstraint);
     tank.fixedConstraint = null;
+    console.log(tank.id);
   }
 }
 
@@ -699,7 +700,7 @@ function getShootingUnitById(room, unitId) {
 }
 
 function createAndLaunchShell(unit, vector, forceMagnitude, room) {
-  const shellSize = 10; // Adjust as needed
+  const shellSize = 5; // Adjust as needed
   const unitSize = unit.size || Math.max(unit.width, unit.height);
   const shellOffset = unitSize / 2 + shellSize / 2;
 

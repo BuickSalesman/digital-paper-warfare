@@ -262,6 +262,7 @@ socket.on("eraseDrawingSession", (data) => {
 
 socket.on("drawingDisabled", (data) => {
   drawingEnabled = false;
+  //NOTIFY PLAYER IN SOME WAY HERE OF DISABLED DRAWING
 });
 
 socket.on("gameRunning", (data) => {
