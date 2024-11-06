@@ -681,7 +681,6 @@ function releaseTank(tank, roomWorld) {
   if (tank.fixedConstraint) {
     World.remove(roomWorld, tank.fixedConstraint);
     tank.fixedConstraint = null;
-    console.log(tank.id);
   }
 }
 
