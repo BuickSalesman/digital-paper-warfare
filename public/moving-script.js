@@ -168,6 +168,7 @@ socket.on("gameUpdate", (data) => {
   tanks = data.tanks.map((tank) => ({
     ...tank,
     hitPoints: tank.hitPoints, // Ensure hitPoints are present
+    tracks: tank.tracks || [], // Initialize tracks if not present
   }));
   reactors = data.reactors.map((reactor) => ({
     ...reactor,
@@ -337,13 +338,28 @@ function redrawCanvas() {
   }
 
   drawDividingLine();
+
+  // Draw fortresses, reactors, turrets
   fortresses.forEach((fortress) => drawFortress(fortress, invertPlayerIds));
   reactors.forEach((reactor) => drawReactor(reactor, invertPlayerIds));
   turrets.forEach((turret) => drawTurret(turret, invertPlayerIds));
+
+  // **Draw tank tracks first**
+  tanks.forEach((tank) => {
+    if (tank.tracks && Array.isArray(tank.tracks)) {
+      tank.tracks.forEach((track) => {
+        drawTankTrack(tank, track, invertPlayerIds);
+      });
+    }
+  });
+
+  // Draw tanks
   tanks.forEach((tank) => drawTank(tank, invertPlayerIds));
+
+  // Draw shells
   shells.forEach((shell) => drawShell(shell, invertPlayerIds));
 
-  // Draw active explosions within the rotated context
+  // Draw active explosions
   activeExplosions.forEach((explosion, index) => {
     if (explosion.frame < explosionFrames.length) {
       // Calculate explosion size based on scaling factors
@@ -718,4 +734,37 @@ function stopWobble() {
     isWobbling = false;
     selectedUnit = null;
   }
+}
+
+function drawTankTrack(tank, track, invertPlayerIds) {
+  const { position, angle, opacity } = track;
+  const x = position.x * scaleX;
+  const y = position.y * scaleY;
+  const size = tank.size;
+  const scaledSize = size * scaleX;
+
+  let tankPlayerId = tank.playerId;
+  if (invertPlayerIds) {
+    tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  }
+
+  // Determine the color based on player ownership
+  let color;
+  if (tankPlayerId === playerNumber) {
+    color = "rgba(0, 0, 255, " + opacity + ")"; // Blue with variable opacity
+  } else {
+    color = "rgba(255, 0, 0, " + opacity + ")"; // Red with variable opacity
+  }
+
+  drawCtx.save();
+  drawCtx.globalAlpha = opacity; // Set the global opacity
+
+  drawCtx.translate(x, y);
+  drawCtx.rotate(angle);
+
+  drawCtx.strokeStyle = color;
+  drawCtx.lineWidth = 2;
+  drawCtx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
+
+  drawCtx.restore();
 }

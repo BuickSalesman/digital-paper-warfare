@@ -268,14 +268,49 @@ io.on("connection", (socket) => {
         if (actionMode === "move") {
           const tank = room.tanks.find((t) => t.id === tankId);
           if (tank) {
+            // Emit the tankMoved event with tank ID, starting position, and starting angle
+            io.to(roomID).emit("tankMoved", {
+              tankId: tank.id,
+              startingPosition: { x: tank.position.x, y: tank.position.y },
+              startingAngle: tank.angle, // Include angle for accurate track rendering
+            });
+
+            // **Update the tracks array for the moved tank**
+            if (!tank.tracks) {
+              tank.tracks = [];
+            }
+
+            // Decrement existing tracks' opacity
+            tank.tracks = tank.tracks
+              .map((track) => ({
+                ...track,
+                opacity: track.opacity === 0.66 ? 0.33 : 0.0, // 66% → 33%, 33% → 0%
+              }))
+              .filter((track) => track.opacity > 0); // Remove tracks with 0% opacity
+
+            // Add the new starting position with 66% opacity
+            tank.tracks.unshift({
+              position: { x: tank.position.x, y: tank.position.y },
+              angle: tank.angle,
+              opacity: 0.66,
+            });
+
+            // Ensure only two tracks are kept
+            if (tank.tracks.length > 2) {
+              tank.tracks.pop(); // Remove the oldest track
+            }
+
+            // Apply force to the tank
             applyForceToTank(tank, vector, force, room.roomWorld);
             delete socket.mouseDownData;
           }
         } else if (actionMode === "shoot") {
-          const unit = getShootingUnitById(room, unitId);
+          const unit = room.tanks.find((t) => t.id === unitId) || room.turrets.find((t) => t.id === unitId);
           if (unit) {
             createAndLaunchShell(unit, vector, force, room);
-            delete socket.mouseDownData;
+            delete socket.mouseDownData; // Clear the data after shooting
+          } else {
+            socket.emit("invalidClick");
           }
         } else {
           socket.emit("invalidActionMode");
@@ -464,7 +499,7 @@ function startRoomInterval(roomID) {
           }
         });
 
-        // Emit the game update to clients
+        // In the startRoomInterval function
         io.to(roomID).emit("gameUpdate", {
           tanks: room.tanks.map(bodyToData),
           reactors: room.reactors.map(bodyToData),
@@ -521,6 +556,10 @@ function createGameBodies(room) {
   const tank4 = TankModule.createTank(width * 0.5725, height * 0.1, tankSize, PLAYER_TWO_ID, 4);
 
   const tanks = [tank1, tank2, tank3, tank4];
+
+  tanks.forEach((tank) => {
+    tank.tracks = []; // Initialize an empty tracks array
+  });
 
   // Create reactors for Player One
   const reactor1 = ReactorModule.createReactor(width * 0.3525, height * 0.95, reactorSize, PLAYER_ONE_ID, 1);
@@ -589,7 +628,7 @@ function createGameBodies(room) {
 }
 
 function bodyToData(body) {
-  return {
+  const data = {
     id: body.localId,
     label: body.label,
     position: { x: body.position.x, y: body.position.y },
@@ -600,6 +639,17 @@ function bodyToData(body) {
     playerId: body.playerId,
     hitPoints: body.hitPoints,
   };
+
+  // Include tracks only for tanks
+  if (body.label === "Tank" && body.tracks) {
+    data.tracks = body.tracks.map((track) => ({
+      position: track.position,
+      angle: track.angle,
+      opacity: track.opacity,
+    }));
+  }
+
+  return data;
 }
 
 // Helper function to check if a point is inside a Matter.Body
