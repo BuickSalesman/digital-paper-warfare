@@ -87,11 +87,8 @@ function processMouseUp(socket, data, isForced = false) {
       if (isForced) {
         duration = 450; // Forced duration of 1.2 seconds
 
-        // Use the latest endPosition if available, else default to upward
         if (endPosition) {
           finalEndPosition = endPosition;
-        } else {
-          finalEndPosition = { x: startPosition.x, y: startPosition.y - 100 };
         }
       } else {
         duration = Date.now() - startTime;
@@ -769,8 +766,8 @@ function applyForceToTank(tank, vector, forceMagnitude, roomWorld) {
 
   // Apply force in the opposite direction of the vector
   const force = {
-    x: -vector.x * forceMagnitude * 10,
-    y: -vector.y * forceMagnitude * 10,
+    x: -vector.x * forceMagnitude * 3,
+    y: -vector.y * forceMagnitude * 3,
   };
 
   Matter.Body.applyForce(tank, tank.position, force);
@@ -817,10 +814,6 @@ function validateClickOnShootingUnit(room, playerNumber, x, y) {
   return null;
 }
 
-function getShootingUnitById(room, unitId) {
-  return [...room.tanks, ...room.turrets].find((unit) => unit.id === unitId);
-}
-
 function createAndLaunchShell(unit, vector, forceMagnitude, room) {
   const shellSize = 5; // Adjust as needed
   const unitSize = unit.size || Math.max(unit.width, unit.height);
@@ -840,8 +833,8 @@ function createAndLaunchShell(unit, vector, forceMagnitude, room) {
 
   // Launch the shell in the **opposite** direction of the mouse drag
   const initialVelocity = {
-    x: invertedVector.x * forceMagnitude * 50,
-    y: invertedVector.y * forceMagnitude * 50,
+    x: invertedVector.x * forceMagnitude * 10,
+    y: invertedVector.y * forceMagnitude * 10,
   };
 
   const playerId = unit.playerId;
