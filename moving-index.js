@@ -268,14 +268,14 @@ io.on("connection", (socket) => {
         if (actionMode === "move") {
           const tank = room.tanks.find((t) => t.id === tankId);
           if (tank) {
-            // Emit the tankMoved event with tank ID, starting position, and starting angle
+            // Emit the tankMoved event
             io.to(roomID).emit("tankMoved", {
               tankId: tank.id,
               startingPosition: { x: tank.position.x, y: tank.position.y },
-              startingAngle: tank.angle, // Include angle for accurate track rendering
+              startingAngle: tank.angle,
             });
 
-            // **Update the tracks array for the moved tank**
+            // Initialize tracks array if it doesn't exist
             if (!tank.tracks) {
               tank.tracks = [];
             }
@@ -284,20 +284,21 @@ io.on("connection", (socket) => {
             tank.tracks = tank.tracks
               .map((track) => ({
                 ...track,
-                opacity: track.opacity === 0.66 ? 0.33 : 0.0, // 66% → 33%, 33% → 0%
+                opacity: Math.max(track.opacity - 0.2, 0), // Decrement by 0.2
               }))
-              .filter((track) => track.opacity > 0); // Remove tracks with 0% opacity
+              .filter((track) => track.opacity > 0); // Remove tracks with 0 opacity
 
-            // Add the new starting position with 66% opacity
+            // Add the new starting position with initial opacity
             tank.tracks.unshift({
               position: { x: tank.position.x, y: tank.position.y },
               angle: tank.angle,
-              opacity: 0.66,
+              opacity: 0.6, // Starting opacity for new tracks
             });
 
-            // Ensure only two tracks are kept
-            if (tank.tracks.length > 2) {
-              tank.tracks.pop(); // Remove the oldest track
+            // Limit the number of tracks to prevent excessive memory usage
+            const MAX_TRACKS = 4;
+            if (tank.tracks.length > MAX_TRACKS) {
+              tank.tracks.pop();
             }
 
             // Apply force to the tank

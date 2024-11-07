@@ -344,12 +344,15 @@ function redrawCanvas() {
   reactors.forEach((reactor) => drawReactor(reactor, invertPlayerIds));
   turrets.forEach((turret) => drawTurret(turret, invertPlayerIds));
 
-  // **Draw tank tracks first**
+  // **Draw tank tracks first (both rectangles and connecting lines)**
   tanks.forEach((tank) => {
     if (tank.tracks && Array.isArray(tank.tracks)) {
       tank.tracks.forEach((track) => {
         drawTankTrack(tank, track, invertPlayerIds);
       });
+
+      // **Draw the gradient line from the latest track to the current position**
+      drawTankCurrentLine(tank, invertPlayerIds);
     }
   });
 
@@ -737,34 +740,92 @@ function stopWobble() {
 }
 
 function drawTankTrack(tank, track, invertPlayerIds) {
-  const { position, angle, opacity } = track;
-  const x = position.x * scaleX;
-  const y = position.y * scaleY;
+  // Draw rectangle for the track point
   const size = tank.size;
+  const x = track.position.x * scaleX;
+  const y = track.position.y * scaleY;
   const scaledSize = size * scaleX;
 
+  // Determine the color based on player ownership
   let tankPlayerId = tank.playerId;
   if (invertPlayerIds) {
     tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
   }
 
-  // Determine the color based on player ownership
-  let color;
-  if (tankPlayerId === playerNumber) {
-    color = "rgba(0, 0, 255, " + opacity + ")"; // Blue with variable opacity
-  } else {
-    color = "rgba(255, 0, 0, " + opacity + ")"; // Red with variable opacity
-  }
-
-  drawCtx.save();
-  drawCtx.globalAlpha = opacity; // Set the global opacity
-
-  drawCtx.translate(x, y);
-  drawCtx.rotate(angle);
-
+  const color =
+    tankPlayerId === playerNumber ? "rgba(0, 0, 255," + track.opacity + ")" : "rgba(255, 0, 0," + track.opacity + ")";
   drawCtx.strokeStyle = color;
   drawCtx.lineWidth = 2;
-  drawCtx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
+  drawCtx.strokeRect(x - scaledSize / 2, y - scaledSize / 2, scaledSize, scaledSize);
 
-  drawCtx.restore();
+  // Draw line to the next track point, if exists
+  const trackIndex = tank.tracks.indexOf(track);
+  if (trackIndex < tank.tracks.length - 1) {
+    const nextTrack = tank.tracks[trackIndex + 1];
+    if (nextTrack) {
+      const nextX = nextTrack.position.x * scaleX;
+      const nextY = nextTrack.position.y * scaleY;
+
+      // Create a gradient from current track to next track
+      const gradient = drawCtx.createLinearGradient(x, y, nextX, nextY);
+      gradient.addColorStop(
+        0,
+        tankPlayerId === playerNumber ? `rgba(0, 0, 255, ${track.opacity})` : `rgba(255, 0, 0, ${track.opacity})`
+      );
+      gradient.addColorStop(
+        1,
+        tankPlayerId === playerNumber
+          ? `rgba(0, 0, 255, ${nextTrack.opacity})`
+          : `rgba(255, 0, 0, ${nextTrack.opacity})`
+      );
+
+      drawCtx.strokeStyle = gradient;
+      drawCtx.lineWidth = 2 * scaleX; // Adjust line width based on scaling
+      drawCtx.beginPath();
+      drawCtx.moveTo(x, y);
+      drawCtx.lineTo(nextX, nextY);
+      drawCtx.stroke();
+    }
+  }
+}
+
+function drawTankCurrentLine(tank, invertPlayerIds) {
+  if (!tank.tracks || tank.tracks.length === 0) {
+    return; // No tracks to connect
+  }
+
+  // Get the most recent track point (first element in the tracks array)
+  const latestTrack = tank.tracks[0];
+  const trackX = latestTrack.position.x * scaleX;
+  const trackY = latestTrack.position.y * scaleY;
+
+  // Current tank position
+  const tankX = tank.position.x * scaleX;
+  const tankY = tank.position.y * scaleY;
+
+  // Determine the color based on player ownership
+  let tankPlayerId = tank.playerId;
+  if (invertPlayerIds) {
+    tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  }
+
+  // Create a gradient from the latest track to the current position
+  const gradient = drawCtx.createLinearGradient(trackX, trackY, tankX, tankY);
+  gradient.addColorStop(
+    0,
+    tankPlayerId === playerNumber
+      ? `rgba(0, 0, 255, ${latestTrack.opacity})`
+      : `rgba(255, 0, 0, ${latestTrack.opacity})`
+  );
+  gradient.addColorStop(1, tankPlayerId === playerNumber ? `rgba(0, 0, 255, 0)` : `rgba(255, 0, 0, 0)`); // Fade out to transparent
+
+  drawCtx.strokeStyle = gradient;
+  drawCtx.lineWidth = 2 * scaleX; // Adjust line width based on scaling
+  drawCtx.lineCap = "round";
+
+  // Draw the gradient line
+  drawCtx.beginPath();
+  drawCtx.moveTo(trackX, trackY);
+  drawCtx.lineTo(tankX, tankY);
+  drawCtx.stroke();
 }
