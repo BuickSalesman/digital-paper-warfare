@@ -57,6 +57,7 @@ let isMouseDown = false;
 let powerLevel = 0;
 const maxPowerLevel = 100;
 let powerInterval = null;
+let isPowerLocked = false;
 
 let actionMode = null;
 
@@ -247,10 +248,12 @@ joinButton.addEventListener("click", () => {
 });
 
 socket.on("validClick", () => {
-  isMouseDown = true;
+  if (!isMouseDown) {
+    isMouseDown = true; // Ensure the state is consistent
+  }
 
   // Start increasing the power meter
-  powerInterval = setInterval(increasePower, 1.2); // Adjust interval as needed
+  powerInterval = setInterval(increasePower, 1); // Increase power every 100 ms (adjust as needed)
 });
 
 socket.on("invalidClick", () => {
@@ -444,6 +447,20 @@ function getMousePos(evt) {
 function handleMouseDown(evt) {
   if (evt.button === 0) {
     // Left mouse button
+    if (isPowerLocked) {
+      // Power is locked; ignore this mousedown
+      console.log("Power is locked. Ignoring mouseDown.");
+      return;
+    }
+
+    if (isMouseDown) {
+      // Mouse is already held down; prevent duplicate actions
+      console.log("Mouse is already down. Ignoring duplicate mouseDown.");
+      return;
+    }
+
+    isMouseDown = true; // Mark that the mouse is now held down
+
     const mousePos = getMousePos(evt);
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
 
@@ -476,6 +493,13 @@ function handleMouseMove(evt) {
   const mousePos = getMousePos(evt);
   const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
 
+  if (isMouseDown) {
+    socket.emit("mouseMove", {
+      x: gameWorldPos.x,
+      y: gameWorldPos.y,
+    });
+  }
+
   // Find if the mouse is over any of the player's own tanks
   const playerTanks = tanks.filter((tank) => tank.playerId === playerNumber);
   let unitUnderMouse = null;
@@ -504,7 +528,7 @@ function handleMouseMove(evt) {
 
 function handleMouseUpOut(evt) {
   if (isMouseDown) {
-    isMouseDown = false;
+    isMouseDown = false; // Mouse is no longer held down
 
     const mousePos = getMousePos(evt);
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
@@ -516,9 +540,16 @@ function handleMouseUpOut(evt) {
       actionMode: actionMode,
     });
 
-    resetPower();
-    clearInterval(powerInterval);
-    powerInterval = null;
+    // If power was locked, unlock it to allow new actions
+    if (isPowerLocked) {
+      isPowerLocked = false;
+    }
+
+    resetPower(); // Reset the power meter
+    if (powerInterval) {
+      clearInterval(powerInterval);
+      powerInterval = null;
+    }
 
     // Stop wobble after force is applied
     if (isWobbling) {
@@ -705,6 +736,8 @@ function drawShell(shell, invertPlayerIds) {
 function increasePower() {
   if (powerLevel >= maxPowerLevel) {
     powerLevel = maxPowerLevel;
+    clearInterval(powerInterval); // Stop increasing power
+    powerInterval = null;
   } else {
     powerLevel += 1; // Adjust increment as needed
   }
@@ -829,3 +862,16 @@ function drawTankCurrentLine(tank, invertPlayerIds) {
   drawCtx.lineTo(tankX, tankY);
   drawCtx.stroke();
 }
+
+socket.on("powerCapped", (data) => {
+  console.log(`Power was automatically capped after ${data.duration} ms.`);
+  // alert("Power level has been automatically capped at 1.2 seconds.");
+  resetPower(); // Reset the power meter
+
+  isPowerLocked = false; // Lock the power meter to prevent further increases
+  if (powerInterval) {
+    clearInterval(powerInterval); // Stop increasing power
+    powerInterval = null;
+  }
+  isMouseDown = false; // Ensure the client recognizes that the mouse is no longer effectively held down
+});

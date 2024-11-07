@@ -66,14 +66,105 @@ const DIVIDING_LINE_MARGIN = 10; // Dividing line margin
 // SERVER VARIABLES
 const PORT = process.env.PORT || 3000;
 
-// SERVER EVENTS
-
 // Start the server.
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
-// IO.ON
+// Function to process mouseUp events, whether forced by the server or sent by the client
+function processMouseUp(socket, data, isForced = false) {
+  const roomID = socket.roomID;
+  const playerNumber = socket.playerNumber;
+
+  if (roomID && playerNumber) {
+    const room = gameRooms[roomID];
+    if (room && socket.mouseDownData) {
+      // Destructure endPosition from mouseDownData
+      const { startTime, startPosition, tankId, unitId, actionMode, endPosition } = socket.mouseDownData;
+      let duration;
+      let finalEndPosition;
+
+      if (isForced) {
+        duration = 450; // Forced duration of 1.2 seconds
+
+        // Use the latest endPosition if available, else default to upward
+        if (endPosition) {
+          finalEndPosition = endPosition;
+        } else {
+          finalEndPosition = { x: startPosition.x, y: startPosition.y - 100 };
+        }
+      } else {
+        duration = Date.now() - startTime;
+        finalEndPosition = { x: data.x, y: data.y };
+      }
+
+      const clampedDuration = Math.max(100, Math.min(duration, 450)); // Clamp duration to [100, 450] ms
+      const force = calculateForceFromDuration(clampedDuration);
+      const vector = calculateVector(startPosition, finalEndPosition);
+
+      if (actionMode === "move") {
+        const tank = room.tanks.find((t) => t.id === tankId);
+        if (tank) {
+          // Emit the tankMoved event
+          io.to(room.roomID).emit("tankMoved", {
+            tankId: tank.id,
+            startingPosition: { x: tank.position.x, y: tank.position.y },
+            startingAngle: tank.angle,
+          });
+
+          // Initialize tracks array if it doesn't exist
+          if (!tank.tracks) {
+            tank.tracks = [];
+          }
+
+          // Decrement existing tracks' opacity
+          tank.tracks = tank.tracks
+            .map((track) => ({
+              ...track,
+              opacity: Math.max(track.opacity - 0.2, 0), // Decrement by 0.2
+            }))
+            .filter((track) => track.opacity > 0); // Remove tracks with 0 opacity
+
+          // Add the new starting position with initial opacity
+          tank.tracks.unshift({
+            position: { x: tank.position.x, y: tank.position.y },
+            angle: tank.angle,
+            opacity: 0.6, // Starting opacity for new tracks
+          });
+
+          // Limit the number of tracks to prevent excessive memory usage
+          const MAX_TRACKS = 4;
+          if (tank.tracks.length > MAX_TRACKS) {
+            tank.tracks.pop();
+          }
+
+          // Apply force to the tank
+          applyForceToTank(tank, vector, force, room.roomWorld);
+        }
+      } else if (actionMode === "shoot") {
+        const unit = room.tanks.find((t) => t.id === unitId) || room.turrets.find((t) => t.id === unitId);
+        if (unit) {
+          createAndLaunchShell(unit, vector, force, room);
+        } else {
+          socket.emit("invalidClick");
+        }
+      }
+
+      // Remove 'mouseDownData' and clear timer
+      delete socket.mouseDownData;
+      if (socket.mouseDownTimer) {
+        clearTimeout(socket.mouseDownTimer);
+        delete socket.mouseDownTimer;
+      }
+
+      // If the mouseUp was forced, inform the client
+      if (isForced) {
+        socket.emit("powerCapped", { duration: clampedDuration });
+      }
+    }
+  }
+}
+
 io.on("connection", (socket) => {
   console.log(`New connection: ${socket.id}`);
 
@@ -200,6 +291,13 @@ io.on("connection", (socket) => {
         clearInterval(roomIntervals[roomID]);
         delete roomIntervals[roomID];
 
+        // Clear any active mouseDown timer
+        if (socket.mouseDownTimer) {
+          clearTimeout(socket.mouseDownTimer);
+          delete socket.mouseDownTimer;
+          delete socket.mouseDownData;
+        }
+
         // Delete the room completely
         delete gameRooms[roomID];
         console.log(`Room ${roomID} has been deleted due to player disconnection.`);
@@ -207,6 +305,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Handle 'mouseDown' event
   socket.on("mouseDown", (data) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
@@ -215,6 +314,12 @@ io.on("connection", (socket) => {
     if (roomID && playerNumber) {
       const room = gameRooms[roomID];
       if (room) {
+        // Prevent multiple mouseDown events without mouseUp
+        if (socket.mouseDownData) {
+          console.log(`Socket ${socket.id} is already holding mouse down.`);
+          return;
+        }
+
         const { x, y } = data;
 
         if (actionMode === "move") {
@@ -227,6 +332,13 @@ io.on("connection", (socket) => {
               actionMode: actionMode,
             };
             socket.emit("validClick");
+            console.log(`Player ${playerNumber} started moving tank ${tank.id}`);
+
+            // Start the 1.2-second timer
+            socket.mouseDownTimer = setTimeout(() => {
+              console.log(`Auto-triggering mouseUp for socket ${socket.id} after 1.2 seconds`);
+              processMouseUp(socket, { x, y }, true); // isForced = true
+            }, 450);
           } else {
             socket.emit("invalidClick");
           }
@@ -240,6 +352,13 @@ io.on("connection", (socket) => {
               actionMode: actionMode,
             };
             socket.emit("validClick");
+            console.log(`Player ${playerNumber} started shooting with unit ${unit.id}`);
+
+            // Start the 1.2-second timer
+            socket.mouseDownTimer = setTimeout(() => {
+              console.log(`Auto-triggering mouseUp for socket ${socket.id} after 1.2 seconds`);
+              processMouseUp(socket, { x, y }, true); // isForced = true
+            }, 450);
           } else {
             socket.emit("invalidClick");
           }
@@ -250,73 +369,19 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Handle 'mouseUp' event
   socket.on("mouseUp", (data) => {
+    console.log(`Received 'mouseUp' from socket ${socket.id}`);
+    processMouseUp(socket, data, false); // isForced = false
+  });
+
+  socket.on("mouseMove", (data) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
 
-    if (roomID && playerNumber) {
-      const room = gameRooms[roomID];
-      if (room && socket.mouseDownData) {
-        const { x, y } = data;
-        const { startTime, startPosition, tankId, unitId, actionMode } = socket.mouseDownData;
-        const endTime = Date.now();
-        const duration = endTime - startTime;
-        const clampedDuration = Math.max(100, Math.min(duration, 3000));
-        const force = calculateForceFromDuration(clampedDuration);
-        const vector = calculateVector(startPosition, { x, y });
-
-        if (actionMode === "move") {
-          const tank = room.tanks.find((t) => t.id === tankId);
-          if (tank) {
-            // Emit the tankMoved event
-            io.to(roomID).emit("tankMoved", {
-              tankId: tank.id,
-              startingPosition: { x: tank.position.x, y: tank.position.y },
-              startingAngle: tank.angle,
-            });
-
-            // Initialize tracks array if it doesn't exist
-            if (!tank.tracks) {
-              tank.tracks = [];
-            }
-
-            // Decrement existing tracks' opacity
-            tank.tracks = tank.tracks
-              .map((track) => ({
-                ...track,
-                opacity: Math.max(track.opacity - 0.2, 0), // Decrement by 0.2
-              }))
-              .filter((track) => track.opacity > 0); // Remove tracks with 0 opacity
-
-            // Add the new starting position with initial opacity
-            tank.tracks.unshift({
-              position: { x: tank.position.x, y: tank.position.y },
-              angle: tank.angle,
-              opacity: 0.6, // Starting opacity for new tracks
-            });
-
-            // Limit the number of tracks to prevent excessive memory usage
-            const MAX_TRACKS = 4;
-            if (tank.tracks.length > MAX_TRACKS) {
-              tank.tracks.pop();
-            }
-
-            // Apply force to the tank
-            applyForceToTank(tank, vector, force, room.roomWorld);
-            delete socket.mouseDownData;
-          }
-        } else if (actionMode === "shoot") {
-          const unit = room.tanks.find((t) => t.id === unitId) || room.turrets.find((t) => t.id === unitId);
-          if (unit) {
-            createAndLaunchShell(unit, vector, force, room);
-            delete socket.mouseDownData; // Clear the data after shooting
-          } else {
-            socket.emit("invalidClick");
-          }
-        } else {
-          socket.emit("invalidActionMode");
-        }
-      }
+    if (roomID && playerNumber && socket.mouseDownData) {
+      // Update the endPosition with the latest mouse coordinates
+      socket.mouseDownData.endPosition = { x: data.x, y: data.y };
     }
   });
 });
@@ -500,7 +565,7 @@ function startRoomInterval(roomID) {
           }
         });
 
-        // In the startRoomInterval function
+        // Emit 'gameUpdate' to all clients in the room
         io.to(roomID).emit("gameUpdate", {
           tanks: room.tanks.map(bodyToData),
           reactors: room.reactors.map(bodyToData),
@@ -672,7 +737,7 @@ function validateClickOnTank(room, playerNumber, x, y) {
 function calculateForceFromDuration(duration) {
   // Map duration to force
   const minDuration = 100; // 0.1 second
-  const maxDuration = 3000; // 3 seconds
+  const maxDuration = 450; // 1.2 seconds
 
   const minForce = 0.005; // Adjust as needed
   const maxForce = 5; // Adjust as needed
@@ -828,24 +893,19 @@ function handleTankDestruction(room, tank, shell) {
   room.shells = room.shells.filter((s) => s.id !== shell.id);
 
   // Reduce hitPoints of the tank
-  reduceHitPoints(
-    tank,
-    room.roomEngine,
-    () => {
-      // Emit tank destruction to clients
-      io.to(room.roomID).emit("tankDestroyed", {
-        tankId: tank.id,
-        playerId: tank.playerId,
-      });
+  reduceHitPoints(tank, room.roomEngine, () => {
+    // Emit tank destruction to clients
+    io.to(room.roomID).emit("tankDestroyed", {
+      tankId: tank.id,
+      playerId: tank.playerId,
+    });
 
-      // Remove the tank from the room's tanks array
-      room.tanks = room.tanks.filter((t) => t.id !== tank.id);
+    // Remove the tank from the room's tanks array
+    room.tanks = room.tanks.filter((t) => t.id !== tank.id);
 
-      // Check if all tanks of the player are destroyed
-      checkAllTanksDestroyed(room, tank.playerId);
-    },
-    1
-  ); // Damage value can be adjusted
+    // Check if all tanks of the player are destroyed
+    checkAllTanksDestroyed(room, tank.playerId);
+  }); // Damage value can be adjusted
 
   // Emit updated hitPoints to clients if the tank is still alive
   if (tank.hitPoints > 0) {
@@ -869,24 +929,19 @@ function handleReactorDestruction(room, reactor, shell) {
   room.shells = room.shells.filter((s) => s.id !== shell.id);
 
   // Reduce hitPoints of the reactor
-  reduceHitPoints(
-    reactor,
-    room.roomEngine,
-    () => {
-      // Emit reactor destruction to clients
-      io.to(room.roomID).emit("reactorDestroyed", {
-        reactorId: reactor.id,
-        playerId: reactor.playerId,
-      });
+  reduceHitPoints(reactor, room.roomEngine, () => {
+    // Emit reactor destruction to clients
+    io.to(room.roomID).emit("reactorDestroyed", {
+      reactorId: reactor.id,
+      playerId: reactor.playerId,
+    });
 
-      // Remove the reactor from the room's reactors array
-      room.reactors = room.reactors.filter((r) => r.id !== reactor.id);
+    // Remove the reactor from the room's reactors array
+    room.reactors = room.reactors.filter((r) => r.id !== reactor.id);
 
-      // Declare the winner based on reactor destruction
-      declareReactorWinner(room, reactor.playerId);
-    },
-    1
-  ); // Damage value can be adjusted
+    // Declare the winner based on reactor destruction
+    declareReactorWinner(room, reactor.playerId);
+  }); // Damage value can be adjusted
 
   // Emit updated hitPoints to clients if the reactor is still alive
   if (reactor.hitPoints > 0) {
@@ -944,6 +999,6 @@ function endGame(roomID) {
     console.log(`Game in room ${roomID} has ended.`);
   }
 
-  // Optionally, inform clients to reset their state
+  // Inform clients to reset their state
   io.to(roomID).emit("resetGame");
 }
