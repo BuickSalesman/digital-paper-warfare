@@ -54,6 +54,9 @@ const FPS = 60;
 const deltaTime = 1000 / FPS; // Time per frame in ms
 let roomIntervals = {};
 
+const minimumDragDistance = 10;
+const minimumInitialVelocity = 7.5;
+
 // CANVAS AND CONTEXT VARIABLES
 
 // Fixed game world dimensions
@@ -70,97 +73,6 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-
-// Function to process mouseUp events, whether forced by the server or sent by the client
-function processMouseUp(socket, data, isForced = false) {
-  const roomID = socket.roomID;
-  const playerNumber = socket.playerNumber;
-
-  if (roomID && playerNumber) {
-    const room = gameRooms[roomID];
-    if (room && socket.mouseDownData) {
-      // Destructure endPosition from mouseDownData
-      const { startTime, startPosition, tankId, unitId, actionMode, endPosition } = socket.mouseDownData;
-      let duration;
-      let finalEndPosition;
-
-      if (isForced) {
-        duration = 450; // Forced duration of 1.2 seconds
-
-        if (endPosition) {
-          finalEndPosition = endPosition;
-        }
-      } else {
-        duration = Date.now() - startTime;
-        finalEndPosition = { x: data.x, y: data.y };
-      }
-
-      const clampedDuration = Math.max(100, Math.min(duration, 450)); // Clamp duration to [100, 450] ms
-      const force = calculateForceFromDuration(clampedDuration);
-      const vector = calculateVector(startPosition, finalEndPosition);
-
-      if (actionMode === "move") {
-        const tank = room.tanks.find((t) => t.id === tankId);
-        if (tank) {
-          // Emit the tankMoved event
-          io.to(room.roomID).emit("tankMoved", {
-            tankId: tank.id,
-            startingPosition: { x: tank.position.x, y: tank.position.y },
-            startingAngle: tank.angle,
-          });
-
-          // Initialize tracks array if it doesn't exist
-          if (!tank.tracks) {
-            tank.tracks = [];
-          }
-
-          // Decrement existing tracks' opacity
-          tank.tracks = tank.tracks
-            .map((track) => ({
-              ...track,
-              opacity: Math.max(track.opacity - 0.2, 0), // Decrement by 0.2
-            }))
-            .filter((track) => track.opacity > 0); // Remove tracks with 0 opacity
-
-          // Add the new starting position with initial opacity
-          tank.tracks.unshift({
-            position: { x: tank.position.x, y: tank.position.y },
-            angle: tank.angle,
-            opacity: 0.6, // Starting opacity for new tracks
-          });
-
-          // Limit the number of tracks to prevent excessive memory usage
-          const MAX_TRACKS = 4;
-          if (tank.tracks.length > MAX_TRACKS) {
-            tank.tracks.pop();
-          }
-
-          // Apply force to the tank
-          applyForceToTank(tank, vector, force, room.roomWorld);
-        }
-      } else if (actionMode === "shoot") {
-        const unit = room.tanks.find((t) => t.id === unitId) || room.turrets.find((t) => t.id === unitId);
-        if (unit) {
-          createAndLaunchShell(unit, vector, force, room);
-        } else {
-          socket.emit("invalidClick");
-        }
-      }
-
-      // Remove 'mouseDownData' and clear timer
-      delete socket.mouseDownData;
-      if (socket.mouseDownTimer) {
-        clearTimeout(socket.mouseDownTimer);
-        delete socket.mouseDownTimer;
-      }
-
-      // If the mouseUp was forced, inform the client
-      if (isForced) {
-        socket.emit("powerCapped", { duration: clampedDuration });
-      }
-    }
-  }
-}
 
 io.on("connection", (socket) => {
   console.log(`New connection: ${socket.id}`);
@@ -734,7 +646,7 @@ function validateClickOnTank(room, playerNumber, x, y) {
 function calculateForceFromDuration(duration) {
   // Map duration to force
   const minDuration = 100; // 0.1 second
-  const maxDuration = 450; // 1.2 seconds
+  const maxDuration = 450; // 0.45 seconds
 
   const minForce = 0.005; // Adjust as needed
   const maxForce = 5; // Adjust as needed
@@ -742,7 +654,17 @@ function calculateForceFromDuration(duration) {
   // Linear interpolation
   const normalizedDuration = (duration - minDuration) / (maxDuration - minDuration);
   const clampedNormalized = Math.max(0, Math.min(normalizedDuration, 1));
-  const force = minForce + clampedNormalized * (maxForce - minForce);
+  let force = minForce + clampedNormalized * (maxForce - minForce);
+
+  // Calculate corresponding velocity (assuming mass = 1 for simplicity)
+  // Velocity = Force * deltaTime (simplified)
+  // Adjust the relation based on your game's physics settings
+  const estimatedVelocity = force * 100; // Example multiplier
+
+  if (estimatedVelocity < minimumInitialVelocity) {
+    // Adjust force to meet minimum velocity requirement
+    force = minimumInitialVelocity / 100; // Reverse the estimation
+  }
 
   return force;
 }
@@ -817,7 +739,7 @@ function validateClickOnShootingUnit(room, playerNumber, x, y) {
 function createAndLaunchShell(unit, vector, forceMagnitude, room) {
   const shellSize = 5; // Adjust as needed
   const unitSize = unit.size || Math.max(unit.width, unit.height);
-  const shellOffset = unitSize / 2 + shellSize / 2;
+  const shellOffset = unitSize / 2 + shellSize / 2 + 1; // Added 1 unit to ensure separation
 
   // Invert the vector for opposite direction
   const invertedVector = {
@@ -825,28 +747,41 @@ function createAndLaunchShell(unit, vector, forceMagnitude, room) {
     y: -vector.y,
   };
 
-  // Position the shell **behind** the unit relative to launch direction
+  // Position the shell slightly behind the unit relative to launch direction
   const shellPosition = {
     x: unit.position.x + invertedVector.x * shellOffset,
     y: unit.position.y + invertedVector.y * shellOffset,
   };
 
-  // Launch the shell in the **opposite** direction of the mouse drag
-  const initialVelocity = {
+  // Calculate initial velocity
+  let initialVelocity = {
     x: invertedVector.x * forceMagnitude * 10,
     y: invertedVector.y * forceMagnitude * 10,
   };
 
+  // Ensure the initial velocity meets the minimum requirement
+  const velocityMagnitude = Math.hypot(initialVelocity.x, initialVelocity.y);
+  if (velocityMagnitude < minimumInitialVelocity) {
+    // Normalize the vector and apply minimum velocity
+    const normalizedVector = {
+      x: invertedVector.x / Math.hypot(invertedVector.x, invertedVector.y),
+      y: invertedVector.y / Math.hypot(invertedVector.x, invertedVector.y),
+    };
+    initialVelocity = {
+      x: normalizedVector.x * minimumInitialVelocity,
+      y: normalizedVector.y * minimumInitialVelocity,
+    };
+  }
+
   const playerId = unit.playerId;
 
-  // Pass 'unitSize' as the sixth parameter
   const shell = ShellModule.createShell(
     shellPosition.x,
     shellPosition.y,
     shellSize,
     initialVelocity,
     playerId,
-    unitSize // Added tankSize
+    unitSize // Pass unitSize if needed
   );
   shell.localId = generateUniqueId(); // Ensure each shell has a unique ID
   room.shells.push(shell);
@@ -994,4 +929,106 @@ function endGame(roomID) {
 
   // Inform clients to reset their state
   io.to(roomID).emit("resetGame");
+}
+
+function processMouseUp(socket, data, isForced = false) {
+  const roomID = socket.roomID;
+  const playerNumber = socket.playerNumber;
+
+  if (roomID && playerNumber) {
+    const room = gameRooms[roomID];
+    if (room && socket.mouseDownData) {
+      const { startTime, startPosition, tankId, unitId, actionMode, endPosition } = socket.mouseDownData;
+      let duration;
+      let finalEndPosition;
+
+      if (isForced) {
+        duration = 450; // Forced duration of 450 ms
+        finalEndPosition = endPosition || startPosition; // Ensure finalEndPosition is defined
+      } else {
+        duration = Date.now() - startTime;
+        finalEndPosition = { x: data.x, y: data.y };
+      }
+
+      const deltaX = finalEndPosition.x - startPosition.x;
+      const deltaY = finalEndPosition.y - startPosition.y;
+      const dragDistance = Math.hypot(deltaX, deltaY);
+
+      if (dragDistance < minimumDragDistance) {
+        // Drag distance is too small; ignore the action
+        socket.emit("actionTooSmall", { message: "Drag distance too short. Action ignored." });
+
+        // Clean up mouseDownData and timer
+        delete socket.mouseDownData;
+        if (socket.mouseDownTimer) {
+          clearTimeout(socket.mouseDownTimer);
+          delete socket.mouseDownTimer;
+        }
+
+        console.log(`Ignored action from socket ${socket.id} due to insufficient drag distance.`);
+        return;
+      }
+
+      const clampedDuration = Math.max(100, Math.min(duration, 450)); // Clamp duration to [100, 450] ms
+      const force = calculateForceFromDuration(clampedDuration);
+      const vector = calculateVector(startPosition, finalEndPosition);
+
+      if (actionMode === "move") {
+        const tank = room.tanks.find((t) => t.id === tankId);
+        if (tank) {
+          // Emit the tankMoved event
+          io.to(room.roomID).emit("tankMoved", {
+            tankId: tank.id,
+            startingPosition: { x: tank.position.x, y: tank.position.y },
+            startingAngle: tank.angle,
+          });
+
+          // Manage tank tracks (existing logic)
+          if (!tank.tracks) {
+            tank.tracks = [];
+          }
+
+          tank.tracks = tank.tracks
+            .map((track) => ({
+              ...track,
+              opacity: Math.max(track.opacity - 0.2, 0),
+            }))
+            .filter((track) => track.opacity > 0);
+
+          tank.tracks.unshift({
+            position: { x: tank.position.x, y: tank.position.y },
+            angle: tank.angle,
+            opacity: 0.6,
+          });
+
+          const MAX_TRACKS = 4;
+          if (tank.tracks.length > MAX_TRACKS) {
+            tank.tracks.pop();
+          }
+
+          // Apply force to the tank
+          applyForceToTank(tank, vector, force, room.roomWorld);
+        }
+      } else if (actionMode === "shoot") {
+        const unit = room.tanks.find((t) => t.id === unitId) || room.turrets.find((t) => t.id === unitId);
+        if (unit) {
+          createAndLaunchShell(unit, vector, force, room);
+        } else {
+          socket.emit("invalidClick");
+        }
+      }
+
+      // Clean up mouseDownData and timer
+      delete socket.mouseDownData;
+      if (socket.mouseDownTimer) {
+        clearTimeout(socket.mouseDownTimer);
+        delete socket.mouseDownTimer;
+      }
+
+      // If the mouseUp was forced, inform the client
+      if (isForced) {
+        socket.emit("powerCapped", { duration: clampedDuration });
+      }
+    }
+  }
 }
