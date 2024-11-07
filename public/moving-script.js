@@ -56,8 +56,12 @@ let shells = [];
 let isMouseDown = false;
 let powerLevel = 0;
 const maxPowerLevel = 100;
+const maxPowerDuration = 500;
 let powerInterval = null;
 let isPowerLocked = false;
+
+let powerStartTime = null;
+let animationFrameId = null;
 
 let actionMode = null;
 
@@ -571,8 +575,6 @@ function handleContextMenu(evt) {
 drawCanvas.addEventListener("mousedown", handleMouseDown, false);
 drawCanvas.addEventListener("mousemove", handleMouseMove, false);
 drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
-drawCanvas.addEventListener("mouseout", handleMouseUpOut, false);
-drawCanvas.addEventListener("mouseleave", handleMouseUpOut, false);
 drawCanvas.addEventListener("contextmenu", handleContextMenu, false);
 
 function drawDividingLine() {
@@ -773,11 +775,12 @@ function stopWobble() {
 }
 
 function drawTankTrack(tank, track, invertPlayerIds) {
-  // Draw rectangle for the track point
+  // Extract necessary properties
   const size = tank.size;
   const x = track.position.x * scaleX;
   const y = track.position.y * scaleY;
   const scaledSize = size * scaleX;
+  const trackAngle = track.angle; // Use track angle if available
 
   // Determine the color based on player ownership
   let tankPlayerId = tank.playerId;
@@ -786,10 +789,20 @@ function drawTankTrack(tank, track, invertPlayerIds) {
   }
 
   const color =
-    tankPlayerId === playerNumber ? "rgba(0, 0, 255," + track.opacity + ")" : "rgba(255, 0, 0," + track.opacity + ")";
+    tankPlayerId === playerNumber
+      ? `rgba(0, 0, 255, ${track.opacity})` // Own tank tracks
+      : `rgba(255, 0, 0, ${track.opacity})`; // Opponent's tank tracks
+
+  drawCtx.save(); // Save the current state
+  drawCtx.translate(x, y); // Move to the track's position
+  drawCtx.rotate(trackAngle); // Rotate the context to the track's angle
+
+  // Draw the rotated rectangle representing the track
   drawCtx.strokeStyle = color;
   drawCtx.lineWidth = 2;
-  drawCtx.strokeRect(x - scaledSize / 2, y - scaledSize / 2, scaledSize, scaledSize);
+  drawCtx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
+
+  drawCtx.restore(); // Restore the state to avoid affecting other drawings
 
   // Draw line to the next track point, if exists
   const trackIndex = tank.tracks.indexOf(track);
