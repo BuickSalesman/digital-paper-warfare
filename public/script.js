@@ -1248,3 +1248,33 @@ function updateButtonVisibility() {
     removeDrawingButton.style.display = "none";
   }
 }
+
+// Function to open the modal
+const openModal = () => {
+  rulesModal.style.display = "block";
+};
+
+// Function to close the modal
+const closeModal = () => {
+  rulesModal.style.display = "none";
+};
+
+// Event listener for the Rulz button to open the modal
+rulesButton.addEventListener("click", openModal);
+
+// Event listener for the Close button to close the modal
+closeButton.addEventListener("click", closeModal);
+
+// Event listener for clicks outside the modal content to close the modal
+window.addEventListener("click", (event) => {
+  if (event.target === rulesModal) {
+    closeModal();
+  }
+});
+
+// Optional: Close the modal when the 'Escape' key is pressed
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeModal();
+  }
+});
