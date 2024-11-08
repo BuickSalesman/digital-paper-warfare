@@ -605,7 +605,7 @@ function drawTank(tank, invertPlayerIds) {
 
   // Determine the tank's color based on hitPoints first
   if (tank.hitPoints < 2) {
-    drawCtx.strokeStyle = "orange"; // Critical hitpoints
+    drawCtx.strokeStyle = "#FF4500"; // Critical hitpoints
   } else {
     // Adjust the player ID based on the invertPlayerIds flag
     let tankPlayerId = tank.playerId;
@@ -624,7 +624,7 @@ function drawTank(tank, invertPlayerIds) {
   drawCtx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
 
   // Current HP
-  const hpColor = tank.hitPoints < 2 ? "orange" : "green";
+  const hpColor = tank.hitPoints < 2 ? "#FF4500" : "#FF4500";
   drawCtx.fillStyle = hpColor;
 
   drawCtx.restore();
