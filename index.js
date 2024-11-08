@@ -1154,7 +1154,7 @@ function isWithinPlayerArea(y, playerNumber, room) {
 }
 
 function createBodiesFromShapes(path, room) {
-  const circleRadius = 2; // Adjust the radius as needed
+  const circleRadius = 3; // Adjust the radius as needed
 
   // Iterate over each segment in the path
   for (let i = 0; i < path.length; i++) {

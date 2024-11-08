@@ -93,7 +93,9 @@ const wobbleAmplitude = 0.1; // Maximum wobble angle in radians (~5.7 degrees)
 let selectedUnit = null;
 
 // Event Listeners
-window.addEventListener("load", () => {});
+window.addEventListener("load", () => {
+  updateButtonVisibility();
+});
 window.addEventListener("resize", resizeCanvas);
 
 moveButton.addEventListener("click", () => {
@@ -153,6 +155,7 @@ socket.on("playerInfo", (data) => {
   gameWorldHeight = data.gameWorldHeight;
 
   initializeCanvas();
+  updateButtonVisibility();
 });
 
 socket.on("preGame", () => {
@@ -163,6 +166,7 @@ socket.on("preGame", () => {
 
 socket.on("startPreGame", () => {
   currentGameState = GameState.PRE_GAME;
+  updateButtonVisibility();
 });
 
 socket.on("initialGameState", (data) => {
@@ -248,6 +252,8 @@ socket.on("playerDisconnected", (number) => {
   scaleY = 1;
 
   stopWobble();
+
+  updateButtonVisibility();
 });
 
 socket.on("gameFull", () => {
@@ -335,6 +341,7 @@ socket.on("gameRunning", (data) => {
   noDrawZones = [];
   drawingEnabled = false;
   redrawCanvas();
+  updateButtonVisibility();
 });
 
 socket.on("validClick", () => {
@@ -752,7 +759,6 @@ function handleGameMouseMove(evt) {
 }
 
 function handleMouseUpOut(evt) {
-  // Determine the current game state and delegate accordingly
   switch (currentGameState) {
     case GameState.PRE_GAME:
       handleDrawingMouseUpOut(evt);
@@ -1216,3 +1222,29 @@ socket.on("powerCapped", (data) => {
   }
   isMouseDown = false; // Ensure the client recognizes that the mouse is no longer effectively held down
 });
+
+function updateButtonVisibility() {
+  if (currentGameState === GameState.PRE_GAME) {
+    // Hide "Move" and "Shoot" buttons
+    moveButton.style.display = "none";
+    shootButton.style.display = "none";
+
+    // Show "End Draw" and "Erase Previous Drawing" buttons
+    endDrawButton.style.display = "block";
+    removeDrawingButton.style.display = "block";
+  } else if (currentGameState === GameState.GAME_RUNNING) {
+    // Show "Move" and "Shoot" buttons
+    moveButton.style.display = "block";
+    shootButton.style.display = "block";
+
+    // Hide "End Draw" and "Erase Previous Drawing" buttons
+    endDrawButton.style.display = "none";
+    removeDrawingButton.style.display = "none";
+  } else {
+    // For other states (e.g., LOBBY, POST_GAME), hide all action buttons
+    moveButton.style.display = "none";
+    shootButton.style.display = "none";
+    endDrawButton.style.display = "none";
+    removeDrawingButton.style.display = "none";
+  }
+}
