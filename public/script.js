@@ -17,8 +17,6 @@ const GameState = {
 };
 
 let currentGameState = GameState.LOBBY;
-let totalPixelsDrawn = 0;
-let currentDrawingSessionId = null;
 
 let width = 1885; // Placeholder, will be updated
 let height = 1414; // Placeholder, will be updated
@@ -45,14 +43,17 @@ const timerElement = document.getElementById("Timer");
 
 const drawCtx = drawCanvas.getContext("2d");
 
-let dividingLine;
-let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
-
+let dividingLine;
+let totalPixelsDrawn = 0;
+let currentDrawingSessionId = null;
+let isDrawing = false;
 let drawingEnabled = true;
 let drawingHistory = { [PLAYER_ONE]: [], [PLAYER_TWO]: [] };
 let currentDrawingStart = null;
+let noDrawZones = [];
+const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
 
 let tanks = [];
 let reactors = [];
@@ -60,12 +61,48 @@ let fortresses = [];
 let turrets = [];
 let shells = [];
 
-let noDrawZones = [];
-const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
+let isMouseDown = false;
+let powerLevel = 0;
+const maxPowerLevel = 100;
+const maxPowerDuration = 500;
+let powerInterval = null;
+let isPowerLocked = false;
+
+let powerStartTime = null;
+let animationFrameId = null;
+
+let actionMode = null;
+
+let activeExplosions = [];
+
+const EXPLOSION_BASE_SIZE = 500; // Base size in game world units
+
+// Load explosion frames
+const explosionFrames = Array.from({ length: 25 }, (_, i) => {
+  const img = new Image();
+  img.src = `assets/EXPLOSION/explosion4/${i + 1}.png`; // Adjust path as necessary
+  return img;
+});
+
+// Wobble State Variables
+let isWobbling = false;
+let wobbleStartTime = 0;
+let initialWobbleAngle = 0;
+const wobbleFrequency = 60; // Adjust as needed for speed
+const wobbleAmplitude = 0.1; // Maximum wobble angle in radians (~5.7 degrees)
+let selectedUnit = null;
 
 // Event Listeners
 window.addEventListener("load", () => {});
 window.addEventListener("resize", resizeCanvas);
+
+moveButton.addEventListener("click", () => {
+  actionMode = "move";
+});
+
+shootButton.addEventListener("click", () => {
+  actionMode = "shoot";
+});
 
 drawCanvas.addEventListener(
   "contextmenu",
@@ -145,10 +182,21 @@ socket.on("initialGameState", (data) => {
 });
 
 socket.on("gameUpdate", (data) => {
-  tanks = data.tanks;
-  reactors = data.reactors;
-  fortresses = data.fortresses;
-  turrets = data.turrets;
+  tanks = data.tanks.map((tank) => ({
+    ...tank,
+    hitPoints: tank.hitPoints, // Ensure hitPoints are present
+    tracks: tank.tracks || [], // Initialize tracks if not present
+  }));
+  reactors = data.reactors.map((reactor) => ({
+    ...reactor,
+    hitPoints: reactor.hitPoints, // Ensure hitPoints are present
+  }));
+  fortresses = data.fortresses.map((fortress) => ({
+    ...fortress,
+  }));
+  turrets = data.turrets.map((turret) => ({
+    ...turret,
+  }));
   shells = data.shells || [];
 
   if (currentGameState === GameState.PRE_GAME) {
@@ -199,12 +247,29 @@ socket.on("playerDisconnected", (number) => {
   scaleX = 1;
   scaleY = 1;
 
-  console.log(`Player ${number} disconnected. Resetting game state.`);
+  stopWobble();
 });
 
 socket.on("gameFull", () => {
   alert("The game is full.");
   joinButton.disabled = false;
+});
+
+joinButton.addEventListener("click", () => {
+  const passcode = passcodeInput.value.trim();
+  if (passcode) {
+    if (/^[A-Za-z0-9]{6}$/.test(passcode)) {
+      socket.emit("joinGame", { passcode });
+    } else {
+      alert("Passcode must be exactly 6 digits.");
+      return;
+    }
+  } else {
+    socket.emit("joinGame");
+  }
+  joinButton.disabled = true;
+  passcodeInput.disabled = true;
+  currentGameState = GameState.LOBBY;
 });
 
 socket.on("drawingMirror", (data) => {
@@ -272,24 +337,86 @@ socket.on("gameRunning", (data) => {
   redrawCanvas();
 });
 
-joinButton.addEventListener("click", () => {
-  const passcode = passcodeInput.value.trim();
-  if (passcode) {
-    if (/^[A-Za-z0-9]{6}$/.test(passcode)) {
-      socket.emit("joinGame", { passcode });
-    } else {
-      alert("Passcode must be exactly 6 digits.");
-      return;
-    }
-  } else {
-    socket.emit("joinGame");
+socket.on("validClick", () => {
+  if (!isMouseDown) {
+    isMouseDown = true; // Ensure the state is consistent
   }
-  joinButton.disabled = true;
-  passcodeInput.disabled = true;
-  currentGameState = GameState.LOBBY;
+
+  // Start increasing the power meter
+  powerInterval = setInterval(increasePower, 1); // Increase power every 100 ms (adjust as needed)
 });
 
-// Redraw Canvas Function
+socket.on("invalidClick", () => {
+  // Click was not on a valid tank
+  // alert("You must click on one of your tanks!");
+});
+
+socket.on("explosion", (data) => {
+  const { x, y } = data;
+  // Convert game world coordinates to canvas coordinates
+  const canvasPos = gameWorldToCanvas(x, y);
+  activeExplosions.push({
+    x: canvasPos.x,
+    y: canvasPos.y,
+    frame: 0,
+    timeoutId: null,
+  });
+});
+
+// Client-side code
+
+socket.on("updateHitPoints", (data) => {
+  const { bodyId, hitPoints } = data;
+
+  // Update hitPoints for tanks
+  tanks = tanks.map((tank) => {
+    if (tank.id === bodyId) {
+      return { ...tank, hitPoints };
+    }
+    return tank;
+  });
+
+  // Update hitPoints for reactors
+  reactors = reactors.map((reactor) => {
+    if (reactor.id === bodyId) {
+      return { ...reactor, hitPoints };
+    }
+    return reactor;
+  });
+});
+
+// Client-side code
+
+// Listen for tankDestroyed event
+socket.on("tankDestroyed", (data) => {
+  const { tankId, playerId } = data;
+
+  // Remove the destroyed tank from the local state
+  tanks = tanks.filter((tank) => tank.id !== tankId);
+
+  // Optionally, display a destruction animation or sound
+});
+
+// Listen for reactorDestroyed event
+socket.on("reactorDestroyed", (data) => {
+  const { reactorId, playerId } = data;
+
+  // Remove the destroyed reactor from the local state
+  reactors = reactors.filter((reactor) => reactor.id !== reactorId);
+
+  // Optionally, display a destruction animation or sound
+});
+
+// Client-side code
+
+socket.on("gameOver", (data) => {
+  const { winner, reason } = data;
+  alert(`Player ${winner} wins! Reason: ${reason}`);
+
+  // Optionally, reset the game state or redirect to a lobby
+  location.reload(); // Simple way to restart the game
+});
+
 function redrawCanvas() {
   drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
@@ -322,11 +449,69 @@ function redrawCanvas() {
   });
 
   drawDividingLine();
+
+  // Draw fortresses, reactors, turrets
   fortresses.forEach((fortress) => drawFortress(fortress, invertPlayerIds));
   reactors.forEach((reactor) => drawReactor(reactor, invertPlayerIds));
   turrets.forEach((turret) => drawTurret(turret, invertPlayerIds));
-  tanks.forEach((tank) => drawTank(tank, invertPlayerIds));
   drawNoDrawZones();
+
+  // **Draw tank tracks first (both rectangles and connecting lines)**
+  tanks.forEach((tank) => {
+    if (tank.tracks && Array.isArray(tank.tracks)) {
+      tank.tracks.forEach((track) => {
+        drawTankTrack(tank, track, invertPlayerIds);
+      });
+
+      // **Draw the gradient line from the latest track to the current position**
+      drawTankCurrentLine(tank, invertPlayerIds);
+    }
+  });
+
+  // Draw tanks
+  tanks.forEach((tank) => drawTank(tank, invertPlayerIds));
+
+  // Draw shells
+  shells.forEach((shell) => drawShell(shell, invertPlayerIds));
+
+  // Draw active explosions
+  activeExplosions.forEach((explosion, index) => {
+    if (explosion.frame < explosionFrames.length) {
+      // Calculate explosion size based on scaling factors
+      const explosionScale = (scaleX + scaleY) / 2; // Average scaling
+      const explosionSize = EXPLOSION_BASE_SIZE * explosionScale;
+
+      if (playerNumber === PLAYER_TWO) {
+        // Draw rotated explosion to counteract canvas rotation
+        drawImageRotated(
+          drawCtx,
+          explosionFrames[explosion.frame],
+          explosion.x,
+          explosion.y,
+          explosionSize, // Scaled width
+          explosionSize, // Scaled height
+          Math.PI // Rotation in radians
+        );
+      } else {
+        // Draw explosion normally
+        drawImageRotated(
+          drawCtx,
+          explosionFrames[explosion.frame],
+          explosion.x,
+          explosion.y,
+          explosionSize, // Scaled width
+          explosionSize, // Scaled height
+          0 // No rotation
+        );
+      }
+
+      // Advance to the next frame
+      explosion.frame += 1;
+    } else {
+      // Remove explosion from activeExplosions array
+      activeExplosions.splice(index, 1);
+    }
+  });
 
   drawCtx.restore();
 }
@@ -338,7 +523,6 @@ function resizeCanvas() {
 function updateScalingFactors() {
   scaleX = drawCanvas.width / gameWorldWidth;
   scaleY = drawCanvas.height / gameWorldHeight;
-  console.log(`Updated scaling factors: scaleX=${scaleX}, scaleY=${scaleY}`);
 }
 
 function canvasToGameWorld(x, y) {
@@ -370,6 +554,31 @@ function getMousePos(evt) {
 }
 
 function handleMouseDown(evt) {
+  if (evt.button !== 0) {
+    return;
+  }
+
+  switch (currentGameState) {
+    case GameState.PRE_GAME:
+      handleDrawingMouseDown(evt);
+      break;
+    case GameState.GAME_RUNNING:
+      handleGameMouseDown(evt);
+      break;
+    default:
+      console.log(`Unhandled game state: ${currentGameState}`);
+  }
+}
+
+let color = null;
+let drawingLegally = true;
+
+socket.on("drawingIllegally", (data) => {
+  drawingLegally = false;
+  color = "#FF0000";
+});
+
+function handleDrawingMouseDown(evt) {
   if (evt.button !== 0 || !drawingEnabled) {
     return;
   }
@@ -397,15 +606,67 @@ function handleMouseDown(evt) {
   socket.emit("startDrawing", { position: gwPos, drawingSessionId: currentDrawingSessionId });
 }
 
-let color = null;
-let drawingLegally = true;
+function handleGameMouseDown(evt) {
+  if (evt.button === 0) {
+    // Left mouse button
+    if (isPowerLocked) {
+      // Power is locked; ignore this mousedown
+      console.log("Power is locked. Ignoring mouseDown.");
+      return;
+    }
 
-socket.on("drawingIllegally", (data) => {
-  drawingLegally = false;
-  color = "#FF0000";
-});
+    if (isMouseDown) {
+      // Mouse is already held down; prevent duplicate actions
+      console.log("Mouse is already down. Ignoring duplicate mouseDown.");
+      return;
+    }
+
+    isMouseDown = true; // Mark that the mouse is now held down
+
+    const mousePos = getMousePos(evt);
+    const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
+
+    // Emit mouseDown event to the server
+    socket.emit("mouseDown", {
+      x: gameWorldPos.x,
+      y: gameWorldPos.y,
+      button: evt.button,
+      actionMode: actionMode,
+    });
+
+    // Check if clicking on a player's own tank to start wobble
+    const playerTanks = tanks.filter((tank) => tank.playerId === playerNumber);
+    for (const tank of playerTanks) {
+      const tankSize = tank.size;
+      const dx = gameWorldPos.x - tank.position.x;
+      const dy = gameWorldPos.y - tank.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance <= tankSize / 2) {
+        selectedUnit = tank;
+        startWobble();
+        break;
+      }
+    }
+  }
+}
 
 function handleMouseMove(evt) {
+  // Determine the current game state and delegate accordingly
+  switch (currentGameState) {
+    case GameState.PRE_GAME:
+      handleDrawingMouseMove(evt);
+      break;
+    case GameState.GAME_RUNNING:
+      handleGameMouseMove(evt);
+      break;
+    default:
+      // Optionally handle other game states or do nothing
+      console.log(`Unhandled game state: ${currentGameState}`);
+  }
+}
+
+function handleDrawingMouseMove(evt) {
   if (evt.buttons !== 1 || !drawingEnabled) {
     return;
   }
@@ -453,7 +714,59 @@ function handleMouseMove(evt) {
   lastY = currentY;
 }
 
-function handleMouseUpOut() {
+function handleGameMouseMove(evt) {
+  const mousePos = getMousePos(evt);
+  const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
+
+  if (isMouseDown) {
+    socket.emit("mouseMove", {
+      x: gameWorldPos.x,
+      y: gameWorldPos.y,
+    });
+  }
+
+  // Find if the mouse is over any of the player's own tanks
+  const playerTanks = tanks.filter((tank) => tank.playerId === playerNumber);
+  let unitUnderMouse = null;
+
+  for (const tank of playerTanks) {
+    const tankSize = tank.size;
+    const dx = gameWorldPos.x - tank.position.x;
+    const dy = gameWorldPos.y - tank.position.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance <= tankSize / 2) {
+      unitUnderMouse = tank;
+      break;
+    }
+  }
+
+  if (unitUnderMouse && !isWobbling && !isMouseDown) {
+    // Start wobble if hovering over a player's tank and not currently clicking
+    selectedUnit = unitUnderMouse;
+    startWobble();
+  } else if ((!unitUnderMouse || playerNumber !== selectedUnit?.playerId) && isWobbling && !isMouseDown) {
+    // Stop wobble if not hovering or hovering over opponent's tank
+    stopWobble();
+  }
+}
+
+function handleMouseUpOut(evt) {
+  // Determine the current game state and delegate accordingly
+  switch (currentGameState) {
+    case GameState.PRE_GAME:
+      handleDrawingMouseUpOut(evt);
+      break;
+    case GameState.GAME_RUNNING:
+      handleGameMouseUpOut(evt);
+      break;
+    default:
+      // Optionally handle other game states or do nothing
+      console.log(`Unhandled game state: ${currentGameState}`);
+  }
+}
+
+function handleDrawingMouseUpOut() {
   if (!isDrawing) {
     return;
   }
@@ -463,19 +776,52 @@ function handleMouseUpOut() {
   socket.emit("endDrawing");
 }
 
-function drawLine(fromCanvas, toCanvas, color = "#000000", lineWidth = 2) {
-  drawCtx.beginPath();
-  drawCtx.moveTo(fromCanvas.x, fromCanvas.y);
-  drawCtx.lineTo(toCanvas.x, toCanvas.y);
-  drawCtx.strokeStyle = color;
-  drawCtx.lineWidth = lineWidth;
-  drawCtx.stroke();
+function handleGameMouseUpOut(evt) {
+  if (isMouseDown) {
+    isMouseDown = false; // Mouse is no longer held down
+
+    const mousePos = getMousePos(evt);
+    const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
+
+    // Emit mouseUp event to the server
+    socket.emit("mouseUp", {
+      x: gameWorldPos.x,
+      y: gameWorldPos.y,
+      actionMode: actionMode,
+    });
+
+    // If power was locked, unlock it to allow new actions
+    if (isPowerLocked) {
+      isPowerLocked = false;
+    }
+
+    resetPower(); // Reset the power meter
+    if (powerInterval) {
+      clearInterval(powerInterval);
+      powerInterval = null;
+    }
+
+    // Stop wobble after force is applied
+    if (isWobbling) {
+      stopWobble();
+    }
+  }
+}
+
+function handleContextMenu(evt) {
+  // Reset power meter
+  if (isMouseDown) {
+    isMouseDown = false;
+    resetPower();
+    clearInterval(powerInterval);
+    powerInterval = null;
+  }
 }
 
 drawCanvas.addEventListener("mousedown", handleMouseDown, false);
 drawCanvas.addEventListener("mousemove", handleMouseMove, false);
 drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
-drawCanvas.addEventListener("mouseout", handleMouseUpOut, false);
+drawCanvas.addEventListener("contextmenu", handleContextMenu, false);
 
 function drawDividingLine() {
   drawCtx.beginPath();
@@ -485,6 +831,15 @@ function drawDividingLine() {
   drawCtx.lineWidth = 2;
   drawCtx.stroke();
   drawCtx.closePath();
+}
+
+function drawLine(fromCanvas, toCanvas, color = "#000000", lineWidth = 2) {
+  drawCtx.beginPath();
+  drawCtx.moveTo(fromCanvas.x, fromCanvas.y);
+  drawCtx.lineTo(toCanvas.x, toCanvas.y);
+  drawCtx.strokeStyle = color;
+  drawCtx.lineWidth = lineWidth;
+  drawCtx.stroke();
 }
 
 function isWithinPlayerArea(y) {
@@ -501,24 +856,40 @@ function drawTank(tank, invertPlayerIds) {
   const y = tank.position.y * scaleY;
   const scaledSize = size * scaleX;
 
-  drawCtx.save();
-  drawCtx.translate(x, y);
-  drawCtx.rotate(tank.angle);
-
-  // Adjust the player ID based on the invertPlayerIds flag
-  let tankPlayerId = tank.playerId;
-  if (invertPlayerIds) {
-    tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  let wobbleAngle = 0;
+  if (isWobbling && selectedUnit && tank.id === selectedUnit.id) {
+    const elapsedTime = Date.now() - wobbleStartTime;
+    wobbleAngle = wobbleAmplitude * Math.cos(elapsedTime / wobbleFrequency);
   }
 
-  if (tankPlayerId === playerNumber) {
-    drawCtx.strokeStyle = "blue"; // Own tank
+  drawCtx.save();
+  drawCtx.translate(x, y);
+  drawCtx.rotate(tank.angle + wobbleAngle); // Apply wobble to the rotation
+
+  // Determine the tank's color based on hitPoints first
+  if (tank.hitPoints < 2) {
+    drawCtx.strokeStyle = "#FF4500"; // Critical hitpoints
   } else {
-    drawCtx.strokeStyle = "red"; // Opponent's tank
+    // Adjust the player ID based on the invertPlayerIds flag
+    let tankPlayerId = tank.playerId;
+    if (invertPlayerIds) {
+      tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+    }
+
+    if (tankPlayerId === playerNumber) {
+      drawCtx.strokeStyle = "blue"; // Own tank
+    } else {
+      drawCtx.strokeStyle = "red"; // Opponent's tank
+    }
   }
 
   drawCtx.lineWidth = 2;
   drawCtx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
+
+  // Current HP
+  const hpColor = tank.hitPoints < 2 ? "#FF4500" : "#FF4500";
+  drawCtx.fillStyle = hpColor;
+
   drawCtx.restore();
 }
 
@@ -591,15 +962,39 @@ function drawTurret(turret, invertPlayerIds) {
   }
 
   if (turretPlayerId === playerNumber) {
-    drawCtx.strokeStyle = "blue"; // Own turret
+    drawCtx.strokeStyle = "blue";
   } else {
-    drawCtx.strokeStyle = "red"; // Opponent's turret
+    drawCtx.strokeStyle = "red";
   }
 
   drawCtx.lineWidth = 2;
   drawCtx.beginPath();
   drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
   drawCtx.stroke();
+  drawCtx.restore();
+}
+
+function drawShell(shell, invertPlayerIds) {
+  if (!shell.size || shell.size <= 0) {
+    return;
+  }
+  const radius = shell.size * scaleX;
+  const x = shell.position.x * scaleX;
+  const y = shell.position.y * scaleY;
+
+  drawCtx.save();
+  drawCtx.translate(x, y);
+
+  let shellPlayerId = shell.playerId;
+  if (invertPlayerIds) {
+    shellPlayerId = shell.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  }
+
+  drawCtx.fillStyle = shellPlayerId === playerNumber ? "blue" : "red";
+
+  drawCtx.beginPath();
+  drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
+  drawCtx.fill();
   drawCtx.restore();
 }
 
@@ -667,3 +1062,157 @@ function drawNoDrawZones() {
     drawCtx.stroke();
   });
 }
+
+function increasePower() {
+  if (powerLevel >= maxPowerLevel) {
+    powerLevel = maxPowerLevel;
+    clearInterval(powerInterval); // Stop increasing power
+    powerInterval = null;
+  } else {
+    powerLevel += 1; // Adjust increment as needed
+  }
+  powerMeterFill.style.height = `${powerLevel}%`;
+}
+
+function resetPower() {
+  powerLevel = 0;
+  powerMeterFill.style.height = "0%";
+}
+
+function drawImageRotated(ctx, img, x, y, width, height, rotation = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.drawImage(img, -width / 2, -height / 2, width, height);
+  ctx.restore();
+}
+
+function startWobble() {
+  if (!isWobbling && selectedUnit && selectedUnit.label === "Tank") {
+    isWobbling = true;
+    wobbleStartTime = Date.now();
+    initialWobbleAngle = selectedUnit.angle || 0;
+  }
+}
+
+function stopWobble() {
+  if (isWobbling) {
+    isWobbling = false;
+    selectedUnit = null;
+  }
+}
+
+function drawTankTrack(tank, track, invertPlayerIds) {
+  // Extract necessary properties
+  const size = tank.size;
+  const x = track.position.x * scaleX;
+  const y = track.position.y * scaleY;
+  const scaledSize = size * scaleX;
+  const trackAngle = track.angle; // Use track angle if available
+
+  // Determine the color based on player ownership
+  let tankPlayerId = tank.playerId;
+  if (invertPlayerIds) {
+    tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  }
+
+  const color =
+    tankPlayerId === playerNumber
+      ? `rgba(0, 0, 255, ${track.opacity})` // Own tank tracks
+      : `rgba(255, 0, 0, ${track.opacity})`; // Opponent's tank tracks
+
+  drawCtx.save(); // Save the current state
+  drawCtx.translate(x, y); // Move to the track's position
+  drawCtx.rotate(trackAngle); // Rotate the context to the track's angle
+
+  // Draw the rotated rectangle representing the track
+  drawCtx.strokeStyle = color;
+  drawCtx.lineWidth = 2;
+  drawCtx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
+
+  drawCtx.restore(); // Restore the state to avoid affecting other drawings
+
+  // Draw line to the next track point, if exists
+  const trackIndex = tank.tracks.indexOf(track);
+  if (trackIndex < tank.tracks.length - 1) {
+    const nextTrack = tank.tracks[trackIndex + 1];
+    if (nextTrack) {
+      const nextX = nextTrack.position.x * scaleX;
+      const nextY = nextTrack.position.y * scaleY;
+
+      // Create a gradient from current track to next track
+      const gradient = drawCtx.createLinearGradient(x, y, nextX, nextY);
+      gradient.addColorStop(
+        0,
+        tankPlayerId === playerNumber ? `rgba(0, 0, 255, ${track.opacity})` : `rgba(255, 0, 0, ${track.opacity})`
+      );
+      gradient.addColorStop(
+        1,
+        tankPlayerId === playerNumber
+          ? `rgba(0, 0, 255, ${nextTrack.opacity})`
+          : `rgba(255, 0, 0, ${nextTrack.opacity})`
+      );
+
+      drawCtx.strokeStyle = gradient;
+      drawCtx.lineWidth = 2 * scaleX; // Adjust line width based on scaling
+      drawCtx.beginPath();
+      drawCtx.moveTo(x, y);
+      drawCtx.lineTo(nextX, nextY);
+      drawCtx.stroke();
+    }
+  }
+}
+
+function drawTankCurrentLine(tank, invertPlayerIds) {
+  if (!tank.tracks || tank.tracks.length === 0) {
+    return; // No tracks to connect
+  }
+
+  // Get the most recent track point (first element in the tracks array)
+  const latestTrack = tank.tracks[0];
+  const trackX = latestTrack.position.x * scaleX;
+  const trackY = latestTrack.position.y * scaleY;
+
+  // Current tank position
+  const tankX = tank.position.x * scaleX;
+  const tankY = tank.position.y * scaleY;
+
+  // Determine the color based on player ownership
+  let tankPlayerId = tank.playerId;
+  if (invertPlayerIds) {
+    tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  }
+
+  // Create a gradient from the latest track to the current position
+  const gradient = drawCtx.createLinearGradient(trackX, trackY, tankX, tankY);
+  gradient.addColorStop(
+    0,
+    tankPlayerId === playerNumber
+      ? `rgba(0, 0, 255, ${latestTrack.opacity})`
+      : `rgba(255, 0, 0, ${latestTrack.opacity})`
+  );
+  gradient.addColorStop(1, tankPlayerId === playerNumber ? `rgba(0, 0, 255, 0)` : `rgba(255, 0, 0, 0)`); // Fade out to transparent
+
+  drawCtx.strokeStyle = gradient;
+  drawCtx.lineWidth = 2 * scaleX; // Adjust line width based on scaling
+  drawCtx.lineCap = "round";
+
+  // Draw the gradient line
+  drawCtx.beginPath();
+  drawCtx.moveTo(trackX, trackY);
+  drawCtx.lineTo(tankX, tankY);
+  drawCtx.stroke();
+}
+
+socket.on("powerCapped", (data) => {
+  console.log(`Power was automatically capped after ${data.duration} ms.`);
+  // alert("Power level has been automatically capped at 1.2 seconds.");
+  resetPower(); // Reset the power meter
+
+  isPowerLocked = false; // Lock the power meter to prevent further increases
+  if (powerInterval) {
+    clearInterval(powerInterval); // Stop increasing power
+    powerInterval = null;
+  }
+  isMouseDown = false; // Ensure the client recognizes that the mouse is no longer effectively held down
+});

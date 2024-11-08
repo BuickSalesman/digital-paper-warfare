@@ -4,7 +4,7 @@ const path = require("path");
 const { Server } = require("socket.io");
 const Matter = require("matter-js");
 
-const { Body, Bodies, Engine, World } = Matter;
+const { Body, Bodies, Engine, World, Constraint } = Matter;
 
 // Import game object modules
 const TankModule = require("./objects/tank");
@@ -61,23 +61,19 @@ const GAME_WORLD_WIDTH = 1885; // Fixed width in game units
 const ASPECT_RATIO = 1 / 1.4142; // A4 aspect ratio
 const GAME_WORLD_HEIGHT = GAME_WORLD_WIDTH / ASPECT_RATIO; // Calculate height based on aspect ratio
 
-const DIVIDING_LINE_MARGIN = 10; // Dividing line margin
+const minimumDragDistance = 10;
+const minimumInitialVelocity = 7.5;
 
 const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
-
 const inkLimit = 2000;
 
-// SERVER VARIABLES
 const PORT = process.env.PORT || 3000;
-
-// SERVER EVENTS
 
 // Start the server.
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
-// IO.ON
 io.on("connection", (socket) => {
   console.log(`New connection: ${socket.id}`);
 
@@ -137,7 +133,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Handle 'ready' event
   socket.on("ready", () => {
     console.log(`Received 'ready' from socket ${socket.id} in room ${socket.roomID}`);
     const roomID = socket.roomID;
@@ -152,13 +147,11 @@ io.on("connection", (socket) => {
         if (room.readyPlayers === totalPlayers) {
           // Transition to PRE_GAME
           room.currentGameState = GameState.PRE_GAME;
-          console.log(`Room ${roomID} transitioning to PRE_GAME.`);
 
           // Emit 'startPreGame' to all clients in the room
           io.to(roomID).emit("startPreGame", {
             message: "Both players are ready. Starting the game...",
           });
-          console.log(`Emitted 'startPreGame' to room ${roomID}`);
         }
       }
     }
@@ -197,6 +190,21 @@ io.on("connection", (socket) => {
         // Emit 'playerDisconnected' to all clients in the room
         io.to(roomID).emit("playerDisconnected", disconnectedPlayer);
         console.log(`Notified room ${roomID} about disconnection of Player ${disconnectedPlayer}`);
+
+        // Properly remove all bodies from the Matter.js world
+        Matter.World.clear(room.roomWorld, false);
+        Matter.Engine.clear(room.roomEngine);
+
+        // Clear the interval
+        clearInterval(roomIntervals[roomID]);
+        delete roomIntervals[roomID];
+
+        // Clear any active mouseDown timer
+        if (socket.mouseDownTimer) {
+          clearTimeout(socket.mouseDownTimer);
+          delete socket.mouseDownTimer;
+          delete socket.mouseDownData;
+        }
 
         // Delete the room completely
         delete gameRooms[roomID];
@@ -528,58 +536,90 @@ io.on("connection", (socket) => {
       console.log(`Player ${playerNumber}'s drawing was legal and added to allPaths.`);
     }
   });
+
+  // Handle 'mouseDown' event
+  socket.on("mouseDown", (data) => {
+    const roomID = socket.roomID;
+    const playerNumber = socket.playerNumber;
+    const actionMode = data.actionMode;
+
+    if (roomID && playerNumber) {
+      const room = gameRooms[roomID];
+      if (room) {
+        // Prevent multiple mouseDown events without mouseUp
+        if (socket.mouseDownData) {
+          console.log(`Socket ${socket.id} is already holding mouse down.`);
+          return;
+        }
+
+        const { x, y } = data;
+
+        if (actionMode === "move") {
+          const tank = validateClickOnTank(room, playerNumber, x, y);
+          if (tank) {
+            socket.mouseDownData = {
+              startTime: Date.now(),
+              startPosition: { x, y },
+              tankId: tank.id,
+              actionMode: actionMode,
+            };
+            socket.emit("validClick");
+            console.log(`Player ${playerNumber} started moving tank ${tank.id}`);
+
+            // Start the 1.2-second timer
+            socket.mouseDownTimer = setTimeout(() => {
+              console.log(`Auto-triggering mouseUp for socket ${socket.id} after 1.2 seconds`);
+              processMouseUp(socket, { x, y }, true); // isForced = true
+            }, 450);
+          } else {
+            socket.emit("invalidClick");
+          }
+        } else if (actionMode === "shoot") {
+          const unit = validateClickOnShootingUnit(room, playerNumber, x, y);
+          if (unit) {
+            socket.mouseDownData = {
+              startTime: Date.now(),
+              startPosition: { x, y },
+              unitId: unit.id,
+              actionMode: actionMode,
+            };
+            socket.emit("validClick");
+            console.log(`Player ${playerNumber} started shooting with unit ${unit.id}`);
+
+            // Start the 1.2-second timer
+            socket.mouseDownTimer = setTimeout(() => {
+              console.log(`Auto-triggering mouseUp for socket ${socket.id} after 1.2 seconds`);
+              processMouseUp(socket, { x, y }, true); // isForced = true
+            }, 450);
+          } else {
+            socket.emit("invalidClick");
+          }
+        } else {
+          socket.emit("invalidActionMode");
+        }
+      }
+    }
+  });
+
+  // Handle 'mouseUp' event
+  socket.on("mouseUp", (data) => {
+    console.log(`Received 'mouseUp' from socket ${socket.id}`);
+    processMouseUp(socket, data, false); // isForced = false
+  });
+
+  socket.on("mouseMove", (data) => {
+    const roomID = socket.roomID;
+    const playerNumber = socket.playerNumber;
+
+    if (roomID && playerNumber && socket.mouseDownData) {
+      // Update the endPosition with the latest mouse coordinates
+      socket.mouseDownData.endPosition = { x: data.x, y: data.y };
+    }
+  });
 });
 
-// Function to join an existing room
-function joinRoom(socket, room) {
-  let playerNumber;
-  if (!room.players.player1) {
-    room.players.player1 = socket.id;
-    playerNumber = PLAYER_ONE;
-    console.log(`Assigned Player 1 to socket ${socket.id} in room ${room.roomID}`);
-  } else if (!room.players.player2) {
-    room.players.player2 = socket.id;
-    playerNumber = PLAYER_TWO;
-    console.log(`Assigned Player 2 to socket ${socket.id} in room ${room.roomID}`);
-  } else {
-    // Room is full
-    console.log(`Room ${room.roomID} is full. Emitting 'gameFull' to socket ${socket.id}`);
-    socket.emit("gameFull");
-    return;
-  }
+//#region FUNCTIONS
 
-  socket.join(room.roomID);
-  socket.playerNumber = playerNumber;
-  socket.roomID = room.roomID;
-  socket.emit("playerInfo", {
-    playerNumber,
-    roomID: room.roomID,
-    gameWorldWidth: GAME_WORLD_WIDTH,
-    gameWorldHeight: GAME_WORLD_HEIGHT,
-  });
-  console.log(`Socket ${socket.id} joined ${room.roomID} as Player ${playerNumber}`);
-
-  // Check if room now has two players
-  if (room.players.player1 && room.players.player2) {
-    console.log(`Room ${room.roomID} is now full. Emitting 'preGame' to room.`);
-    // Emit 'preGame' to both clients to prepare the game
-    io.to(room.roomID).emit("preGame", {
-      message: "Two players have joined. Prepare to start the game.",
-    });
-    console.log(`Emitted 'preGame' to room ${room.roomID}`);
-    createGameBodies(room);
-
-    // Send initial game state to clients
-    io.to(room.roomID).emit("initialGameState", {
-      tanks: room.tanks.map(bodyToData),
-      reactors: room.reactors.map(bodyToData),
-      fortresses: room.fortresses.map(bodyToData),
-      turrets: room.turrets.map(bodyToData),
-    });
-  }
-}
-
-// Function to create a new room
 function createNewRoom(roomID, socket, isPasscodeRoom = false) {
   const roomEngine = Matter.Engine.create();
   const roomWorld = roomEngine.world;
@@ -611,11 +651,56 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
 
     roomEngine: roomEngine,
     roomWorld: roomWorld,
+
+    shells: [],
   };
 
-  startRoomInterval(roomID);
+  Matter.Events.on(roomEngine, "collisionStart", (event) => {
+    const pairs = event.pairs;
 
-  console.log(`Dividing line for room ${roomID} set at Y = ${room.dividingLine} in game world coordinates`);
+    pairs.forEach((pair) => {
+      const { bodyA, bodyB } = pair;
+
+      // Check for Tank-Shell collision
+      if (bodiesMatch(bodyA, bodyB, "Tank", "Shell")) {
+        const tank = bodyA.label === "Tank" ? bodyA : bodyB;
+        const shell = bodyA.label === "Shell" ? bodyA : bodyB;
+
+        handleTankDestruction(room, tank, shell);
+      }
+
+      // Check for Reactor-Shell collision
+      if (bodiesMatch(bodyA, bodyB, "Reactor", "Shell")) {
+        const reactor = bodyA.label === "Reactor" ? bodyA : bodyB;
+        const shell = bodyA.label === "Shell" ? bodyA : bodyB;
+
+        handleReactorDestruction(room, reactor, shell);
+      }
+
+      // Remove the shell if it hits a Shape
+      if (bodiesMatch(bodyA, bodyB, "Shell", "Shape")) {
+        const shell = bodyA.label === "Shell" ? bodyA : bodyB;
+        Matter.World.remove(roomWorld, shell);
+
+        // Also remove from room.shells array
+        const index = room.shells.findIndex((s) => s.id === shell.id);
+        if (index !== -1) {
+          room.shells.splice(index, 1);
+        }
+      }
+    });
+  });
+
+  // In your interval function
+  for (let i = room.shells.length - 1; i >= 0; i--) {
+    const shell = room.shells[i];
+    if (isResting(shell)) {
+      Matter.World.remove(room.roomWorld, shell);
+      room.shells.splice(i, 1);
+    }
+  }
+
+  startRoomInterval(roomID);
 
   gameRooms[roomID] = room;
   console.log(`Created room ${roomID}`);
@@ -630,8 +715,52 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     gameWorldHeight: GAME_WORLD_HEIGHT,
   });
   console.log(`Socket ${socket.id} created and joined ${roomID} as Player ${PLAYER_ONE}`);
+}
 
-  // Wait for another player to join
+function joinRoom(socket, room) {
+  let playerNumber;
+  if (!room.players.player1) {
+    room.players.player1 = socket.id;
+    playerNumber = PLAYER_ONE;
+    console.log(`Assigned Player 1 to socket ${socket.id} in room ${room.roomID}`);
+  } else if (!room.players.player2) {
+    room.players.player2 = socket.id;
+    playerNumber = PLAYER_TWO;
+    console.log(`Assigned Player 2 to socket ${socket.id} in room ${room.roomID}`);
+  } else {
+    // Room is full
+    console.log(`Room ${room.roomID} is full. Emitting 'gameFull' to socket ${socket.id}`);
+    socket.emit("gameFull");
+    return;
+  }
+
+  socket.join(room.roomID);
+  socket.playerNumber = playerNumber;
+  socket.roomID = room.roomID;
+  socket.emit("playerInfo", {
+    playerNumber,
+    roomID: room.roomID,
+    gameWorldWidth: GAME_WORLD_WIDTH,
+    gameWorldHeight: GAME_WORLD_HEIGHT,
+  });
+  console.log(`Socket ${socket.id} joined ${room.roomID} as Player ${playerNumber}`);
+
+  // Check if room now has two players
+  if (room.players.player1 && room.players.player2) {
+    // Emit 'preGame' to both clients to prepare the game
+    io.to(room.roomID).emit("preGame", {
+      message: "Two players have joined. Prepare to start the game.",
+    });
+    createGameBodies(room);
+
+    // Send initial game state to clients
+    io.to(room.roomID).emit("initialGameState", {
+      tanks: room.tanks.map(bodyToData),
+      reactors: room.reactors.map(bodyToData),
+      fortresses: room.fortresses.map(bodyToData),
+      turrets: room.turrets.map(bodyToData),
+    });
+  }
 }
 
 // Update the setInterval code
@@ -641,7 +770,37 @@ function startRoomInterval(roomID) {
     if (room) {
       Matter.Engine.update(room.roomEngine, deltaTime);
 
+      // **Ensure room.shells exists before iterating**
+      if (room.shells && Array.isArray(room.shells)) {
+        // Handle resting shells
+        for (let i = room.shells.length - 1; i >= 0; i--) {
+          const shell = room.shells[i];
+          if (isResting(shell)) {
+            Matter.World.remove(room.roomWorld, shell);
+            room.shells.splice(i, 1);
+          }
+        }
+      }
+
       if (room.bodiesCreated) {
+        room.tanks.forEach((tank) => {
+          if (tank.isActive) {
+            // If the tank is active, check if it has come to rest
+            if (isResting(tank)) {
+              // Tank has come to rest, fix its position and mark as inactive
+              fixTankPosition(tank, room.roomWorld);
+              tank.isActive = false;
+            } else {
+              // Tank is still moving, ensure it's not constrained
+              releaseTank(tank, room.roomWorld);
+            }
+          } else {
+            // Tank is not active, ensure it's fixed in place
+            fixTankPosition(tank, room.roomWorld);
+          }
+        });
+
+        // Emit 'gameUpdate' to all clients in the room
         io.to(roomID).emit("gameUpdate", {
           tanks: room.tanks.map(bodyToData),
           reactors: room.reactors.map(bodyToData),
@@ -651,7 +810,6 @@ function startRoomInterval(roomID) {
         });
       }
     } else {
-      // If room doesn't exist, clear the interval
       clearInterval(roomIntervals[roomID]);
       delete roomIntervals[roomID];
     }
@@ -838,22 +996,26 @@ function createGameBodies(room) {
   const PLAYER_TWO_ID = PLAYER_TWO;
 
   // Create tanks for Player One
-  const tank1 = TankModule.createTank(width * 0.3525, height * 0.9, tankSize, PLAYER_ONE_ID);
-  const tank2 = TankModule.createTank(width * 0.4275, height * 0.9, tankSize, PLAYER_ONE_ID);
+  const tank1 = TankModule.createTank(width * 0.3525, height * 0.9, tankSize, PLAYER_ONE_ID, 1);
+  const tank2 = TankModule.createTank(width * 0.4275, height * 0.9, tankSize, PLAYER_ONE_ID, 2);
 
   // Create tanks for Player Two
-  const tank3 = TankModule.createTank(width * 0.6475, height * 0.1, tankSize, PLAYER_TWO_ID);
-  const tank4 = TankModule.createTank(width * 0.5725, height * 0.1, tankSize, PLAYER_TWO_ID);
+  const tank3 = TankModule.createTank(width * 0.6475, height * 0.1, tankSize, PLAYER_TWO_ID, 3);
+  const tank4 = TankModule.createTank(width * 0.5725, height * 0.1, tankSize, PLAYER_TWO_ID, 4);
 
   const tanks = [tank1, tank2, tank3, tank4];
 
+  tanks.forEach((tank) => {
+    tank.tracks = []; // Initialize an empty tracks array
+  });
+
   // Create reactors for Player One
-  const reactor1 = ReactorModule.createReactor(width * 0.3525, height * 0.95, reactorSize, PLAYER_ONE_ID);
-  const reactor2 = ReactorModule.createReactor(width * 0.4275, height * 0.95, reactorSize, PLAYER_ONE_ID);
+  const reactor1 = ReactorModule.createReactor(width * 0.3525, height * 0.95, reactorSize, PLAYER_ONE_ID, 1);
+  const reactor2 = ReactorModule.createReactor(width * 0.4275, height * 0.95, reactorSize, PLAYER_ONE_ID, 2);
 
   // Create reactors for Player Two
-  const reactor3 = ReactorModule.createReactor(width * 0.6475, height * 0.05, reactorSize, PLAYER_TWO_ID);
-  const reactor4 = ReactorModule.createReactor(width * 0.5725, height * 0.05, reactorSize, PLAYER_TWO_ID);
+  const reactor3 = ReactorModule.createReactor(width * 0.6475, height * 0.05, reactorSize, PLAYER_TWO_ID, 3);
+  const reactor4 = ReactorModule.createReactor(width * 0.5725, height * 0.05, reactorSize, PLAYER_TWO_ID, 4);
 
   const reactors = [reactor1, reactor2, reactor3, reactor4];
 
@@ -863,25 +1025,27 @@ function createGameBodies(room) {
     height * 0.95,
     fortressWidth,
     fortressHeight,
-    PLAYER_ONE_ID
+    PLAYER_ONE_ID,
+    1
   );
   const fortress2 = FortressModule.createFortress(
     width * 0.61,
     height * 0.05,
     fortressWidth,
     fortressHeight,
-    PLAYER_TWO_ID
+    PLAYER_TWO_ID,
+    2
   );
 
   const fortresses = [fortress1, fortress2];
 
   // Create turrets for Player One
-  const turret1 = TurretModule.createTurret(width * 0.31625, height * 0.92125, turretSize, PLAYER_ONE_ID);
-  const turret2 = TurretModule.createTurret(width * 0.46375, height * 0.92125, turretSize, PLAYER_ONE_ID);
+  const turret1 = TurretModule.createTurret(width * 0.31625, height * 0.92125, turretSize, PLAYER_ONE_ID, 1);
+  const turret2 = TurretModule.createTurret(width * 0.46375, height * 0.92125, turretSize, PLAYER_ONE_ID, 2);
 
   // Create turrets for Player Two
-  const turret3 = TurretModule.createTurret(width * 0.68375, height * 0.07875, turretSize, PLAYER_TWO_ID);
-  const turret4 = TurretModule.createTurret(width * 0.53625, height * 0.07875, turretSize, PLAYER_TWO_ID);
+  const turret3 = TurretModule.createTurret(width * 0.68375, height * 0.07875, turretSize, PLAYER_TWO_ID, 3);
+  const turret4 = TurretModule.createTurret(width * 0.53625, height * 0.07875, turretSize, PLAYER_TWO_ID, 4);
 
   const turrets = [turret1, turret2, turret3, turret4];
 
@@ -902,7 +1066,9 @@ function createGameBodies(room) {
   room.turretSize = turretSize;
 
   // Initialize an array for shells
-  room.shells = [];
+  if (!room.shells) {
+    room.shells = [];
+  }
 
   // Initialize no-draw zones around fortresses
   fortressNoDrawZone(room);
@@ -911,16 +1077,28 @@ function createGameBodies(room) {
 }
 
 function bodyToData(body) {
-  return {
-    id: body.id,
+  const data = {
+    id: body.localId,
     label: body.label,
     position: { x: body.position.x, y: body.position.y },
     angle: body.angle,
-    size: body.size || 0, // Use the size property, default to 0 if undefined
-    width: body.width || 0, // Use the width property, default to 0 if undefined
-    height: body.height || 0, // Use the height property, default to 0 if undefined
+    size: body.size,
+    width: body.width,
+    height: body.height,
     playerId: body.playerId,
+    hitPoints: body.hitPoints,
   };
+
+  // Include tracks only for tanks
+  if (body.label === "Tank" && body.tracks) {
+    data.tracks = body.tracks.map((track) => ({
+      position: track.position,
+      angle: track.angle,
+      opacity: track.opacity,
+    }));
+  }
+
+  return data;
 }
 
 // Initialize no-draw zones around fortresses
@@ -1021,3 +1199,411 @@ function getPointsAlongLine(startPoint, endPoint, interval) {
 
   return points;
 }
+
+// Helper function to check if a point is inside a Matter.Body
+function isPointInBody(body, point) {
+  return Matter.Bounds.contains(body.bounds, point) && Matter.Vertices.contains(body.vertices, point);
+}
+
+function validateClickOnTank(room, playerNumber, x, y) {
+  const playerTanks = room.tanks.filter((tank) => tank.playerId === playerNumber);
+
+  for (const tank of playerTanks) {
+    if (isPointInBody(tank, { x, y })) {
+      return tank;
+    }
+  }
+  return null;
+}
+
+function calculateForceFromDuration(duration) {
+  // Map duration to force
+  const minDuration = 100; // 0.1 second
+  const maxDuration = 450; // 0.45 seconds
+
+  const minForce = 0.005; // Adjust as needed
+  const maxForce = 5; // Adjust as needed
+
+  // Linear interpolation
+  const normalizedDuration = (duration - minDuration) / (maxDuration - minDuration);
+  const clampedNormalized = Math.max(0, Math.min(normalizedDuration, 1));
+  let force = minForce + clampedNormalized * (maxForce - minForce);
+
+  // Calculate corresponding velocity (assuming mass = 1 for simplicity)
+  // Velocity = Force * deltaTime (simplified)
+  // Adjust the relation based on your game's physics settings
+  const estimatedVelocity = force * 100; // Example multiplier
+
+  if (estimatedVelocity < minimumInitialVelocity) {
+    // Adjust force to meet minimum velocity requirement
+    force = minimumInitialVelocity / 100; // Reverse the estimation
+  }
+
+  return force;
+}
+
+function calculateVector(start, end) {
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  const length = Math.hypot(deltaX, deltaY);
+
+  if (length === 0) {
+    return { x: 0, y: 0 };
+  }
+
+  return { x: deltaX / length, y: deltaY / length };
+}
+
+function applyForceToTank(tank, vector, forceMagnitude, roomWorld) {
+  tank.isActive = true;
+
+  releaseTank(tank, roomWorld);
+
+  // Apply force in the opposite direction of the vector
+  const force = {
+    x: -vector.x * forceMagnitude * 3,
+    y: -vector.y * forceMagnitude * 3,
+  };
+
+  Matter.Body.applyForce(tank, tank.position, force);
+}
+
+// Helper function to check if a body is resting (i.e., has negligible velocity).
+function isResting(body, threshold = 0.1) {
+  const velocityMagnitude = Math.hypot(body.velocity.x, body.velocity.y);
+  return velocityMagnitude < threshold;
+}
+
+// Helper function to fix the tank's position by adding a constraint.
+function fixTankPosition(tank, roomWorld) {
+  Body.setVelocity(tank, { x: 0, y: 0 });
+  Body.setAngularVelocity(tank, 0);
+
+  if (!tank.fixedConstraint) {
+    tank.fixedConstraint = Constraint.create({
+      bodyA: tank,
+      pointB: { x: tank.position.x, y: tank.position.y },
+      stiffness: 1,
+      length: 0,
+      render: { visible: false },
+    });
+    World.add(roomWorld, tank.fixedConstraint);
+  }
+}
+
+// Helper function to remove the fixed constraint from a tank.
+function releaseTank(tank, roomWorld) {
+  if (tank.fixedConstraint) {
+    World.remove(roomWorld, tank.fixedConstraint);
+    tank.fixedConstraint = null;
+  }
+}
+
+function validateClickOnShootingUnit(room, playerNumber, x, y) {
+  const shootingUnits = [...room.tanks, ...room.turrets].filter((unit) => unit.playerId === playerNumber);
+  for (const unit of shootingUnits) {
+    if (isPointInBody(unit, { x, y })) {
+      return unit;
+    }
+  }
+  return null;
+}
+
+function createAndLaunchShell(unit, vector, forceMagnitude, room) {
+  const shellSize = 5; // Adjust as needed
+  const unitSize = unit.size || Math.max(unit.width, unit.height);
+  const shellOffset = unitSize / 2 + shellSize / 2 + 1; // Added 1 unit to ensure separation
+
+  // Invert the vector for opposite direction
+  const invertedVector = {
+    x: -vector.x,
+    y: -vector.y,
+  };
+
+  // Position the shell slightly behind the unit relative to launch direction
+  const shellPosition = {
+    x: unit.position.x + invertedVector.x * shellOffset,
+    y: unit.position.y + invertedVector.y * shellOffset,
+  };
+
+  // Calculate initial velocity
+  let initialVelocity = {
+    x: invertedVector.x * forceMagnitude * 10,
+    y: invertedVector.y * forceMagnitude * 10,
+  };
+
+  // Ensure the initial velocity meets the minimum requirement
+  const velocityMagnitude = Math.hypot(initialVelocity.x, initialVelocity.y);
+  if (velocityMagnitude < minimumInitialVelocity) {
+    // Normalize the vector and apply minimum velocity
+    const normalizedVector = {
+      x: invertedVector.x / Math.hypot(invertedVector.x, invertedVector.y),
+      y: invertedVector.y / Math.hypot(invertedVector.x, invertedVector.y),
+    };
+    initialVelocity = {
+      x: normalizedVector.x * minimumInitialVelocity,
+      y: normalizedVector.y * minimumInitialVelocity,
+    };
+  }
+
+  const playerId = unit.playerId;
+
+  const shell = ShellModule.createShell(
+    shellPosition.x,
+    shellPosition.y,
+    shellSize,
+    initialVelocity,
+    playerId,
+    unitSize // Pass unitSize if needed
+  );
+  shell.localId = generateUniqueId(); // Ensure each shell has a unique ID
+  room.shells.push(shell);
+  Matter.World.add(room.roomWorld, shell);
+}
+
+function generateUniqueId() {
+  return "_" + Math.random().toString(36).substr(2, 9);
+}
+
+function bodiesMatch(bodyA, bodyB, label1, label2) {
+  return (bodyA.label === label1 && bodyB.label === label2) || (bodyA.label === label2 && bodyB.label === label1);
+}
+
+// Helper function to reduce hit points and remove the body if destroyed
+function reduceHitPoints(body, engine, removalCallback) {
+  body.hitPoints -= 1; // Decrease hitPoints by 1 or adjust based on shell damage
+  if (body.hitPoints <= 0) {
+    Matter.World.remove(engine.world, body);
+    removalCallback();
+  } else {
+    // Optionally, update body appearance to indicate damage
+    // For server-side, you might skip this or handle it via client-side rendering
+  }
+}
+
+// Handle Tank Destruction
+function handleTankDestruction(room, tank, shell) {
+  // Emit explosion to clients
+  io.to(room.roomID).emit("explosion", {
+    x: tank.position.x,
+    y: tank.position.y,
+  });
+
+  // Remove the shell from the world and room's shell array
+  Matter.World.remove(room.roomWorld, shell);
+  room.shells = room.shells.filter((s) => s.id !== shell.id);
+
+  // Reduce hitPoints of the tank
+  reduceHitPoints(tank, room.roomEngine, () => {
+    // Emit tank destruction to clients
+    io.to(room.roomID).emit("tankDestroyed", {
+      tankId: tank.id,
+      playerId: tank.playerId,
+    });
+
+    // Remove the tank from the room's tanks array
+    room.tanks = room.tanks.filter((t) => t.id !== tank.id);
+
+    // Check if all tanks of the player are destroyed
+    checkAllTanksDestroyed(room, tank.playerId);
+  }); // Damage value can be adjusted
+
+  // Emit updated hitPoints to clients if the tank is still alive
+  if (tank.hitPoints > 0) {
+    io.to(room.roomID).emit("updateHitPoints", {
+      bodyId: tank.id,
+      hitPoints: tank.hitPoints,
+    });
+  }
+}
+
+// Handle Reactor Destruction
+function handleReactorDestruction(room, reactor, shell) {
+  // Emit explosion to clients
+  io.to(room.roomID).emit("explosion", {
+    x: reactor.position.x,
+    y: reactor.position.y,
+  });
+
+  // Remove the shell from the world and room's shell array
+  Matter.World.remove(room.roomWorld, shell);
+  room.shells = room.shells.filter((s) => s.id !== shell.id);
+
+  // Reduce hitPoints of the reactor
+  reduceHitPoints(reactor, room.roomEngine, () => {
+    // Emit reactor destruction to clients
+    io.to(room.roomID).emit("reactorDestroyed", {
+      reactorId: reactor.id,
+      playerId: reactor.playerId,
+    });
+
+    // Remove the reactor from the room's reactors array
+    room.reactors = room.reactors.filter((r) => r.id !== reactor.id);
+
+    // Declare the winner based on reactor destruction
+    declareReactorWinner(room, reactor.playerId);
+  }); // Damage value can be adjusted
+
+  // Emit updated hitPoints to clients if the reactor is still alive
+  if (reactor.hitPoints > 0) {
+    io.to(room.roomID).emit("updateHitPoints", {
+      bodyId: reactor.id,
+      hitPoints: reactor.hitPoints,
+    });
+  }
+}
+
+// Check if all tanks of a player are destroyed
+function checkAllTanksDestroyed(room, playerId) {
+  const playerTanks = room.tanks.filter((tank) => tank.playerId === playerId);
+  const allDestroyed = playerTanks.every((tank) => tank.hitPoints <= 0);
+
+  if (allDestroyed) {
+    // Determine the winning player
+    const winningPlayerId = playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+
+    // Notify clients about the game result
+    io.to(room.roomID).emit("gameOver", {
+      winner: winningPlayerId,
+      reason: "All Tanks Destroyed",
+    });
+
+    // Optionally, end the game or reset the room
+    endGame(room.roomID);
+  }
+}
+
+// Declare the winner based on reactor destruction
+function declareReactorWinner(room, losingPlayerId) {
+  const winningPlayerId = losingPlayerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+
+  // Notify clients about the game result
+  io.to(room.roomID).emit("gameOver", {
+    winner: winningPlayerId,
+    reason: "Reactor Destroyed",
+  });
+
+  // Optionally, end the game or reset the room
+  endGame(room.roomID);
+}
+
+// Function to handle game over scenarios
+function endGame(roomID) {
+  // Clear the physics engine and interval
+  const room = gameRooms[roomID];
+  if (room) {
+    Matter.World.clear(room.roomWorld, false);
+    Matter.Engine.clear(room.roomEngine);
+    clearInterval(roomIntervals[roomID]);
+    delete roomIntervals[roomID];
+    delete gameRooms[roomID];
+    console.log(`Game in room ${roomID} has ended.`);
+  }
+
+  // Inform clients to reset their state
+  io.to(roomID).emit("resetGame");
+}
+
+function processMouseUp(socket, data, isForced = false) {
+  const roomID = socket.roomID;
+  const playerNumber = socket.playerNumber;
+
+  if (roomID && playerNumber) {
+    const room = gameRooms[roomID];
+    if (room && socket.mouseDownData) {
+      const { startTime, startPosition, tankId, unitId, actionMode, endPosition } = socket.mouseDownData;
+      let duration;
+      let finalEndPosition;
+
+      if (isForced) {
+        duration = 450; // Forced duration of 450 ms
+        finalEndPosition = endPosition || startPosition; // Ensure finalEndPosition is defined
+      } else {
+        duration = Date.now() - startTime;
+        finalEndPosition = { x: data.x, y: data.y };
+      }
+
+      const deltaX = finalEndPosition.x - startPosition.x;
+      const deltaY = finalEndPosition.y - startPosition.y;
+      const dragDistance = Math.hypot(deltaX, deltaY);
+
+      if (dragDistance < minimumDragDistance) {
+        // Drag distance is too small; ignore the action
+        socket.emit("actionTooSmall", { message: "Drag distance too short. Action ignored." });
+
+        // Clean up mouseDownData and timer
+        delete socket.mouseDownData;
+        if (socket.mouseDownTimer) {
+          clearTimeout(socket.mouseDownTimer);
+          delete socket.mouseDownTimer;
+        }
+
+        console.log(`Ignored action from socket ${socket.id} due to insufficient drag distance.`);
+        return;
+      }
+
+      const clampedDuration = Math.max(100, Math.min(duration, 450)); // Clamp duration to [100, 450] ms
+      const force = calculateForceFromDuration(clampedDuration);
+      const vector = calculateVector(startPosition, finalEndPosition);
+
+      if (actionMode === "move") {
+        const tank = room.tanks.find((t) => t.id === tankId);
+        if (tank) {
+          // Emit the tankMoved event
+          io.to(room.roomID).emit("tankMoved", {
+            tankId: tank.id,
+            startingPosition: { x: tank.position.x, y: tank.position.y },
+            startingAngle: tank.angle,
+          });
+
+          // Manage tank tracks (existing logic)
+          if (!tank.tracks) {
+            tank.tracks = [];
+          }
+
+          tank.tracks = tank.tracks
+            .map((track) => ({
+              ...track,
+              opacity: Math.max(track.opacity - 0.2, 0),
+            }))
+            .filter((track) => track.opacity > 0);
+
+          tank.tracks.unshift({
+            position: { x: tank.position.x, y: tank.position.y },
+            angle: tank.angle,
+            opacity: 0.6,
+          });
+
+          const MAX_TRACKS = 4;
+          if (tank.tracks.length > MAX_TRACKS) {
+            tank.tracks.pop();
+          }
+
+          // Apply force to the tank
+          applyForceToTank(tank, vector, force, room.roomWorld);
+        }
+      } else if (actionMode === "shoot") {
+        const unit = room.tanks.find((t) => t.id === unitId) || room.turrets.find((t) => t.id === unitId);
+        if (unit) {
+          createAndLaunchShell(unit, vector, force, room);
+        } else {
+          socket.emit("invalidClick");
+        }
+      }
+
+      // Clean up mouseDownData and timer
+      delete socket.mouseDownData;
+      if (socket.mouseDownTimer) {
+        clearTimeout(socket.mouseDownTimer);
+        delete socket.mouseDownTimer;
+      }
+
+      // If the mouseUp was forced, inform the client
+      if (isForced) {
+        socket.emit("powerCapped", { duration: clampedDuration });
+      }
+    }
+  }
+}
+
+//#endregion FUNCTIONS
