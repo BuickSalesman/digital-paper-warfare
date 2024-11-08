@@ -2,9 +2,9 @@
   "name": "socket-test",
   "version": "1.0.0",
   "description": "",
-  "main": "moving-index.js",
+  "main": "new-index.js",
   "scripts": {
-    "start": "nodemon moving-index.js",
+    "start": "nodemon new-index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

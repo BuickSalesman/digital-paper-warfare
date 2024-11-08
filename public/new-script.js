@@ -454,6 +454,7 @@ function redrawCanvas() {
   fortresses.forEach((fortress) => drawFortress(fortress, invertPlayerIds));
   reactors.forEach((reactor) => drawReactor(reactor, invertPlayerIds));
   turrets.forEach((turret) => drawTurret(turret, invertPlayerIds));
+  drawNoDrawZones();
 
   // **Draw tank tracks first (both rectangles and connecting lines)**
   tanks.forEach((tank) => {
