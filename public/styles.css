@@ -234,6 +234,20 @@ button.dashed.thin {
   animation: fadeIn 0.3s;
 }
 
+.modal-content h2 {
+  font-size: 2.5rem; /* Adjust as needed */
+}
+
+.modal-content h3 {
+  font-size: 2rem; /* Adjust as needed */
+}
+
+.modal-content p,
+.modal-content li {
+  font-size: 1.5rem; /* Adjust as needed */
+  line-height: 1.6; /* Improves readability */
+}
+
 .close-button {
   color: #aaa;
   float: right;
