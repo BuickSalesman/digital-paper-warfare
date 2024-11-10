@@ -1316,3 +1316,13 @@ window.addEventListener("keydown", (event) => {
     closeModal();
   }
 });
+
+removeDrawingButton.addEventListener("click", () => {
+  // Emit an event to the server to erase the last drawing
+  socket.emit("eraseLastDrawing");
+});
+
+socket.on("drawingEnabled", (data) => {
+  drawingEnabled = true;
+  // Optionally, notify the player that they can draw again
+});

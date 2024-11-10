@@ -501,6 +501,7 @@ io.on("connection", (socket) => {
       room.allPaths.push({
         playerNumber,
         path: session.path,
+        drawingSessionId: session.id,
       });
 
       // createBodiesFromShapes(session.path, room);
@@ -536,6 +537,56 @@ io.on("connection", (socket) => {
       // Remove the drawing session
       delete room.drawingSessions[playerNumber];
       console.log(`Player ${playerNumber}'s drawing was legal and added to allPaths.`);
+    }
+  });
+
+  socket.on("eraseLastDrawing", () => {
+    const roomID = socket.roomID;
+    const playerNumber = socket.playerNumber;
+    const room = gameRooms[roomID];
+
+    if (!room || room.currentGameState !== GameState.PRE_GAME) {
+      // Cannot erase drawings after the game has started
+      socket.emit("error", { message: "Cannot erase drawings at this stage." });
+      return;
+    }
+
+    const playerPaths = room.allPaths.filter((path) => path.playerNumber === playerNumber);
+
+    if (playerPaths.length === 0) {
+      // No drawings to erase
+      socket.emit("error", { message: "No drawings to erase." });
+      return;
+    }
+
+    // Get the last drawing the player made
+    const lastDrawing = playerPaths[playerPaths.length - 1];
+
+    // Remove it from allPaths
+    room.allPaths = room.allPaths.filter((path) => path.drawingSessionId !== lastDrawing.drawingSessionId);
+
+    // Decrement the player's shape count
+    room.shapeCounts[playerNumber] -= 1;
+
+    // Notify all clients to erase this drawing
+    io.to(roomID).emit("eraseDrawingSession", {
+      drawingSessionId: lastDrawing.drawingSessionId,
+      playerNumber,
+    });
+
+    console.log(`Player ${playerNumber} erased a drawing.`);
+
+    // Re-enable drawing for the player if they are below the shape limit
+    if (room.shapeCounts[playerNumber] < 5) {
+      const playerSocketId = room.players[`player${playerNumber}`];
+      if (playerSocketId) {
+        const playerSocket = io.sockets.sockets.get(playerSocketId);
+        if (playerSocket) {
+          playerSocket.emit("drawingEnabled", {
+            message: "You can now draw more shapes.",
+          });
+        }
+      }
     }
   });
 
