@@ -1261,8 +1261,8 @@ function applyForceToTank(tank, vector, forceMagnitude, roomWorld) {
 
   // Apply force in the opposite direction of the vector
   const force = {
-    x: -vector.x * forceMagnitude * 3,
-    y: -vector.y * forceMagnitude * 3,
+    x: -vector.x * forceMagnitude * 2,
+    y: -vector.y * forceMagnitude * 2,
   };
 
   Matter.Body.applyForce(tank, tank.position, force);
