@@ -221,6 +221,7 @@ button.dashed.thin {
 
 .modal-content {
   background-image: url("assets/paper.jpg");
+  font-family: "ReenieBeanie", cursive;
   background-size: cover;
   background-position: center;
   margin: 5% auto;
