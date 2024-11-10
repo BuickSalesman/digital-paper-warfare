@@ -503,7 +503,7 @@ io.on("connection", (socket) => {
         path: session.path,
       });
 
-      createBodiesFromShapes(session.path, room);
+      // createBodiesFromShapes(session.path, room);
 
       room.shapeCounts[playerNumber] += 1;
 
@@ -524,6 +524,8 @@ io.on("connection", (socket) => {
       if (room.shapeCounts[PLAYER_ONE] >= shapeLimit && room.shapeCounts[PLAYER_TWO] >= shapeLimit) {
         // Both players have reached the limit
         room.currentGameState = GameState.GAME_RUNNING;
+
+        createBodiesFromAllShapes(room);
 
         // Notify both clients
         io.to(roomID).emit("gameRunning", {
@@ -1153,7 +1155,7 @@ function isWithinPlayerArea(y, playerNumber, room) {
   }
 }
 
-function createBodiesFromShapes(path, room) {
+function createBodiesFromShape(path, room) {
   const circleRadius = 3; // Adjust the radius as needed
 
   // Iterate over each segment in the path
@@ -1181,6 +1183,12 @@ function createBodiesFromShapes(path, room) {
       Matter.World.add(room.roomWorld, circle);
     });
   }
+}
+
+function createBodiesFromAllShapes(room) {
+  room.allPaths.forEach((shape) => {
+    createBodiesFromShape(shape.path, room);
+  });
 }
 
 function getPointsAlongLine(startPoint, endPoint, interval) {
