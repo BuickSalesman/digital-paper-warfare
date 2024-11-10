@@ -824,6 +824,42 @@ function handleContextMenu(evt) {
   }
 }
 
+// Pointer Event Handlers
+
+function handlePointerDown(evt) {
+  evt.preventDefault(); // Prevent default actions like scrolling
+  if (evt.pointerType === "touch" || evt.pointerType === "pen" || evt.pointerType === "mouse") {
+    handleMouseDown(evt);
+  }
+}
+
+function handlePointerMove(evt) {
+  evt.preventDefault();
+  if (evt.pointerType === "touch" || evt.pointerType === "pen" || evt.pointerType === "mouse") {
+    handleMouseMove(evt);
+  }
+}
+
+function handlePointerUp(evt) {
+  evt.preventDefault();
+  if (evt.pointerType === "touch" || evt.pointerType === "pen" || evt.pointerType === "mouse") {
+    handleMouseUpOut(evt);
+  }
+}
+
+function handlePointerCancel(evt) {
+  evt.preventDefault();
+  if (evt.pointerType === "touch" || evt.pointerType === "pen" || evt.pointerType === "mouse") {
+    handleMouseUpOut(evt);
+  }
+}
+
+// Add Pointer Event Listeners to the Canvas
+drawCanvas.addEventListener("pointerdown", handlePointerDown, false);
+drawCanvas.addEventListener("pointermove", handlePointerMove, false);
+drawCanvas.addEventListener("pointerup", handlePointerUp, false);
+drawCanvas.addEventListener("pointercancel", handlePointerCancel, false);
+
 drawCanvas.addEventListener("mousedown", handleMouseDown, false);
 drawCanvas.addEventListener("mousemove", handleMouseMove, false);
 drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
