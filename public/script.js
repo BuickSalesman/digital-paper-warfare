@@ -1326,3 +1326,9 @@ socket.on("drawingEnabled", (data) => {
   drawingEnabled = true;
   // Optionally, notify the player that they can draw again
 });
+
+let isMyTurn = false;
+
+socket.on("turnChanged", (data) => {
+  isMyTurn = data.currentTurn === playerNumber;
+});

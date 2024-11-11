@@ -531,6 +531,7 @@ io.on("connection", (socket) => {
         // Notify both clients
         io.to(roomID).emit("gameRunning", {
           message: "Both players have completed their shapes. The game is now running.",
+          currentTurn: room.currentTurn,
         });
       }
 
@@ -595,6 +596,12 @@ io.on("connection", (socket) => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
     const actionMode = data.actionMode;
+    const room = gameRooms[roomID];
+
+    if (room.currentTurn !== playerNumber) {
+      socket.emit("notYourTurn");
+      return;
+    }
 
     if (roomID && playerNumber) {
       const room = gameRooms[roomID];
@@ -699,6 +706,8 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     },
     noDrawZones: [], // Initialize no-draw zones
     currentGameState: GameState.LOBBY, // Start with LOBBY
+    currentTurn: PLAYER_ONE, // Player 1 starts the game
+
     readyPlayers: 0, // The creator is ready by default
     dividingLine: GAME_WORLD_HEIGHT / 2, // Define dividing line in game world coordinates
 
@@ -1660,6 +1669,13 @@ function processMouseUp(socket, data, isForced = false) {
       // If the mouseUp was forced, inform the client
       if (isForced) {
         socket.emit("powerCapped", { duration: clampedDuration });
+      }
+
+      if (room) {
+        room.currentTurn = room.currentTurn === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+
+        // Notify both players about the turn change
+        io.to(room.roomID).emit("turnChanged", { currentTurn: room.currentTurn });
       }
     }
   }
