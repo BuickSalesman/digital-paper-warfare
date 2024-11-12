@@ -523,6 +523,8 @@ io.on("connection", (socket) => {
 
       const shapeLimit = 5;
       if (room.shapeCounts[PLAYER_ONE] >= shapeLimit && room.shapeCounts[PLAYER_TWO] >= shapeLimit) {
+        room.currentTurn = Math.random() < 0.5 ? PLAYER_ONE : PLAYER_TWO;
+
         // Both players have reached the limit
         room.currentGameState = GameState.GAME_RUNNING;
 
