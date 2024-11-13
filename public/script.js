@@ -216,7 +216,7 @@ function render() {
   requestAnimationFrame(render);
 }
 
-socket.on("playerDisconnected", (number) => {
+socket.on("playerDisconnected", (playerNumber) => {
   // Reset client-side variables
   playerNumber = null;
   roomID = null;
@@ -449,12 +449,14 @@ function redrawCanvas() {
   });
 
   // Draw the local player's drawings
-  drawingHistory[playerNumber].forEach((path) => {
-    const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y);
-    const canvasTo = gameWorldToCanvas(path.to.x, path.to.y);
+  if (drawingHistory[playerNumber]) {
+    drawingHistory[playerNumber].forEach((path) => {
+      const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y);
+      const canvasTo = gameWorldToCanvas(path.to.x, path.to.y);
 
-    drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
-  });
+      drawLine(canvasFrom, canvasTo, path.color, path.lineWidth);
+    });
+  }
 
   drawDividingLine();
 
