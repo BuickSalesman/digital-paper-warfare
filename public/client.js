@@ -66,7 +66,6 @@ let powerLevel = 0;
 const maxPowerLevel = 100;
 const maxPowerDuration = 500;
 let powerInterval = null;
-let isPowerLocked = false;
 
 let powerStartTime = null;
 let animationFrameId = null;
@@ -351,7 +350,7 @@ socket.on("validClick", () => {
   }
 
   // Start increasing the power meter
-  powerInterval = setInterval(increasePower, 1); // Increase power every 100 ms (adjust as needed)
+  powerInterval = setInterval(increasePower, 1);
 });
 
 socket.on("invalidClick", () => {
@@ -618,18 +617,7 @@ function handleDrawingMouseDown(evt) {
 
 function handleGameMouseDown(evt) {
   if (evt.button === 0) {
-    // Left mouse button
-    if (isPowerLocked) {
-      // Power is locked; ignore this mousedown
-      console.log("Power is locked. Ignoring mouseDown.");
-      return;
-    }
-
-    if (isMouseDown) {
-      // Mouse is already held down; prevent duplicate actions
-      console.log("Mouse is already down. Ignoring duplicate mouseDown.");
-      return;
-    }
+    // Mouse is already held down; prevent duplicate actions
 
     isMouseDown = true; // Mark that the mouse is now held down
 
@@ -798,11 +786,6 @@ function handleGameMouseUpOut(evt) {
       y: gameWorldPos.y,
       actionMode: actionMode,
     });
-
-    // If power was locked, unlock it to allow new actions
-    if (isPowerLocked) {
-      isPowerLocked = false;
-    }
 
     resetPower(); // Reset the power meter
     if (powerInterval) {
@@ -1254,7 +1237,6 @@ socket.on("powerCapped", (data) => {
   // alert("Power level has been automatically capped at 1.2 seconds.");
   resetPower(); // Reset the power meter
 
-  isPowerLocked = false; // Lock the power meter to prevent further increases
   if (powerInterval) {
     clearInterval(powerInterval); // Stop increasing power
     powerInterval = null;
@@ -1347,3 +1329,17 @@ function updateTimerDisplay(timeLeft) {
   const timerElement = document.getElementById("Timer");
   timerElement.textContent = `${timeLeft}`;
 }
+
+endDrawButton.addEventListener("click", () => {
+  // Send 'endDrawingPhase' event to the server
+  socket.emit("endDrawingPhase");
+
+  // Disable drawing locally
+  drawingEnabled = true;
+
+  // Disable the erasePreviousDrawingButton
+  removeDrawingButton.disabled = true;
+
+  // Disable the endDrawButton itself
+  endDrawButton.disabled = true;
+});

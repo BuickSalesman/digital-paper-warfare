@@ -293,6 +293,11 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (room.playersEndedDrawing && room.playersEndedDrawing[playerNumber]) {
+      socket.emit("drawingDisabled", { message: "You have ended your drawing phase." });
+      return;
+    }
+
     // Check if the player has reached the maximum number of shapes
     if (room.shapeCounts[playerNumber] >= 5) {
       // Notify the player that they cannot draw more shapes
@@ -331,6 +336,11 @@ io.on("connection", (socket) => {
 
     const session = room.drawingSessions[playerNumber];
     if (!session) {
+      return;
+    }
+
+    // Check if the player has ended their drawing phase
+    if (room.playersEndedDrawing && room.playersEndedDrawing[playerNumber]) {
       return;
     }
 
@@ -617,6 +627,57 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("endDrawingPhase", () => {
+    const roomID = socket.roomID;
+    const playerNumber = socket.playerNumber;
+    const room = gameRooms[roomID];
+
+    if (!room || room.currentGameState !== GameState.PRE_GAME) {
+      return;
+    }
+
+    // Set the player's shapeCount to 5
+    room.shapeCounts[playerNumber] = 5;
+
+    // Mark that the player has ended their drawing phase
+    if (!room.playersEndedDrawing) {
+      room.playersEndedDrawing = {};
+    }
+    room.playersEndedDrawing[playerNumber] = true;
+
+    // Notify the client that drawing is disabled
+    socket.emit("drawingDisabled", { message: "You have ended your drawing phase." });
+
+    // Check if both players have either reached the shape limit or ended drawing
+    const shapeLimit = 5;
+    const playerOneDone =
+      room.shapeCounts[PLAYER_ONE] >= shapeLimit || (room.playersEndedDrawing && room.playersEndedDrawing[PLAYER_ONE]);
+    const playerTwoDone =
+      room.shapeCounts[PLAYER_TWO] >= shapeLimit || (room.playersEndedDrawing && room.playersEndedDrawing[PLAYER_TWO]);
+
+    if (playerOneDone && playerTwoDone) {
+      // Both players are done with drawing phase
+      if (room.drawingTimer) {
+        room.drawingTimer.stop();
+      }
+
+      room.currentTurn = Math.random() < 0.5 ? PLAYER_ONE : PLAYER_TWO;
+
+      room.currentGameState = GameState.GAME_RUNNING;
+
+      createBodiesFromAllShapes(room);
+
+      // Remove no-draw zones
+      room.noDrawZones = [];
+
+      // Notify both clients
+      io.to(roomID).emit("gameRunning", {
+        message: "Both players have completed their shapes. The game is now running.",
+        currentTurn: room.currentTurn,
+      });
+    }
+  });
+
   socket.on("eraseLastDrawing", () => {
     const roomID = socket.roomID;
     const playerNumber = socket.playerNumber;
@@ -633,6 +694,12 @@ io.on("connection", (socket) => {
     if (playerPaths.length === 0) {
       // No drawings to erase
       socket.emit("error", { message: "No drawings to erase." });
+      return;
+    }
+
+    // Check if the player has ended their drawing phase
+    if (room.playersEndedDrawing && room.playersEndedDrawing[playerNumber]) {
+      socket.emit("error", { message: "Cannot erase drawings after ending your drawing phase." });
       return;
     }
 
@@ -702,7 +769,6 @@ io.on("connection", (socket) => {
             socket.emit("validClick");
             console.log(`Player ${playerNumber} started moving tank ${tank.id}`);
 
-            // Start the 1.2-second timer
             socket.mouseDownTimer = setTimeout(() => {
               console.log(`Auto-triggering mouseUp for socket ${socket.id} after 1.2 seconds`);
               processMouseUp(socket, { x, y }, true); // isForced = true
