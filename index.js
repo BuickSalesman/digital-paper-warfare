@@ -69,6 +69,45 @@ const inkLimit = 2000;
 
 const PORT = process.env.PORT || 3000;
 
+class Timer {
+  constructor(duration, onTick, onEnd) {
+    this.duration = duration; // Total duration of the timer in seconds.
+    this.timeLeft = duration; // Remaining time left in the countdown.
+    this.onTick = onTick; // Function to call every second with the remaining time.
+    this.onEnd = onEnd; // Function to call when timer reaches zero.
+    this.intervalId = null; // ID used to clear setInterval.
+  }
+
+  // Starts timer countdown.
+  start() {
+    this.timeLeft = this.duration;
+    this.onTick(this.timeLeft);
+    this.intervalId = setInterval(() => {
+      this.timeLeft--;
+      this.onTick(this.timeLeft);
+      if (this.timeLeft <= 0) {
+        this.stop();
+        this.onEnd();
+      }
+    }, 1000);
+  }
+
+  // Stops the timer countdown.
+  stop() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+  }
+
+  // Resets the timer to its initial duration if it stops running.
+  reset() {
+    this.stop();
+    this.timeLeft = this.duration;
+    this.onTick(this.timeLeft);
+  }
+}
+
 // Start the server.
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
@@ -152,6 +191,37 @@ io.on("connection", (socket) => {
           io.to(roomID).emit("startPreGame", {
             message: "Both players are ready. Starting the game...",
           });
+
+          // Start the drawing timer
+          room.drawingTimer = new Timer(
+            60, // Duration in seconds
+            (timeLeft) => {
+              // OnTick: Send remaining time to clients
+              io.to(roomID).emit("updateTimer", { timeLeft });
+            },
+            () => {
+              // OnEnd: Transition to GAME_RUNNING
+              console.log(`Drawing phase ended for room ${roomID}`);
+
+              room.currentTurn = Math.random() < 0.5 ? PLAYER_ONE : PLAYER_TWO;
+
+              // Transition to GAME_RUNNING
+              room.currentGameState = GameState.GAME_RUNNING;
+
+              createBodiesFromAllShapes(room);
+
+              // Remove no-draw zones
+              room.noDrawZones = [];
+
+              // Notify both clients
+              io.to(roomID).emit("gameRunning", {
+                message: "Drawing phase has ended. The game is now running.",
+                currentTurn: room.currentTurn,
+              });
+            }
+          );
+
+          room.drawingTimer.start();
         }
       }
     }
@@ -523,6 +593,10 @@ io.on("connection", (socket) => {
 
       const shapeLimit = 5;
       if (room.shapeCounts[PLAYER_ONE] >= shapeLimit && room.shapeCounts[PLAYER_TWO] >= shapeLimit) {
+        if (room.drawingTimer) {
+          room.drawingTimer.stop();
+        }
+
         room.currentTurn = Math.random() < 0.5 ? PLAYER_ONE : PLAYER_TWO;
 
         // Both players have reached the limit

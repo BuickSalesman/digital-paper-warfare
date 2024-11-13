@@ -234,6 +234,7 @@ socket.on("playerDisconnected", (number) => {
   reactors = [];
   fortresses = [];
   turrets = [];
+  3;
   shells = [];
   noDrawZones = [];
   renderingStarted = false;
@@ -1332,3 +1333,15 @@ let isMyTurn = false;
 socket.on("turnChanged", (data) => {
   isMyTurn = data.currentTurn === playerNumber;
 });
+
+// Client-side code
+socket.on("updateTimer", (data) => {
+  const { timeLeft } = data;
+  // Update the timer display in the client
+  updateTimerDisplay(timeLeft);
+});
+
+function updateTimerDisplay(timeLeft) {
+  const timerElement = document.getElementById("Timer");
+  timerElement.textContent = `${timeLeft}`;
+}
