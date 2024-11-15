@@ -396,7 +396,7 @@ io.on("connection", (socket) => {
       // Adjust color with calculated opacity (for legal drawings)
       const adjustedColor = session.isLegal ? `rgba(0, 0, 0, ${inkOpacity})` : "#FF0000"; // If illegal, use red
 
-      socket.to(roomID).emit("drawingMirror", {
+      io.to(roomID).emit("drawingMirror", {
         playerNumber,
         drawingSessionId: session.id,
         from: data.from,

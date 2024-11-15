@@ -686,9 +686,6 @@ function handleDrawingMouseMove(evt) {
 
   const drawColor = drawingLegally ? "#000000" : "#FF0000";
 
-  // Draw locally
-  drawLine({ x: lastX, y: lastY }, { x: currentX, y: currentY }, drawColor);
-
   // Add to the correct player's drawing history
   drawingHistory[playerNumber].push({
     from: gwFrom,
