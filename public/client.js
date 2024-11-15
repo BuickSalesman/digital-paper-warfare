@@ -865,7 +865,7 @@ function drawLine(fromCanvas, toCanvas, color = "#000000", lineWidth = 2) {
   drawCtx.beginPath();
   drawCtx.moveTo(fromCanvas.x, fromCanvas.y);
   drawCtx.lineTo(toCanvas.x, toCanvas.y);
-  drawCtx.strokeStyle = color;
+  drawCtx.strokeStyle = color; // Can be an RGBA string
   drawCtx.lineWidth = lineWidth;
   drawCtx.stroke();
 }

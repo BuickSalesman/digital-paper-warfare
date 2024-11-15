@@ -373,6 +373,12 @@ io.on("connection", (socket) => {
     // Add the line segment to the path
     session.path.push({ from, to, color, lineWidth });
 
+    // Calculate current opacity based on ink usage
+    const maxInk = inkLimit;
+    const usedInk = session.totalPixelsDrawn;
+    let inkOpacity = 1.0 - usedInk / maxInk;
+    inkOpacity = Math.max(0, Math.min(inkOpacity, 1)); // Ensure opacity is within [0, 1]
+
     if (session.totalPixelsDrawn > inkLimit) {
       // Exceeded the limit, erase the drawing session
       socket.to(roomID).emit("drawingMirror", {
@@ -386,12 +392,16 @@ io.on("connection", (socket) => {
       socket.emit("drawingIllegally", {});
     } else {
       // Forward the drawing data to other clients, including color and lineWidth
+
+      // Adjust color with calculated opacity (for legal drawings)
+      const adjustedColor = session.isLegal ? `rgba(0, 0, 0, ${inkOpacity})` : "#FF0000"; // If illegal, use red
+
       socket.to(roomID).emit("drawingMirror", {
         playerNumber,
         drawingSessionId: session.id,
         from: data.from,
         to: data.to,
-        color: data.color,
+        color: adjustedColor,
         lineWidth: data.lineWidth,
       });
     }
@@ -451,15 +461,6 @@ io.on("connection", (socket) => {
     }
 
     // Send the drawing data to clients with appropriate color
-    const segmentColor = session.isLegal ? data.color : "#FF0000";
-    socket.to(roomID).emit("drawingMirror", {
-      playerNumber,
-      drawingSessionId: session.id,
-      from: data.from,
-      to: data.to,
-      color: segmentColor,
-      lineWidth: data.lineWidth,
-    });
   });
 
   // Handle 'endDrawing' event
