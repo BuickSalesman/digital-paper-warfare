@@ -163,23 +163,6 @@ drawCanvas.addEventListener(
   false
 );
 
-joinButton.addEventListener("click", () => {
-  const passcode = passcodeInput.value.trim();
-  if (passcode) {
-    if (/^[A-Za-z0-9]{6}$/.test(passcode)) {
-      socket.emit("joinGame", { passcode });
-    } else {
-      alert("Passcode must be exactly 6 digits.");
-      return;
-    }
-  } else {
-    socket.emit("joinGame");
-  }
-  joinButton.disabled = true;
-  passcodeInput.disabled = true;
-  currentGameState = GameState.LOBBY;
-});
-
 // Event listener for the Rulz button to open the modal
 rulesButtons.forEach((button) => {
   button.addEventListener("click", openModal);
@@ -195,11 +178,28 @@ window.addEventListener("click", (event) => {
   }
 });
 
-// Optional: Close the modal when the 'Escape' key is pressed
+// Close the modal when the 'Escape' key is pressed
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeModal();
   }
+});
+
+joinButton.addEventListener("click", () => {
+  const passcode = passcodeInput.value.trim();
+  if (passcode) {
+    if (/^[A-Za-z0-9]{6}$/.test(passcode)) {
+      socket.emit("joinGame", { passcode });
+    } else {
+      alert("Passcode must be exactly 6 digits.");
+      return;
+    }
+  } else {
+    socket.emit("joinGame");
+  }
+  joinButton.disabled = true;
+  passcodeInput.disabled = true;
+  currentGameState = GameState.LOBBY;
 });
 
 removeDrawingButton.addEventListener("click", () => {
