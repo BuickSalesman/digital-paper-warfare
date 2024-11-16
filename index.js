@@ -73,6 +73,7 @@ const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
 // Limit in pixels for how long a line a player can draw as a shape before it snaps closed.
 const inkLimit = 2000;
 
+// Server ish. Idk man I'm not Bill Gates. Port 3000 if not defined.
 const PORT = process.env.PORT || 3000;
 
 // Timer class used for drawing and battle phases. Drawing phase is 60 seconds, battle phase turns should be 30 seconds each.
@@ -115,11 +116,12 @@ class Timer {
   }
 }
 
-// Start the server.
+// Start the server, listen for incoming connections.
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
+//
 io.on("connection", (socket) => {
   console.log(`New connection: ${socket.id}`);
 

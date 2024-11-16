@@ -134,6 +134,16 @@ window.addEventListener("load", () => {
 // Adds event listener to the local client window for actions on resize. Calls initiaze canvas.
 window.addEventListener("resize", initializeCanvas);
 
+// Function to open the modal
+const openModal = () => {
+  rulesModal.style.display = "block";
+};
+
+// Function to close the modal
+const closeModal = () => {
+  rulesModal.style.display = "none";
+};
+
 // Event listerner for click on the move button. This changes the action state to move. Refactor to send the click to the server side for validation and action state change.
 moveButton.addEventListener("click", () => {
   actionMode = "move";
@@ -152,6 +162,75 @@ drawCanvas.addEventListener(
   },
   false
 );
+
+joinButton.addEventListener("click", () => {
+  const passcode = passcodeInput.value.trim();
+  if (passcode) {
+    if (/^[A-Za-z0-9]{6}$/.test(passcode)) {
+      socket.emit("joinGame", { passcode });
+    } else {
+      alert("Passcode must be exactly 6 digits.");
+      return;
+    }
+  } else {
+    socket.emit("joinGame");
+  }
+  joinButton.disabled = true;
+  passcodeInput.disabled = true;
+  currentGameState = GameState.LOBBY;
+});
+
+// Event listener for the Rulz button to open the modal
+rulesButtons.forEach((button) => {
+  button.addEventListener("click", openModal);
+});
+
+// Event listener for the Close button to close the modal
+closeButton.addEventListener("click", closeModal);
+
+// Event listener for clicks outside the modal content to close the modal
+window.addEventListener("click", (event) => {
+  if (event.target === rulesModal) {
+    closeModal();
+  }
+});
+
+// Optional: Close the modal when the 'Escape' key is pressed
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeModal();
+  }
+});
+
+removeDrawingButton.addEventListener("click", () => {
+  // Emit an event to the server to erase the last drawing
+  socket.emit("eraseLastDrawing");
+});
+
+endDrawButton.addEventListener("click", () => {
+  // Send 'endDrawingPhase' event to the server
+  socket.emit("endDrawingPhase");
+
+  // Disable drawing locally
+  drawingEnabled = true;
+
+  // Disable the erasePreviousDrawingButton
+  removeDrawingButton.disabled = true;
+
+  // Disable the endDrawButton itself
+  endDrawButton.disabled = true;
+});
+
+// Add Pointer Event Listeners to the Canvas
+drawCanvas.addEventListener("pointerdown", handlePointerDown, false);
+drawCanvas.addEventListener("pointermove", handlePointerMove, false);
+drawCanvas.addEventListener("pointerup", handlePointerUp, false);
+drawCanvas.addEventListener("pointercancel", handlePointerCancel, false);
+
+drawCanvas.addEventListener("mousedown", handleMouseDown, false);
+drawCanvas.addEventListener("mousemove", handleMouseMove, false);
+drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
+drawCanvas.addEventListener("contextmenu", handleContextMenu, false);
 
 // Socket Events - all data sent to and rec'd from the server is handled here.
 //
@@ -267,23 +346,6 @@ socket.on("playerDisconnected", (localPlayerNumber) => {
 socket.on("gameFull", () => {
   alert("The game is full.");
   joinButton.disabled = false;
-});
-
-joinButton.addEventListener("click", () => {
-  const passcode = passcodeInput.value.trim();
-  if (passcode) {
-    if (/^[A-Za-z0-9]{6}$/.test(passcode)) {
-      socket.emit("joinGame", { passcode });
-    } else {
-      alert("Passcode must be exactly 6 digits.");
-      return;
-    }
-  } else {
-    socket.emit("joinGame");
-  }
-  joinButton.disabled = true;
-  passcodeInput.disabled = true;
-  currentGameState = GameState.LOBBY;
 });
 
 socket.on("drawingMirror", (data) => {
@@ -879,17 +941,6 @@ function handlePointerCancel(evt) {
   }
 }
 
-// Add Pointer Event Listeners to the Canvas
-drawCanvas.addEventListener("pointerdown", handlePointerDown, false);
-drawCanvas.addEventListener("pointermove", handlePointerMove, false);
-drawCanvas.addEventListener("pointerup", handlePointerUp, false);
-drawCanvas.addEventListener("pointercancel", handlePointerCancel, false);
-
-drawCanvas.addEventListener("mousedown", handleMouseDown, false);
-drawCanvas.addEventListener("mousemove", handleMouseMove, false);
-drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
-drawCanvas.addEventListener("contextmenu", handleContextMenu, false);
-
 function drawDividingLine() {
   drawCtx.beginPath();
   drawCtx.moveTo(0, dividingLine);
@@ -1309,43 +1360,6 @@ function updateButtonVisibility() {
   }
 }
 
-// Function to open the modal
-const openModal = () => {
-  rulesModal.style.display = "block";
-};
-
-// Function to close the modal
-const closeModal = () => {
-  rulesModal.style.display = "none";
-};
-
-// Event listener for the Rulz button to open the modal
-rulesButtons.forEach((button) => {
-  button.addEventListener("click", openModal);
-});
-
-// Event listener for the Close button to close the modal
-closeButton.addEventListener("click", closeModal);
-
-// Event listener for clicks outside the modal content to close the modal
-window.addEventListener("click", (event) => {
-  if (event.target === rulesModal) {
-    closeModal();
-  }
-});
-
-// Optional: Close the modal when the 'Escape' key is pressed
-window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    closeModal();
-  }
-});
-
-removeDrawingButton.addEventListener("click", () => {
-  // Emit an event to the server to erase the last drawing
-  socket.emit("eraseLastDrawing");
-});
-
 socket.on("drawingEnabled", (data) => {
   drawingEnabled = true;
   // Optionally, notify the player that they can draw again
@@ -1368,20 +1382,6 @@ function updateTimerDisplay(timeLeft) {
   const timerElement = document.getElementById("Timer");
   timerElement.textContent = `${timeLeft}`;
 }
-
-endDrawButton.addEventListener("click", () => {
-  // Send 'endDrawingPhase' event to the server
-  socket.emit("endDrawingPhase");
-
-  // Disable drawing locally
-  drawingEnabled = true;
-
-  // Disable the erasePreviousDrawingButton
-  removeDrawingButton.disabled = true;
-
-  // Disable the endDrawButton itself
-  endDrawButton.disabled = true;
-});
 
 function setColorFullOpacity(color) {
   if (color.startsWith("rgba")) {
