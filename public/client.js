@@ -341,6 +341,22 @@ socket.on("gameRunning", (data) => {
   currentGameState = GameState.GAME_RUNNING;
   noDrawZones = [];
   drawingEnabled = false;
+
+  // Update drawingHistory to set full opacity
+  for (let player of [PLAYER_ONE, PLAYER_TWO]) {
+    if (drawingHistory[player]) {
+      drawingHistory[player] = drawingHistory[player].map((segment) => {
+        // Clone the segment
+        const newSegment = { ...segment };
+        // Set color to full opacity
+        if (segment.color) {
+          newSegment.color = setColorFullOpacity(segment.color);
+        }
+        return newSegment;
+      });
+    }
+  }
+
   redrawCanvas();
   updateButtonVisibility();
 });
@@ -1329,3 +1345,22 @@ endDrawButton.addEventListener("click", () => {
   // Disable the endDrawButton itself
   endDrawButton.disabled = true;
 });
+
+function setColorFullOpacity(color) {
+  if (color.startsWith("rgba")) {
+    // Extract the RGB values
+    const matches = color.match(/^rgba\((\d+),\s*(\d+),\s*(\d+),\s*[\d.]+\)$/);
+    if (matches) {
+      const [_, r, g, b] = matches;
+      return `rgba(${r}, ${g}, ${b}, 1)`;
+    } else {
+      return color; // Can't parse, return as is
+    }
+  } else if (color.startsWith("#")) {
+    // Hex color, already opaque
+    return color;
+  } else {
+    // Other color format, return as is
+    return color;
+  }
+}
