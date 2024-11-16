@@ -74,30 +74,37 @@ let drawingEnabled = true;
 // Initialize empty array for the drawing history of both players locally, since both players shapes should be rendered  locally, for both players. Data for both rec'd from server. Used whenever the canvas needs to be redrawn, or when drawings need to be added or deleted form the game. This could potentially be a security issue and may require additional validation on the client side, as currently there is none.
 let drawingHistory = { [PLAYER_ONE]: [], [PLAYER_TWO]: [] };
 
-// Initialize empty array for no draw zones.
+// Initialize empty array for no draw zones. Used to restrict drawing around fortresses. Scalable with game world to ensure consistent ratios of restriced areas to game world. Reset on disconnect, cleared on end of drawing phase. May need additional management on server, or be exclusive to the server, to prevent malicious clients from changing thr available drawing zones.
 let noDrawZones = [];
 
-//
+// Defines the ratio of padding relative to the game world height to ensure consistent scaling and size.
 const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
 
-// Initialize empty arrays for game bodies.
+// Initialize empty arrays for game bodies, facilitating organized management and interaction. These arrays are populated with data rec'd directly from the server, so should be fairly safe from malicious clients. Need to consider if the data in these arrays can be maniuplated after the fact. Reset on disconnection.
 let tanks = [];
 let reactors = [];
 let fortresses = [];
 let turrets = [];
+
+// This array is slightly different as only one shell should be able to exist in the game world at a time. Exists solely to manage creation and deletion of the single shell.
 let shells = [];
 
+// Boolean to track whether or not the mouse is currently pressed. Initialized to false as the mouse is initially not pressed. Used in virtually every aspect of the game. May need a sister state to track mouse state on server to prevent unitended and malcious actions. ChatGPT suggested throttling mouse events?
 let isMouseDown = false;
+
+// Initialize current power level of the power meter to 0. Power level is used to chaneg the CSS of the power meter to reflect increases in power as the mouse is held down. As of right now, this power meter is only affected locally, as power is handled exclusively on the server. The consequence of this is that the power meter CSS is not completely synced to the server side power incrementation.
 let powerLevel = 0;
+
+// Maximum power level, increments be 1 in increasePower().
 const maxPowerLevel = 100;
-const maxPowerDuration = 500;
+
+// Initialize variable to change the rate of incrementation of the power level. This is set to 1 upon receiving a validated click from the server. Potential refactor.
 let powerInterval = null;
 
-let powerStartTime = null;
-let animationFrameId = null;
-
+// initialize variable to represent the current action mode of the local client. String of either "move", or "shoot". Might not want to initialize as null, as I keep forgetting that this means you HAVE to click and action button before taking any action. May want to implement validation on server tied to the button clicks.
 let actionMode = null;
 
+// Array of active explosions on the canvas. No security risks.
 let activeExplosions = [];
 
 const EXPLOSION_BASE_SIZE = 500; // Base size in game world units
@@ -109,7 +116,7 @@ const explosionFrames = Array.from({ length: 25 }, (_, i) => {
   return img;
 });
 
-// Wobble State Variables
+// Wobble State Variables. No security risks.
 let isWobbling = false;
 let wobbleStartTime = 0;
 let initialWobbleAngle = 0;
