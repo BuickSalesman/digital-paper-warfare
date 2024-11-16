@@ -59,16 +59,28 @@ const drawCtx = drawCanvas.getContext("2d");
 let lastX = null;
 let lastY = null;
 
+// Used to determine whether or not the local player is within their legal side of the battlefield during drawing events. Defined in initializeCanvas().
 let dividingLine;
-let totalPixelsDrawn = 0;
+
+// Acts as a unique identifier for the current local individual shape drawing session. Set to null initially and assigned a unique string when a drawing session begins. Essential for managing drawing history and synchronizing drawing data with the server. Assigned unique string in handleDrawingMouseDown().
 let currentDrawingSessionId = null;
+
+// Client side boolean flag that represents if a user is currently enaged in a drawing session. Poses security risks, need more robust validation of this flag in the server side. Could lead to inconsistent state management.
 let isDrawing = false;
+
+// Flag to indicate whether the local player is allowed to draw on the game canvas. Needs robust server side validation to prevent drawing when it should be disabled.
 let drawingEnabled = true;
+
+// Initialize empty array for the drawing history of both players locally, since both players shapes should be rendered  locally, for both players. Data for both rec'd from server. Used whenever the canvas needs to be redrawn, or when drawings need to be added or deleted form the game. This could potentially be a security issue and may require additional validation on the client side, as currently there is none.
 let drawingHistory = { [PLAYER_ONE]: [], [PLAYER_TWO]: [] };
-let currentDrawingStart = null;
+
+// Initialize empty array for no draw zones.
 let noDrawZones = [];
+
+//
 const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
 
+// Initialize empty arrays for game bodies.
 let tanks = [];
 let reactors = [];
 let fortresses = [];
