@@ -493,6 +493,10 @@ io.on("connection", (socket) => {
     const dx = endingPoint.x - startingPoint.x;
     const dy = endingPoint.y - startingPoint.y;
 
+    const maxInk = inkLimit;
+    const usedInk = session.totalPixelsDrawn;
+    let inkOpacity = 1.0 - usedInk / maxInk;
+
     if (session.totalPixelsDrawn > inkLimit) {
       // Exceeded pixel limit
       socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
@@ -506,7 +510,7 @@ io.on("connection", (socket) => {
     const closingLine = {
       from: endingPoint,
       to: startingPoint,
-      color: "#000000",
+      color: `rgba(0, 0, 0, ${inkOpacity})`,
       lineWidth: 2,
     };
     session.path.push(closingLine);
