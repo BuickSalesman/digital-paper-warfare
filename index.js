@@ -121,28 +121,33 @@ server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
-//
 io.on("connection", (socket) => {
   console.log(`New connection: ${socket.id}`);
 
-  // Handle 'joinGame' event
+  // Handle 'joinGame' event.
   socket.on("joinGame", (data) => {
     console.log(`Received 'joinGame' from socket ${socket.id}`);
+
+    // Check if data is truthy. If passcode exists in data, assign it to the passcode variable, else null.
     const passcode = data && data.passcode ? data.passcode : null;
 
+    // If passcode exists, validate passcode and start creation/joining of passcode room.
     if (passcode) {
       console.log(`Player wants to join room with passcode: ${passcode}`);
 
-      // Validate passcode (ensure it's 6 digits)
+      // Validate passcode (ensure it's 6 digits).
       if (!/^[A-Za-z0-9]{6}$/.test(passcode)) {
         console.log(`Invalid passcode: ${passcode}`);
         socket.emit("invalidPasscode", { message: "Passcode must be exactly 6 letters and numbers." });
         return;
       }
 
-      const roomID = `passcode_${passcode}`; // Use passcode as room ID
+      const roomID = `passcode_${passcode}`; // Use passcode as room ID. Need to find a way to make a unique room ID for passcode rooms after both players join, in order to prevent malicious data incoming from a client outside of that room ID.
+
+      // Retrieve an existing game room from gameRooms.
       let room = gameRooms[roomID];
 
+      // Determine whether to create or join room.
       if (!room) {
         // No room with this passcode exists, create a new one
         console.log(`Creating new passcode room ${roomID}`);
@@ -153,24 +158,28 @@ io.on("connection", (socket) => {
         joinRoom(socket, room);
       }
     } else {
-      // Existing logic to join a random available room
+      //A boolean flag to keep track of whether a suitable room has been found for the player to join. Initially set to false to indicate that no room has been found yet.
       let roomFound = false;
 
-      // Search for a room with less than 2 players and in LOBBY state
+      // Iterate over all roomIDs in the gameRooms object.
       for (const roomID in gameRooms) {
         const room = gameRooms[roomID];
         if (
+          // Public room
           !room.isPasscodeRoom &&
+          // In LOBBY GameState
           room.currentGameState === GameState.LOBBY &&
+          // Has less than 2 players.
           (!room.players.player1 || !room.players.player2)
         ) {
+          // Join first available room found, if a room is found.
           roomFound = true;
           console.log(`Joining existing room ${roomID}`);
           joinRoom(socket, room);
           break;
         }
       }
-
+      // If no available room is found, create a new room.
       if (!roomFound) {
         // Create a new room
         const newRoomID = `room${nextRoomNumber}`;

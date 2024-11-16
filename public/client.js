@@ -134,12 +134,12 @@ window.addEventListener("load", () => {
 // Adds event listener to the local client window for actions on resize. Calls initiaze canvas.
 window.addEventListener("resize", initializeCanvas);
 
-// Function to open the modal
+// Function to open the modal.
 const openModal = () => {
   rulesModal.style.display = "block";
 };
 
-// Function to close the modal
+// Function to close the modal.
 const closeModal = () => {
   rulesModal.style.display = "none";
 };
@@ -163,28 +163,29 @@ drawCanvas.addEventListener(
   false
 );
 
-// Event listener for the Rulz button to open the modal
+// Event listener for the Rulz button to open the modal.
 rulesButtons.forEach((button) => {
   button.addEventListener("click", openModal);
 });
 
-// Event listener for the Close button to close the modal
+// Event listener for the Close button to close the modal.
 closeButton.addEventListener("click", closeModal);
 
-// Event listener for clicks outside the modal content to close the modal
+// Event listener for clicks outside the modal content to close the modal.
 window.addEventListener("click", (event) => {
   if (event.target === rulesModal) {
     closeModal();
   }
 });
 
-// Close the modal when the 'Escape' key is pressed
+// Close the modal when the 'Escape' key is pressed.
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeModal();
   }
 });
 
+// On click, send request to server to join next available room.
 joinButton.addEventListener("click", () => {
   const passcode = passcodeInput.value.trim();
   if (passcode) {
@@ -197,8 +198,11 @@ joinButton.addEventListener("click", () => {
   } else {
     socket.emit("joinGame");
   }
+  // Since the disabled button and input field are malleble through dev tools, make sure to ignore extra button presses server side.
   joinButton.disabled = true;
   passcodeInput.disabled = true;
+
+  // Prime example of something that shouldn't exist on the server, validate entirely on server.
   currentGameState = GameState.LOBBY;
 });
 
@@ -211,22 +215,23 @@ endDrawButton.addEventListener("click", () => {
   // Send 'endDrawingPhase' event to the server
   socket.emit("endDrawingPhase");
 
-  // Disable drawing locally
+  // Disable drawing locally. This needs to be enforced on the server.
   drawingEnabled = true;
 
-  // Disable the erasePreviousDrawingButton
+  // Disable the erasePreviousDrawingButton. Since the disabled button and input field are malleble through dev tools, make sure to ignore extra button presses server side.
   removeDrawingButton.disabled = true;
 
-  // Disable the endDrawButton itself
+  // Disable the endDrawButton. Since the disabled button and input field are malleble through dev tools, make sure to ignore extra button presses server side.
   endDrawButton.disabled = true;
 });
 
-// Add Pointer Event Listeners to the Canvas
+// Add pointer event listeners to the canvas.
 drawCanvas.addEventListener("pointerdown", handlePointerDown, false);
 drawCanvas.addEventListener("pointermove", handlePointerMove, false);
 drawCanvas.addEventListener("pointerup", handlePointerUp, false);
 drawCanvas.addEventListener("pointercancel", handlePointerCancel, false);
 
+// Add mouse event listeners to the canvas.
 drawCanvas.addEventListener("mousedown", handleMouseDown, false);
 drawCanvas.addEventListener("mousemove", handleMouseMove, false);
 drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
