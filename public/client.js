@@ -4,7 +4,7 @@ const socket = io();
 // Used to determine the player number of the local client. Set to null until data is rec'd from server. Reset on disconnection.
 let localPlayerNumber = null;
 
-// Used to determine what room the local and opponent clients are in. Set to null until data rec'd from server. Set back to null on disconnection.
+// Used to determine what room the local and opponent client are in. Set to null until data rec'd from server. Set back to null on disconnection.
 let roomID = null;
 
 // Flag to determine when the rendering loop should be called. Does not start until both players are out of the landing page. Reset on player disconnection.
@@ -153,7 +153,8 @@ drawCanvas.addEventListener(
   false
 );
 
-// Socket Events
+// Socket Events - all data sent to and rec'd from the server is handled here.
+//
 socket.on("playerInfo", (data) => {
   localPlayerNumber = data.localPlayerNumber;
   roomID = data.roomID;

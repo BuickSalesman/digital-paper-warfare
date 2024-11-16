@@ -6,14 +6,14 @@ const Matter = require("matter-js");
 
 const { Body, Bodies, Engine, World, Constraint } = Matter;
 
-// Import game object modules
+// Import game object modules.
 const TankModule = require("./objects/tank");
 const ReactorModule = require("./objects/reactor");
 const FortressModule = require("./objects/fortress");
 const TurretModule = require("./objects/turret");
 const ShellModule = require("./objects/shell");
 
-// Assuming collisionCategories.js exports these constants
+// collisionCategories.js exports these constants. These help with collisions.
 const {
   CATEGORY_SHELL,
   CATEGORY_TANK,
@@ -23,7 +23,7 @@ const {
   CATEGORY_SHAPE,
 } = require("./objects/collisionCategories");
 
-// Initialize Express app
+// Initialize Express app.
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -39,36 +39,43 @@ const GameState = Object.freeze({
   POST_GAME: "POST_GAME",
 });
 
-// Declare player IDs.
+// Declare player IDs. These are used to compare virtually all interactions between opposing players. May be useful to refactor into a deconstructed variable, but will require changing all of the code where these variables are called.
 const PLAYER_ONE = 1;
 const PLAYER_TWO = 2;
 
-// Game Rooms Object
+// Intialize empty object that holds all the active game rooms currently managed by the server. Each key in this object corresponds to a unique roomID, and the value is the room's state and associated data. Used in every server event throughout the game.
 let gameRooms = {};
 
-// Variable to keep track of the next room number
+// Variable to keep track of the next room number in the game rooms object. May want to consider generating a unique ID instead of incrementing to the next sequential ID in the series, to prevent malicious data from incoming client events.
 let nextRoomNumber = 1;
 
 // FPS and deltaTime for Matter.js engine
 const FPS = 60;
-const deltaTime = 1000 / FPS; // Time per frame in ms
+const deltaTime = 1000 / FPS; // Time per frame in ms. Physics engine update interval.
+
+// roomIntervals is an object that keeps track of the interval IDs returned by setInterval for each game room. This allows for management for update loops for each room individually.
 let roomIntervals = {};
 
-// CANVAS AND CONTEXT VARIABLES
-
 // Fixed game world dimensions
-const GAME_WORLD_WIDTH = 1885; // Fixed width in game units
-const ASPECT_RATIO = 1 / 1.4142; // A4 aspect ratio
+const GAME_WORLD_WIDTH = 1885; // Fixed width in game units.
+const ASPECT_RATIO = 1 / 1.4142; // A4 paper aspect ratio.
 const GAME_WORLD_HEIGHT = GAME_WORLD_WIDTH / ASPECT_RATIO; // Calculate height based on aspect ratio
 
+// Sets minimum distance in game units that a player must drag mouse of touch input during an action for it to be considered valid. This helps in preventing tanks from shooting themselves. Ultimately, this should be deleted and shells should have an ID tying them to the tank that shot them, and there should be code present to prevent tanks and shells with congruent IDs from colliding with each other. However, this does prevent minor, accidental movements from occuring, so it is worth looking at keeping.
 const minimumDragDistance = 10;
+
+// Sets minimum intial velocity for a created shell, based on power level. This helps in preventing tanks from shooting themselves. Ultimately, this should be deleted and shells should have an ID tying them to the tank that shot them, and there should be code present to prevent tanks and shells with congruent IDs from colliding with each other.
 const minimumInitialVelocity = 7.5;
 
+// Constant that sets the proportion of padding to be added around certain areas in the game world where players are not allowed to draw, known as "no-draw zones." By defining this ratio, both the client and server can calculate the exact same padding around no-draw zones, ensuring consistent gameplay and preventing discrepancies.
 const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
+
+// Limit in pixels for how long a line a player can draw as a shape before it snaps closed.
 const inkLimit = 2000;
 
 const PORT = process.env.PORT || 3000;
 
+// Timer class used for drawing and battle phases. Drawing phase is 60 seconds, battle phase turns should be 30 seconds each.
 class Timer {
   constructor(duration, onTick, onEnd) {
     this.duration = duration; // Total duration of the timer in seconds.
