@@ -1,14 +1,24 @@
 /* global io */
 const socket = io();
 
-let playerNumber = null;
+// Used to determine the player number of the local client. Set to null until data is rec'd from server. Reset on disconnection.
+let localPlayerNumber = null;
+
+// Used to determine what room the local and opponent clients are in. Set to null until data rec'd from server. Set back to null on disconnection.
 let roomID = null;
+
+// Flag to determine when the rendering loop should be called. Does not start until both players are out of the landing page. Reset on player disconnection.
 let renderingStarted = false;
+
+// Initialize height and width for the drawing canvas (game world). Set to null until window size gives a relative value for these fields. Initial data rec'd from server. Used to determine aspect ratio of battlefield, fortres no drawing zones, and scaling factors. Reset on disconnection.
 let gameWorldHeight = null;
 let gameWorldWidth = null;
+
+// Initialize scaling factors. Used in coordinate conversion, maintaining aspect ratio, and allows game to be responsive to different screen sizes and resolutions. Also used in game object rendering and animations. Helps convert pixel values into game world coords. Setting the value of these scaling factors to 1 initially ensures coordinatetransformations behave predictably.
 let scaleX = 1;
 let scaleY = 1;
 
+//NEED TO DELETE AND REFACTOR THIS AND VALIDATE EVERY GAME STATE AND GAME STATE RELATED LOGIC ON THE SERVER SIDE.
 const GameState = {
   LOBBY: "LOBBY",
   PRE_GAME: "PRE_GAME",
@@ -21,9 +31,11 @@ let currentGameState = GameState.LOBBY;
 let width = 1885; // Placeholder, will be updated
 let height = 1414; // Placeholder, will be updated
 
+// Used for comparisons between player ID's throughout the code. Differs from playerNumber as they are constant. May be useful to refactor into a deconstructed variable, but will require changing all of the code where these variables are called.
 const PLAYER_ONE = 1;
 const PLAYER_TWO = 2;
 
+// Grabbing HTML elements for JS interactivity.
 const landingPage = document.getElementById("landing-page");
 const joinButton = document.getElementById("join-button");
 const statusText = document.getElementById("status");
@@ -40,11 +52,13 @@ const closeButton = document.querySelector(".close-button");
 const rulesModal = document.getElementById("rulesModal");
 const endDrawButton = document.getElementById("endDrawButton");
 const timerElement = document.getElementById("Timer");
-
+const messageField = document.getElementById("messageField");
 const drawCtx = drawCanvas.getContext("2d");
 
-let lastX = 0;
-let lastY = 0;
+// Used to track the previous-most x,y coords of the mouse during drawing events
+let lastX = null;
+let lastY = null;
+
 let dividingLine;
 let totalPixelsDrawn = 0;
 let currentDrawingSessionId = null;
@@ -148,7 +162,7 @@ function initializeCanvas() {
 
 // Socket Events
 socket.on("playerInfo", (data) => {
-  playerNumber = data.playerNumber;
+  localPlayerNumber = data.localPlayerNumber;
   roomID = data.roomID;
   gameWorldWidth = data.gameWorldWidth;
   gameWorldHeight = data.gameWorldHeight;
@@ -215,9 +229,9 @@ function render() {
   requestAnimationFrame(render);
 }
 
-socket.on("playerDisconnected", (playerNumber) => {
+socket.on("playerDisconnected", (localPlayerNumber) => {
   // Reset client-side variables
-  playerNumber = null;
+  localPlayerNumber = null;
   roomID = null;
   currentGameState = GameState.LOBBY;
   drawingHistory = {
@@ -279,7 +293,7 @@ joinButton.addEventListener("click", () => {
 });
 
 socket.on("drawingMirror", (data) => {
-  const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2, drawingSessionId } = data;
+  const { localPlayerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2, drawingSessionId } = data;
 
   // Add to the appropriate player's history
   drawingHistory[senderPlayer] = drawingHistory[senderPlayer] || [];
@@ -288,7 +302,7 @@ socket.on("drawingMirror", (data) => {
     to,
     color,
     lineWidth,
-    playerNumber: senderPlayer,
+    localPlayerNumber: senderPlayer,
     drawingSessionId: drawingSessionId,
   });
 
@@ -300,7 +314,7 @@ socket.on("drawingMirror", (data) => {
 });
 
 socket.on("shapeClosed", (data) => {
-  const { playerNumber: senderPlayer, closingLine, drawingSessionId } = data;
+  const { localPlayerNumber: senderPlayer, closingLine, drawingSessionId } = data;
 
   // Add the closing line to the correct player's history
   drawingHistory[senderPlayer].push({
@@ -308,7 +322,7 @@ socket.on("shapeClosed", (data) => {
     to: closingLine.to,
     color: closingLine.color,
     lineWidth: closingLine.lineWidth,
-    playerNumber: senderPlayer,
+    localPlayerNumber: senderPlayer,
     drawingSessionId: drawingSessionId,
   });
 
@@ -321,7 +335,7 @@ socket.on("shapeClosed", (data) => {
 });
 
 socket.on("eraseDrawingSession", (data) => {
-  const { drawingSessionId, playerNumber: senderPlayer } = data;
+  const { drawingSessionId, localPlayerNumber: senderPlayer } = data;
 
   // Remove the drawing session's segments from the correct player's history
   drawingHistory[senderPlayer] = drawingHistory[senderPlayer].filter(
@@ -446,7 +460,7 @@ function redrawCanvas() {
 
   drawCtx.save();
   let invertPlayerIds = false;
-  if (playerNumber === PLAYER_TWO) {
+  if (localPlayerNumber === PLAYER_TWO) {
     // Rotate the canvas by 180 degrees around its center
     drawCtx.translate(drawCanvas.width / 2, drawCanvas.height / 2);
     drawCtx.rotate(Math.PI);
@@ -455,7 +469,7 @@ function redrawCanvas() {
   }
 
   // Draw the opponent's drawings
-  const opponentPlayerNumber = playerNumber === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  const opponentPlayerNumber = localPlayerNumber === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
 
   drawingHistory[opponentPlayerNumber].forEach((path) => {
     const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y);
@@ -465,8 +479,8 @@ function redrawCanvas() {
   });
 
   // Draw the local player's drawings
-  if (drawingHistory[playerNumber]) {
-    drawingHistory[playerNumber].forEach((path) => {
+  if (drawingHistory[localPlayerNumber]) {
+    drawingHistory[localPlayerNumber].forEach((path) => {
       const canvasFrom = gameWorldToCanvas(path.from.x, path.from.y);
       const canvasTo = gameWorldToCanvas(path.to.x, path.to.y);
 
@@ -507,7 +521,7 @@ function redrawCanvas() {
       const explosionScale = (scaleX + scaleY) / 2; // Average scaling
       const explosionSize = EXPLOSION_BASE_SIZE * explosionScale;
 
-      if (playerNumber === PLAYER_TWO) {
+      if (localPlayerNumber === PLAYER_TWO) {
         // Draw rotated explosion to counteract canvas rotation
         drawImageRotated(
           drawCtx,
@@ -570,7 +584,7 @@ function getMousePos(evt) {
   let x = evt.clientX - rect.left;
   let y = evt.clientY - rect.top;
 
-  if (playerNumber === PLAYER_TWO) {
+  if (localPlayerNumber === PLAYER_TWO) {
     // Adjust for canvas rotation
     x = drawCanvas.width - x;
     y = drawCanvas.height - y;
@@ -626,7 +640,7 @@ function handleDrawingMouseDown(evt) {
   drawingLegally = true;
   color = "#000000"; // Default color for legal drawing
 
-  currentDrawingSessionId = `${playerNumber}-${Date.now()}-${Math.random()}`;
+  currentDrawingSessionId = `${localPlayerNumber}-${Date.now()}-${Math.random()}`;
 
   const gwPos = canvasToGameWorld(pos.x, pos.y);
   socket.emit("startDrawing", { position: gwPos, drawingSessionId: currentDrawingSessionId });
@@ -650,7 +664,7 @@ function handleGameMouseDown(evt) {
     });
 
     // Check if clicking on a player's own tank to start wobble
-    const playerTanks = tanks.filter((tank) => tank.playerId === playerNumber);
+    const playerTanks = tanks.filter((tank) => tank.playerId === localPlayerNumber);
     for (const tank of playerTanks) {
       const tankSize = tank.size;
       const dx = gameWorldPos.x - tank.position.x;
@@ -726,7 +740,7 @@ function handleGameMouseMove(evt) {
   }
 
   // Find if the mouse is over any of the player's own tanks
-  const playerTanks = tanks.filter((tank) => tank.playerId === playerNumber);
+  const playerTanks = tanks.filter((tank) => tank.playerId === localPlayerNumber);
   let unitUnderMouse = null;
 
   for (const tank of playerTanks) {
@@ -745,7 +759,7 @@ function handleGameMouseMove(evt) {
     // Start wobble if hovering over a player's tank and not currently clicking
     selectedUnit = unitUnderMouse;
     startWobble();
-  } else if ((!unitUnderMouse || playerNumber !== selectedUnit?.playerId) && isWobbling && !isMouseDown) {
+  } else if ((!unitUnderMouse || localPlayerNumber !== selectedUnit?.playerId) && isWobbling && !isMouseDown) {
     // Stop wobble if not hovering or hovering over opponent's tank
     stopWobble();
   }
@@ -873,7 +887,7 @@ function drawLine(fromCanvas, toCanvas, color = "#000000", lineWidth = 2) {
 }
 
 function isWithinPlayerArea(y) {
-  if (playerNumber === PLAYER_TWO) {
+  if (localPlayerNumber === PLAYER_TWO) {
     return y <= dividingLine;
   } else {
     return y >= dividingLine;
@@ -906,7 +920,7 @@ function drawTank(tank, invertPlayerIds) {
       tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
     }
 
-    if (tankPlayerId === playerNumber) {
+    if (tankPlayerId === localPlayerNumber) {
       drawCtx.strokeStyle = "blue"; // Own tank
     } else {
       drawCtx.strokeStyle = "red"; // Opponent's tank
@@ -937,7 +951,7 @@ function drawReactor(reactor, invertPlayerIds) {
     reactorPlayerId = reactor.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
   }
 
-  if (reactorPlayerId === playerNumber) {
+  if (reactorPlayerId === localPlayerNumber) {
     drawCtx.strokeStyle = "blue"; // Own reactor
   } else {
     drawCtx.strokeStyle = "red"; // Opponent's reactor
@@ -965,7 +979,7 @@ function drawFortress(fortress, invertPlayerIds) {
     fortressPlayerId = fortress.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
   }
 
-  if (fortressPlayerId === playerNumber) {
+  if (fortressPlayerId === localPlayerNumber) {
     drawCtx.strokeStyle = "blue"; // Own fortress
   } else {
     drawCtx.strokeStyle = "red"; // Opponent's fortress
@@ -991,7 +1005,7 @@ function drawTurret(turret, invertPlayerIds) {
     turretPlayerId = turret.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
   }
 
-  if (turretPlayerId === playerNumber) {
+  if (turretPlayerId === localPlayerNumber) {
     drawCtx.strokeStyle = "blue";
   } else {
     drawCtx.strokeStyle = "red";
@@ -1020,7 +1034,7 @@ function drawShell(shell, invertPlayerIds) {
     shellPlayerId = shell.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
   }
 
-  drawCtx.fillStyle = shellPlayerId === playerNumber ? "blue" : "red";
+  drawCtx.fillStyle = shellPlayerId === localPlayerNumber ? "blue" : "red";
 
   drawCtx.beginPath();
   drawCtx.arc(0, 0, radius, 0, 2 * Math.PI);
@@ -1147,7 +1161,7 @@ function drawTankTrack(tank, track, invertPlayerIds) {
   }
 
   const color =
-    tankPlayerId === playerNumber
+    tankPlayerId === localPlayerNumber
       ? `rgba(0, 0, 255, ${track.opacity})` // Own tank tracks
       : `rgba(255, 0, 0, ${track.opacity})`; // Opponent's tank tracks
 
@@ -1174,11 +1188,11 @@ function drawTankTrack(tank, track, invertPlayerIds) {
       const gradient = drawCtx.createLinearGradient(x, y, nextX, nextY);
       gradient.addColorStop(
         0,
-        tankPlayerId === playerNumber ? `rgba(0, 0, 255, ${track.opacity})` : `rgba(255, 0, 0, ${track.opacity})`
+        tankPlayerId === localPlayerNumber ? `rgba(0, 0, 255, ${track.opacity})` : `rgba(255, 0, 0, ${track.opacity})`
       );
       gradient.addColorStop(
         1,
-        tankPlayerId === playerNumber
+        tankPlayerId === localPlayerNumber
           ? `rgba(0, 0, 255, ${nextTrack.opacity})`
           : `rgba(255, 0, 0, ${nextTrack.opacity})`
       );
@@ -1217,11 +1231,11 @@ function drawTankCurrentLine(tank, invertPlayerIds) {
   const gradient = drawCtx.createLinearGradient(trackX, trackY, tankX, tankY);
   gradient.addColorStop(
     0,
-    tankPlayerId === playerNumber
+    tankPlayerId === localPlayerNumber
       ? `rgba(0, 0, 255, ${latestTrack.opacity})`
       : `rgba(255, 0, 0, ${latestTrack.opacity})`
   );
-  gradient.addColorStop(1, tankPlayerId === playerNumber ? `rgba(0, 0, 255, 0)` : `rgba(255, 0, 0, 0)`); // Fade out to transparent
+  gradient.addColorStop(1, tankPlayerId === localPlayerNumber ? `rgba(0, 0, 255, 0)` : `rgba(255, 0, 0, 0)`); // Fade out to transparent
 
   drawCtx.strokeStyle = gradient;
   drawCtx.lineWidth = 2 * scaleX; // Adjust line width based on scaling
@@ -1317,7 +1331,7 @@ socket.on("drawingEnabled", (data) => {
 let isMyTurn = false;
 
 socket.on("turnChanged", (data) => {
-  isMyTurn = data.currentTurn === playerNumber;
+  isMyTurn = data.currentTurn === localPlayerNumber;
 });
 
 // Client-side code

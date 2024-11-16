@@ -231,29 +231,29 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log(`Socket disconnected: ${socket.id}`);
     const roomID = socket.roomID;
-    const playerNumber = socket.playerNumber;
+    const localPlayerNumber = socket.localPlayerNumber;
 
-    if (roomID && playerNumber) {
+    if (roomID && localPlayerNumber) {
       const room = gameRooms[roomID];
       if (room) {
-        let disconnectedPlayer = playerNumber;
+        let disconnectedPlayer = localPlayerNumber;
 
-        if (playerNumber === PLAYER_ONE && room.players.player1 === socket.id) {
+        if (localPlayerNumber === PLAYER_ONE && room.players.player1 === socket.id) {
           room.players.player1 = null;
           console.log(`Player 1 (${socket.id}) disconnected from ${roomID}`);
-        } else if (playerNumber === PLAYER_TWO && room.players.player2 === socket.id) {
+        } else if (localPlayerNumber === PLAYER_TWO && room.players.player2 === socket.id) {
           room.players.player2 = null;
           console.log(`Player 2 (${socket.id}) disconnected from ${roomID}`);
         }
 
-        // Reset the playerNumber and roomID of the remaining player
+        // Reset the localPlayerNumber and roomID of the remaining player
         const remainingPlayerSocketId = room.players.player1 || room.players.player2;
         if (remainingPlayerSocketId) {
           const remainingPlayerSocket = io.sockets.sockets.get(remainingPlayerSocketId);
           if (remainingPlayerSocket) {
-            remainingPlayerSocket.playerNumber = null;
+            remainingPlayerSocket.localPlayerNumber = null;
             remainingPlayerSocket.roomID = null;
-            console.log(`Reset playerNumber and roomID for remaining player ${remainingPlayerSocketId}`);
+            console.log(`Reset localPlayerNumber and roomID for remaining player ${remainingPlayerSocketId}`);
           }
         }
 
@@ -286,20 +286,20 @@ io.on("connection", (socket) => {
   // Handle 'startDrawing' event
   socket.on("startDrawing", (data) => {
     const roomID = socket.roomID;
-    const playerNumber = socket.playerNumber;
+    const localPlayerNumber = socket.localPlayerNumber;
     const drawingSessionId = data.drawingSessionId;
     const room = gameRooms[roomID];
     if (!room) {
       return;
     }
 
-    if (room.playersEndedDrawing && room.playersEndedDrawing[playerNumber]) {
+    if (room.playersEndedDrawing && room.playersEndedDrawing[localPlayerNumber]) {
       socket.emit("drawingDisabled", { message: "You have ended your drawing phase." });
       return;
     }
 
     // Check if the player has reached the maximum number of shapes
-    if (room.shapeCounts[playerNumber] >= 5) {
+    if (room.shapeCounts[localPlayerNumber] >= 5) {
       // Notify the player that they cannot draw more shapes
       socket.emit("drawingDisabled", {
         message: "You have reached the maximum number of shapes.",
@@ -312,7 +312,7 @@ io.on("connection", (socket) => {
       room.drawingSessions = {};
     }
 
-    room.drawingSessions[playerNumber] = {
+    room.drawingSessions[localPlayerNumber] = {
       id: drawingSessionId,
       totalPixelsDrawn: 0,
       path: [],
@@ -322,7 +322,7 @@ io.on("connection", (socket) => {
 
   socket.on("drawing", (data) => {
     const roomID = socket.roomID;
-    const playerNumber = socket.playerNumber;
+    const localPlayerNumber = socket.localPlayerNumber;
     const room = gameRooms[roomID];
     console.log(data);
     console.log(socket.id);
@@ -330,17 +330,17 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (room.shapeCounts[playerNumber] >= 5) {
+    if (room.shapeCounts[localPlayerNumber] >= 5) {
       return;
     }
 
-    const session = room.drawingSessions[playerNumber];
+    const session = room.drawingSessions[localPlayerNumber];
     if (!session) {
       return;
     }
 
     // Check if the player has ended their drawing phase
-    if (room.playersEndedDrawing && room.playersEndedDrawing[playerNumber]) {
+    if (room.playersEndedDrawing && room.playersEndedDrawing[localPlayerNumber]) {
       return;
     }
 
@@ -352,13 +352,13 @@ io.on("connection", (socket) => {
 
     // Validate coordinates
     if (!isValidCoordinate(from) || !isValidCoordinate(to)) {
-      console.log(`Invalid coordinates received from player ${playerNumber}`);
+      console.log(`Invalid coordinates received from player ${localPlayerNumber}`);
       return;
     }
 
     // Validate that drawing is within player's area
-    if (!isWithinPlayerArea(from.y, playerNumber, room) || !isWithinPlayerArea(to.y, playerNumber, room)) {
-      console.log(`Player ${playerNumber} attempted to draw outside their area.`);
+    if (!isWithinPlayerArea(from.y, localPlayerNumber, room) || !isWithinPlayerArea(to.y, localPlayerNumber, room)) {
+      console.log(`Player ${localPlayerNumber} attempted to draw outside their area.`);
       session.isLegal = false;
       socket.emit("drawingIllegally", {});
       return;
@@ -382,7 +382,7 @@ io.on("connection", (socket) => {
     if (session.totalPixelsDrawn > inkLimit) {
       // Exceeded the limit, erase the drawing session
       socket.to(roomID).emit("drawingMirror", {
-        playerNumber,
+        localPlayerNumber,
         drawingSessionId: session.id,
         from: data.from,
         to: data.to,
@@ -397,7 +397,7 @@ io.on("connection", (socket) => {
       const adjustedColor = session.isLegal ? `rgba(0, 0, 0, ${inkOpacity})` : "#FF0000"; // If illegal, use red
 
       io.to(roomID).emit("drawingMirror", {
-        playerNumber,
+        localPlayerNumber,
         drawingSessionId: session.id,
         from: data.from,
         to: data.to,
@@ -413,7 +413,7 @@ io.on("connection", (socket) => {
 
       // Check intersection with own shapes
       for (let existingShape of room.allPaths) {
-        if (existingShape.playerNumber !== playerNumber) {
+        if (existingShape.localPlayerNumber !== localPlayerNumber) {
           continue;
         }
 
@@ -466,17 +466,17 @@ io.on("connection", (socket) => {
   // Handle 'endDrawing' event
   socket.on("endDrawing", () => {
     const roomID = socket.roomID;
-    const playerNumber = socket.playerNumber;
+    const localPlayerNumber = socket.localPlayerNumber;
     const room = gameRooms[roomID];
     if (!room) {
       return;
     }
 
-    if (room.shapeCounts[playerNumber] >= 5) {
+    if (room.shapeCounts[localPlayerNumber] >= 5) {
       return;
     }
 
-    const session = room.drawingSessions[playerNumber];
+    const session = room.drawingSessions[localPlayerNumber];
     if (!session) {
       return;
     }
@@ -499,10 +499,10 @@ io.on("connection", (socket) => {
 
     if (session.totalPixelsDrawn > inkLimit) {
       // Exceeded pixel limit
-      socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
-      socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
-      delete room.drawingSessions[playerNumber];
-      console.log(`Player ${playerNumber}'s drawing exceeded pixel limit after closing and was erased.`);
+      socket.emit("eraseDrawingSession", { drawingSessionId: session.id, localPlayerNumber });
+      socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, localPlayerNumber });
+      delete room.drawingSessions[localPlayerNumber];
+      console.log(`Player ${localPlayerNumber}'s drawing exceeded pixel limit after closing and was erased.`);
       return;
     }
 
@@ -523,7 +523,7 @@ io.on("connection", (socket) => {
     // Existing checks for overlaps or containment with other shapes
     for (let existingShape of room.allPaths) {
       // Skip shapes drawn by the other player
-      if (existingShape.playerNumber !== playerNumber) {
+      if (existingShape.localPlayerNumber !== localPlayerNumber) {
         continue;
       }
 
@@ -531,19 +531,23 @@ io.on("connection", (socket) => {
 
       if (doPolygonsIntersect(newShapeCoordinates, existingShapeCoordinates)) {
         isIllegalShape = true;
-        console.log(`New shape intersects with existing shape drawn by Player ${existingShape.playerNumber}.`);
+        console.log(`New shape intersects with existing shape drawn by Player ${existingShape.localPlayerNumber}.`);
         break;
       }
 
       if (isPolygonContained(newShapeCoordinates, existingShapeCoordinates)) {
         isIllegalShape = true;
-        console.log(`New shape is contained within an existing shape drawn by Player ${existingShape.playerNumber}.`);
+        console.log(
+          `New shape is contained within an existing shape drawn by Player ${existingShape.localPlayerNumber}.`
+        );
         break;
       }
 
       if (isPolygonContained(existingShapeCoordinates, newShapeCoordinates)) {
         isIllegalShape = true;
-        console.log(`Existing shape drawn by Player ${existingShape.playerNumber} is contained within the new shape.`);
+        console.log(
+          `Existing shape drawn by Player ${existingShape.localPlayerNumber} is contained within the new shape.`
+        );
         break;
       }
     }
@@ -570,32 +574,32 @@ io.on("connection", (socket) => {
 
     if (isIllegalShape) {
       // Shape is illegal, erase it
-      socket.emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
-      socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, playerNumber });
-      delete room.drawingSessions[playerNumber];
-      console.log(`Player ${playerNumber}'s drawing was illegal and was erased.`);
+      socket.emit("eraseDrawingSession", { drawingSessionId: session.id, localPlayerNumber });
+      socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, localPlayerNumber });
+      delete room.drawingSessions[localPlayerNumber];
+      console.log(`Player ${localPlayerNumber}'s drawing was illegal and was erased.`);
     } else {
       // Shape is legal, send 'shapeClosed' event
       io.to(roomID).emit("shapeClosed", {
-        playerNumber,
+        localPlayerNumber,
         drawingSessionId: session.id,
         closingLine: closingLine,
       });
 
       // Add the completed path to allPaths
       room.allPaths.push({
-        playerNumber,
+        localPlayerNumber,
         path: session.path,
         drawingSessionId: session.id,
       });
 
       // createBodiesFromShapes(session.path, room);
 
-      room.shapeCounts[playerNumber] += 1;
+      room.shapeCounts[localPlayerNumber] += 1;
 
-      if (room.shapeCounts[playerNumber] >= 5) {
+      if (room.shapeCounts[localPlayerNumber] >= 5) {
         // Notify the player that they can no longer draw
-        const playerSocketId = room.players[`player${playerNumber}`];
+        const playerSocketId = room.players[`player${localPlayerNumber}`];
         if (playerSocketId) {
           const playerSocket = io.sockets.sockets.get(playerSocketId);
           if (playerSocket) {
@@ -627,14 +631,14 @@ io.on("connection", (socket) => {
       }
 
       // Remove the drawing session
-      delete room.drawingSessions[playerNumber];
-      console.log(`Player ${playerNumber}'s drawing was legal and added to allPaths.`);
+      delete room.drawingSessions[localPlayerNumber];
+      console.log(`Player ${localPlayerNumber}'s drawing was legal and added to allPaths.`);
     }
   });
 
   socket.on("endDrawingPhase", () => {
     const roomID = socket.roomID;
-    const playerNumber = socket.playerNumber;
+    const localPlayerNumber = socket.localPlayerNumber;
     const room = gameRooms[roomID];
 
     if (!room || room.currentGameState !== GameState.PRE_GAME) {
@@ -642,13 +646,13 @@ io.on("connection", (socket) => {
     }
 
     // Set the player's shapeCount to 5
-    room.shapeCounts[playerNumber] = 5;
+    room.shapeCounts[localPlayerNumber] = 5;
 
     // Mark that the player has ended their drawing phase
     if (!room.playersEndedDrawing) {
       room.playersEndedDrawing = {};
     }
-    room.playersEndedDrawing[playerNumber] = true;
+    room.playersEndedDrawing[localPlayerNumber] = true;
 
     // Notify the client that drawing is disabled
     socket.emit("drawingDisabled", { message: "You have ended your drawing phase." });
@@ -685,7 +689,7 @@ io.on("connection", (socket) => {
 
   socket.on("eraseLastDrawing", () => {
     const roomID = socket.roomID;
-    const playerNumber = socket.playerNumber;
+    const localPlayerNumber = socket.localPlayerNumber;
     const room = gameRooms[roomID];
 
     if (!room || room.currentGameState !== GameState.PRE_GAME) {
@@ -694,7 +698,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const playerPaths = room.allPaths.filter((path) => path.playerNumber === playerNumber);
+    const playerPaths = room.allPaths.filter((path) => path.localPlayerNumber === localPlayerNumber);
 
     if (playerPaths.length === 0) {
       // No drawings to erase
@@ -703,7 +707,7 @@ io.on("connection", (socket) => {
     }
 
     // Check if the player has ended their drawing phase
-    if (room.playersEndedDrawing && room.playersEndedDrawing[playerNumber]) {
+    if (room.playersEndedDrawing && room.playersEndedDrawing[localPlayerNumber]) {
       socket.emit("error", { message: "Cannot erase drawings after ending your drawing phase." });
       return;
     }
@@ -715,19 +719,19 @@ io.on("connection", (socket) => {
     room.allPaths = room.allPaths.filter((path) => path.drawingSessionId !== lastDrawing.drawingSessionId);
 
     // Decrement the player's shape count
-    room.shapeCounts[playerNumber] -= 1;
+    room.shapeCounts[localPlayerNumber] -= 1;
 
     // Notify all clients to erase this drawing
     io.to(roomID).emit("eraseDrawingSession", {
       drawingSessionId: lastDrawing.drawingSessionId,
-      playerNumber,
+      localPlayerNumber,
     });
 
-    console.log(`Player ${playerNumber} erased a drawing.`);
+    console.log(`Player ${localPlayerNumber} erased a drawing.`);
 
     // Re-enable drawing for the player if they are below the shape limit
-    if (room.shapeCounts[playerNumber] < 5) {
-      const playerSocketId = room.players[`player${playerNumber}`];
+    if (room.shapeCounts[localPlayerNumber] < 5) {
+      const playerSocketId = room.players[`player${localPlayerNumber}`];
       if (playerSocketId) {
         const playerSocket = io.sockets.sockets.get(playerSocketId);
         if (playerSocket) {
@@ -742,16 +746,16 @@ io.on("connection", (socket) => {
   // Handle 'mouseDown' event
   socket.on("mouseDown", (data) => {
     const roomID = socket.roomID;
-    const playerNumber = socket.playerNumber;
+    const localPlayerNumber = socket.localPlayerNumber;
     const actionMode = data.actionMode;
     const room = gameRooms[roomID];
 
-    if (room.currentTurn !== playerNumber) {
+    if (room.currentTurn !== localPlayerNumber) {
       socket.emit("notYourTurn");
       return;
     }
 
-    if (roomID && playerNumber) {
+    if (roomID && localPlayerNumber) {
       const room = gameRooms[roomID];
       if (room) {
         // Prevent multiple mouseDown events without mouseUp
@@ -763,7 +767,7 @@ io.on("connection", (socket) => {
         const { x, y } = data;
 
         if (actionMode === "move") {
-          const tank = validateClickOnTank(room, playerNumber, x, y);
+          const tank = validateClickOnTank(room, localPlayerNumber, x, y);
           if (tank) {
             socket.mouseDownData = {
               startTime: Date.now(),
@@ -772,7 +776,7 @@ io.on("connection", (socket) => {
               actionMode: actionMode,
             };
             socket.emit("validClick");
-            console.log(`Player ${playerNumber} started moving tank ${tank.id}`);
+            console.log(`Player ${localPlayerNumber} started moving tank ${tank.id}`);
 
             socket.mouseDownTimer = setTimeout(() => {
               console.log(`Auto-triggering mouseUp for socket ${socket.id} after 1.2 seconds`);
@@ -782,7 +786,7 @@ io.on("connection", (socket) => {
             socket.emit("invalidClick");
           }
         } else if (actionMode === "shoot") {
-          const unit = validateClickOnShootingUnit(room, playerNumber, x, y);
+          const unit = validateClickOnShootingUnit(room, localPlayerNumber, x, y);
           if (unit) {
             socket.mouseDownData = {
               startTime: Date.now(),
@@ -791,7 +795,7 @@ io.on("connection", (socket) => {
               actionMode: actionMode,
             };
             socket.emit("validClick");
-            console.log(`Player ${playerNumber} started shooting with unit ${unit.id}`);
+            console.log(`Player ${localPlayerNumber} started shooting with unit ${unit.id}`);
 
             // Start the 1.2-second timer
             socket.mouseDownTimer = setTimeout(() => {
@@ -816,9 +820,9 @@ io.on("connection", (socket) => {
 
   socket.on("mouseMove", (data) => {
     const roomID = socket.roomID;
-    const playerNumber = socket.playerNumber;
+    const localPlayerNumber = socket.localPlayerNumber;
 
-    if (roomID && playerNumber && socket.mouseDownData) {
+    if (roomID && localPlayerNumber && socket.mouseDownData) {
       // Update the endPosition with the latest mouse coordinates
       socket.mouseDownData.endPosition = { x: data.x, y: data.y };
     }
@@ -915,10 +919,10 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
   console.log(`Created room ${roomID}`);
 
   socket.join(roomID);
-  socket.playerNumber = PLAYER_ONE;
+  socket.localPlayerNumber = PLAYER_ONE;
   socket.roomID = roomID;
   socket.emit("playerInfo", {
-    playerNumber: PLAYER_ONE,
+    localPlayerNumber: PLAYER_ONE,
     roomID,
     gameWorldWidth: GAME_WORLD_WIDTH,
     gameWorldHeight: GAME_WORLD_HEIGHT,
@@ -927,14 +931,14 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
 }
 
 function joinRoom(socket, room) {
-  let playerNumber;
+  let localPlayerNumber;
   if (!room.players.player1) {
     room.players.player1 = socket.id;
-    playerNumber = PLAYER_ONE;
+    localPlayerNumber = PLAYER_ONE;
     console.log(`Assigned Player 1 to socket ${socket.id} in room ${room.roomID}`);
   } else if (!room.players.player2) {
     room.players.player2 = socket.id;
-    playerNumber = PLAYER_TWO;
+    localPlayerNumber = PLAYER_TWO;
     console.log(`Assigned Player 2 to socket ${socket.id} in room ${room.roomID}`);
   } else {
     // Room is full
@@ -944,15 +948,15 @@ function joinRoom(socket, room) {
   }
 
   socket.join(room.roomID);
-  socket.playerNumber = playerNumber;
+  socket.localPlayerNumber = localPlayerNumber;
   socket.roomID = room.roomID;
   socket.emit("playerInfo", {
-    playerNumber,
+    localPlayerNumber,
     roomID: room.roomID,
     gameWorldWidth: GAME_WORLD_WIDTH,
     gameWorldHeight: GAME_WORLD_HEIGHT,
   });
-  console.log(`Socket ${socket.id} joined ${room.roomID} as Player ${playerNumber}`);
+  console.log(`Socket ${socket.id} joined ${room.roomID} as Player ${localPlayerNumber}`);
 
   // Check if room now has two players
   if (room.players.player1 && room.players.player2) {
@@ -1353,9 +1357,9 @@ function isValidCoordinate(point) {
   );
 }
 
-function isWithinPlayerArea(y, playerNumber, room) {
+function isWithinPlayerArea(y, localPlayerNumber, room) {
   const dividingLine = room.dividingLine;
-  if (playerNumber === PLAYER_ONE) {
+  if (localPlayerNumber === PLAYER_ONE) {
     return y >= dividingLine;
   } else {
     return y <= dividingLine;
@@ -1420,8 +1424,8 @@ function isPointInBody(body, point) {
   return Matter.Bounds.contains(body.bounds, point) && Matter.Vertices.contains(body.vertices, point);
 }
 
-function validateClickOnTank(room, playerNumber, x, y) {
-  const playerTanks = room.tanks.filter((tank) => tank.playerId === playerNumber);
+function validateClickOnTank(room, localPlayerNumber, x, y) {
+  const playerTanks = room.tanks.filter((tank) => tank.playerId === localPlayerNumber);
 
   for (const tank of playerTanks) {
     if (isPointInBody(tank, { x, y })) {
@@ -1514,8 +1518,8 @@ function releaseTank(tank, roomWorld) {
   }
 }
 
-function validateClickOnShootingUnit(room, playerNumber, x, y) {
-  const shootingUnits = [...room.tanks, ...room.turrets].filter((unit) => unit.playerId === playerNumber);
+function validateClickOnShootingUnit(room, localPlayerNumber, x, y) {
+  const shootingUnits = [...room.tanks, ...room.turrets].filter((unit) => unit.playerId === localPlayerNumber);
   for (const unit of shootingUnits) {
     if (isPointInBody(unit, { x, y })) {
       return unit;
@@ -1721,9 +1725,9 @@ function endGame(roomID) {
 
 function processMouseUp(socket, data, isForced = false) {
   const roomID = socket.roomID;
-  const playerNumber = socket.playerNumber;
+  const localPlayerNumber = socket.localPlayerNumber;
 
-  if (roomID && playerNumber) {
+  if (roomID && localPlayerNumber) {
     const room = gameRooms[roomID];
     if (room && socket.mouseDownData) {
       const { startTime, startPosition, tankId, unitId, actionMode, endPosition } = socket.mouseDownData;
