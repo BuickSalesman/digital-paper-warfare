@@ -125,19 +125,26 @@ const wobbleAmplitude = 0.1; // Maximum wobble angle in radians (~5.7 degrees)
 let selectedUnit = null;
 
 // Event Listeners
+// Adds event listener to local client window for loading.
 window.addEventListener("load", () => {
+  // Checks to see which buttons should be visible based on game state.
   updateButtonVisibility();
 });
-window.addEventListener("resize", resizeCanvas);
 
+// Adds event listener to the local client window for actions on resize. Calls initiaze canvas.
+window.addEventListener("resize", initializeCanvas);
+
+// Event listerner for click on the move button. This changes the action state to move. Refactor to send the click to the server side for validation and action state change.
 moveButton.addEventListener("click", () => {
   actionMode = "move";
 });
 
+// Event listener for click on the shoot button. This changes the action state to shoot. Refactor to send the click to the server side for validation and action state change.
 shootButton.addEventListener("click", () => {
   actionMode = "shoot";
 });
 
+// Prevents right clicks on the draw canvas, which can have unitended effects during drawing or move/shoot actions. To fix, obfuscate this code so that it is difficult to interact with on the client side, and reject all right clicks incoming to the server side, on the server side.
 drawCanvas.addEventListener(
   "contextmenu",
   function (e) {
@@ -145,39 +152,6 @@ drawCanvas.addEventListener(
   },
   false
 );
-
-// Initialize Canvas
-function initializeCanvas() {
-  if (!gameWorldWidth || !gameWorldHeight) {
-    console.error("Game world dimensions are not set.");
-    return;
-  }
-
-  const aspectRatio = gameWorldWidth / gameWorldHeight;
-  const baseWidth = Math.min(window.innerWidth * 0.95, 1885);
-  let canvasWidth = baseWidth;
-  let canvasHeight = canvasWidth / aspectRatio;
-
-  if (canvasHeight > window.innerHeight * 0.95) {
-    canvasHeight = window.innerHeight * 0.95;
-    canvasWidth = canvasHeight * aspectRatio;
-  }
-
-  gameContainer.style.width = `${canvasWidth}px`;
-  gameContainer.style.height = `${canvasHeight}px`;
-
-  drawCanvas.width = canvasWidth;
-  drawCanvas.height = canvasHeight;
-
-  width = canvasWidth;
-  height = canvasHeight;
-
-  dividingLine = drawCanvas.height / 2;
-
-  updateScalingFactors();
-  redrawCanvas();
-  drawDividingLine();
-}
 
 // Socket Events
 socket.on("playerInfo", (data) => {
@@ -575,8 +549,37 @@ function redrawCanvas() {
   drawCtx.restore();
 }
 
-function resizeCanvas() {
-  initializeCanvas();
+// Initialize Canvas
+function initializeCanvas() {
+  if (!gameWorldWidth || !gameWorldHeight) {
+    console.error("Game world dimensions are not set.");
+    return;
+  }
+
+  const aspectRatio = gameWorldWidth / gameWorldHeight;
+  const baseWidth = Math.min(window.innerWidth * 0.95, 1885);
+  let canvasWidth = baseWidth;
+  let canvasHeight = canvasWidth / aspectRatio;
+
+  if (canvasHeight > window.innerHeight * 0.95) {
+    canvasHeight = window.innerHeight * 0.95;
+    canvasWidth = canvasHeight * aspectRatio;
+  }
+
+  gameContainer.style.width = `${canvasWidth}px`;
+  gameContainer.style.height = `${canvasHeight}px`;
+
+  drawCanvas.width = canvasWidth;
+  drawCanvas.height = canvasHeight;
+
+  width = canvasWidth;
+  height = canvasHeight;
+
+  dividingLine = drawCanvas.height / 2;
+
+  updateScalingFactors();
+  redrawCanvas();
+  drawDividingLine();
 }
 
 function updateScalingFactors() {
