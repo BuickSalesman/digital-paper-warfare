@@ -282,6 +282,7 @@ socket.on("drawingMirror", (data) => {
   const { playerNumber: senderPlayer, from, to, color = "#000000", lineWidth = 2, drawingSessionId } = data;
 
   // Add to the appropriate player's history
+  drawingHistory[senderPlayer] = drawingHistory[senderPlayer] || [];
   drawingHistory[senderPlayer].push({
     from,
     to,
@@ -684,24 +685,12 @@ function handleDrawingMouseMove(evt) {
   const gwFrom = canvasToGameWorld(lastX, lastY);
   const gwTo = canvasToGameWorld(currentX, currentY);
 
-  const drawColor = drawingLegally ? "#000000" : "#FF0000";
-
-  // Add to the correct player's drawing history
-  drawingHistory[playerNumber].push({
-    from: gwFrom,
-    to: gwTo,
-    color: drawColor,
-    lineWidth: 2, // Assuming lineWidth is 2
-    playerNumber: playerNumber,
-    drawingSessionId: currentDrawingSessionId,
-  });
-
   // Send drawing data to server
   socket.emit("drawing", {
     drawingSessionId: currentDrawingSessionId,
     from: gwFrom,
     to: gwTo,
-    color: drawColor,
+    // color: drawColor,
     lineWidth: 2,
   });
 
