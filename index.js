@@ -149,11 +149,11 @@ io.on("connection", (socket) => {
 
       // Determine whether to create or join room.
       if (!room) {
-        // No room with this passcode exists, create a new one
+        // No room with this passcode exists, create a new one.
         console.log(`Creating new passcode room ${roomID}`);
         createNewRoom(roomID, socket, true);
       } else {
-        // Room exists, try to join it
+        // Room exists, try to join it.
         console.log(`Joining existing passcode room ${roomID}`);
         joinRoom(socket, room);
       }
@@ -181,7 +181,7 @@ io.on("connection", (socket) => {
       }
       // If no available room is found, create a new room.
       if (!roomFound) {
-        // Create a new room
+        // Create a new room.
         const newRoomID = `room${nextRoomNumber}`;
         nextRoomNumber += 1;
         console.log(`Creating new room ${newRoomID}`);
@@ -849,11 +849,13 @@ io.on("connection", (socket) => {
 
 //#region FUNCTIONS
 
+// This function intializes a new game room with a unique ID. This includes setting up the physics engine, preparing the starting game state, handling collisions, and starting the game loop. Called in the joinGame event handler.
 function createNewRoom(roomID, socket, isPasscodeRoom = false) {
+  // Set up Matter.js engine and world. Each room has a separate world and engine.
   const roomEngine = Matter.Engine.create();
   const roomWorld = roomEngine.world;
 
-  // Set gravity if needed.
+  // Remove gravity to fascilitate top-down gameplay.
   roomEngine.world.gravity.y = 0;
   roomEngine.world.gravity.x = 0;
 
@@ -948,26 +950,35 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
   console.log(`Socket ${socket.id} created and joined ${roomID} as Player ${PLAYER_ONE}`);
 }
 
+// Handles assigning player (socket) ro a specified room. Called in the joinGame event handler.
 function joinRoom(socket, room) {
+  // Stores the player's assigned number.
   let localPlayerNumber;
+  // Check if player1 slot is available, if so assign their socket.id to player1.
   if (!room.players.player1) {
     room.players.player1 = socket.id;
     localPlayerNumber = PLAYER_ONE;
     console.log(`Assigned Player 1 to socket ${socket.id} in room ${room.roomID}`);
-  } else if (!room.players.player2) {
+  } // If player1 already assigned, check if player2 available.
+  else if (!room.players.player2) {
+    // Assign socket.id to player2.
     room.players.player2 = socket.id;
     localPlayerNumber = PLAYER_TWO;
     console.log(`Assigned Player 2 to socket ${socket.id} in room ${room.roomID}`);
   } else {
-    // Room is full
+    // Room is full.
     console.log(`Room ${room.roomID} is full. Emitting 'gameFull' to socket ${socket.id}`);
     socket.emit("gameFull");
     return;
   }
 
+  // Add player's socket to designated room.
   socket.join(room.roomID);
+  // Storess player number on the socket for easy reference.
   socket.localPlayerNumber = localPlayerNumber;
+  // Stores the room ID on the socket for easy reference.
   socket.roomID = room.roomID;
+  // Sends player info to the client. This includes player number, room ID, and width and height of the game world to be used in scaling based on client dimensions.
   socket.emit("playerInfo", {
     localPlayerNumber,
     roomID: room.roomID,
@@ -976,15 +987,15 @@ function joinRoom(socket, room) {
   });
   console.log(`Socket ${socket.id} joined ${room.roomID} as Player ${localPlayerNumber}`);
 
-  // Check if room now has two players
+  // Check if room now has two players.
   if (room.players.player1 && room.players.player2) {
-    // Emit 'preGame' to both clients to prepare the game
+    // Emit 'preGame' to both clients to prepare the game.
     io.to(room.roomID).emit("preGame", {
       message: "Two players have joined. Prepare to start the game.",
     });
     createGameBodies(room);
 
-    // Send initial game state to clients
+    // Send initial game state to clients. This is data from the Matter bodies to be used in client rendering.
     io.to(room.roomID).emit("initialGameState", {
       tanks: room.tanks.map(bodyToData),
       reactors: room.reactors.map(bodyToData),

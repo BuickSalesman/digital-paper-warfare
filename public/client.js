@@ -238,7 +238,7 @@ drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
 drawCanvas.addEventListener("contextmenu", handleContextMenu, false);
 
 // Socket Events - all data sent to and rec'd from the server is handled here.
-//
+// Recieves player info from server side.
 socket.on("playerInfo", (data) => {
   localPlayerNumber = data.localPlayerNumber;
   roomID = data.roomID;
