@@ -999,9 +999,11 @@ function joinRoom(socket, room) {
   // Check if room now has two players.
   if (room.players.player1 && room.players.player2) {
     // Emit 'preGame' to both clients to prepare the game.
-    io.to(room.roomID).emit("preGame", {
+    io.to(room.roomID).emit("bothPlayersJoinedRoom", {
       message: "Two players have joined. Prepare to start the game.",
     });
+
+    // Creates the Matter bodies for the room, to be converted into data to be sent to the client for rendering on the game canvas.
     createGameBodies(room);
 
     // Send initial game state to clients. This is data from the Matter bodies to be used in client rendering.

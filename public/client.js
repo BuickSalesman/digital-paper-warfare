@@ -250,7 +250,7 @@ socket.on("playerInfo", (data) => {
   updateButtonVisibility();
 });
 
-socket.on("preGame", () => {
+socket.on("bothPlayersJoinedRoom", () => {
   landingPage.style.display = "none";
   gameAndPowerContainer.style.display = "flex";
   socket.emit("ready");
