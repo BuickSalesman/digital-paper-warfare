@@ -859,28 +859,29 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
   roomEngine.world.gravity.y = 0;
   roomEngine.world.gravity.x = 0;
 
+  // Create room object. This holds all relevant data and state for the room.
   const room = {
     roomID: roomID,
     isPasscodeRoom: isPasscodeRoom,
     players: {
-      player1: socket.id,
-      player2: null,
+      player1: socket.id, // Creator of the room.
+      player2: null, // Await a second player.
     },
 
     width: GAME_WORLD_WIDTH,
     height: GAME_WORLD_HEIGHT,
-    allPaths: [], // Store all valid drawing paths
-    drawingSessions: {}, // Store ongoing drawing sessions
+    allPaths: [], // Store all valid drawing paths.
+    drawingSessions: {}, // Store ongoing drawing sessions.
     shapeCounts: {
       [PLAYER_ONE]: 0,
       [PLAYER_TWO]: 0,
     },
-    noDrawZones: [], // Initialize no-draw zones
-    currentGameState: GameState.LOBBY, // Start with LOBBY
-    currentTurn: PLAYER_ONE, // Player 1 starts the game
+    noDrawZones: [], // Initialize no-draw zones.
+    currentGameState: GameState.LOBBY, // Start with LOBBY.
+    currentTurn: PLAYER_ONE, // Player 1 starts the game. This is reset on coinflip. Possible refactor to just call the coinflip function here.
 
-    readyPlayers: 0, // The creator is ready by default
-    dividingLine: GAME_WORLD_HEIGHT / 2, // Define dividing line in game world coordinates
+    readyPlayers: 0, // The creator is ready by default.
+    dividingLine: GAME_WORLD_HEIGHT / 2, // Define dividing line in game world coordinates.
 
     roomEngine: roomEngine,
     roomWorld: roomWorld,
@@ -888,6 +889,7 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     shells: [],
   };
 
+  // Listens for Matter collisions. May need additional logic here to prevent shells from colliding with the tanks that they are shot from.
   Matter.Events.on(roomEngine, "collisionStart", (event) => {
     const pairs = event.pairs;
 
@@ -924,7 +926,7 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     });
   });
 
-  // In your interval function
+  // Cleans up resting shells. Iterates in reverse over all shells in the room. If shell is found to be resting after a check, it is removed from the Matter world and shells array.
   for (let i = room.shells.length - 1; i >= 0; i--) {
     const shell = room.shells[i];
     if (isResting(shell)) {
@@ -933,14 +935,21 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     }
   }
 
+  // Come back here later after adding comments to the startRoomInterval function.
   startRoomInterval(roomID);
 
+  // Add the newly created room to the gameRooms object, using roomID as the key.
   gameRooms[roomID] = room;
   console.log(`Created room ${roomID}`);
 
+  // Adds the player's socket to the Socket.IO room identified by roomID.
   socket.join(roomID);
+  // Assigns Player 1 to the socket.
   socket.localPlayerNumber = PLAYER_ONE;
+  // Stores the roomID on the socket for future reference.
   socket.roomID = roomID;
+
+  // Sends player info to the client. This includes player number, room ID, and width and height of the game world to be used in scaling based on client dimensions.
   socket.emit("playerInfo", {
     localPlayerNumber: PLAYER_ONE,
     roomID,

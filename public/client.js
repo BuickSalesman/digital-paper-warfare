@@ -238,7 +238,7 @@ drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
 drawCanvas.addEventListener("contextmenu", handleContextMenu, false);
 
 // Socket Events - all data sent to and rec'd from the server is handled here.
-// Recieves player info from server side.
+// Recieves player info from server side. Uses this data to initialize the canvas, and update button visibility.
 socket.on("playerInfo", (data) => {
   localPlayerNumber = data.localPlayerNumber;
   roomID = data.roomID;
@@ -246,6 +246,7 @@ socket.on("playerInfo", (data) => {
   gameWorldHeight = data.gameWorldHeight;
 
   initializeCanvas();
+  // May want to move into preGame event handler and use GameState from server for the conditional checks here.
   updateButtonVisibility();
 });
 
