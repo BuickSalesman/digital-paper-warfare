@@ -190,27 +190,38 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Listen for "ready" event from the client.
   socket.on("ready", () => {
     console.log(`Received 'ready' from socket ${socket.id} in room ${socket.roomID}`);
+
+    // Retrieve the room ID from the socket.
     const roomID = socket.roomID;
+
+    // Proceed only if the room ID exists.
     if (roomID) {
+      // Access the game room using the room ID.
       const room = gameRooms[roomID];
+
+      // Proceed only if the room exists.
       if (room) {
+        // Increment count of ready players in the room.
         room.readyPlayers += 1;
         console.log(`Room ${roomID} has ${room.readyPlayers} ready player(s).`);
 
-        // Check if all players are ready
+        // Determine the total number of players in the room.
         const totalPlayers = room.players.player1 && room.players.player2 ? 2 : 1;
+
+        // Check if all players in the room are ready.
         if (room.readyPlayers === totalPlayers) {
-          // Transition to PRE_GAME
+          // Transition to PRE_GAME.
           room.currentGameState = GameState.PRE_GAME;
 
-          // Emit 'startPreGame' to all clients in the room
+          // Emit 'startPreGame' to all clients in the room.
           io.to(roomID).emit("startPreGame", {
             message: "Both players are ready. Starting the game...",
           });
 
-          // Start the drawing timer
+          // Start the drawing timer.
           room.drawingTimer = new Timer(
             60, // Duration in seconds
             (timeLeft) => {
@@ -221,6 +232,7 @@ io.on("connection", (socket) => {
               // OnEnd: Transition to GAME_RUNNING
               console.log(`Drawing phase ended for room ${roomID}`);
 
+              // Coin flip!
               room.currentTurn = Math.random() < 0.5 ? PLAYER_ONE : PLAYER_TWO;
 
               // Transition to GAME_RUNNING
@@ -231,7 +243,7 @@ io.on("connection", (socket) => {
               // Remove no-draw zones
               room.noDrawZones = [];
 
-              // Notify both clients
+              // Notify both clients that it is now the battle phase.
               io.to(roomID).emit("gameRunning", {
                 message: "Drawing phase has ended. The game is now running.",
                 currentTurn: room.currentTurn,
@@ -239,6 +251,7 @@ io.on("connection", (socket) => {
             }
           );
 
+          // Start the drawing timer.
           room.drawingTimer.start();
         }
       }
@@ -766,6 +779,19 @@ io.on("connection", (socket) => {
     const roomID = socket.roomID;
     const localPlayerNumber = socket.localPlayerNumber;
     const actionMode = data.actionMode;
+
+    // if (!roomID || !localPlayerNumber) {
+    //   return;
+    // }
+
+    // if (!room) {
+    //   return;
+    // }
+
+    // if (room.currentGameState !== GameState.GAME_RUNNING) {
+    //   return;
+    // }
+
     const room = gameRooms[roomID];
 
     if (room.currentTurn !== localPlayerNumber) {

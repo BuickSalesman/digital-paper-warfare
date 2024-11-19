@@ -257,7 +257,10 @@ socket.on("bothPlayersJoinedRoom", () => {
 });
 
 socket.on("startPreGame", () => {
+  // Definitely need to remove the state changes here and handle on the server.
   currentGameState = GameState.PRE_GAME;
+
+  // It also seems like this can be moved somehwere else. ChatGPT says that it
   updateButtonVisibility();
 });
 
