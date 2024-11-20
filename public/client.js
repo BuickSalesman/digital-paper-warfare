@@ -5,7 +5,6 @@ const socket = io();
 let localPlayerNumber = null;
 
 // Used to determine what room the local and opponent client are in. Set to null until data rec'd from server. Set back to null on disconnection.
-let roomID = null;
 
 // Flag to determine when the rendering loop should be called. Does not start until both players are out of the landing page. Reset on player disconnection.
 let renderingStarted = false;
@@ -241,7 +240,6 @@ drawCanvas.addEventListener("contextmenu", handleContextMenu, false);
 // Recieves player info from server side. Uses this data to initialize the canvas, and update button visibility.
 socket.on("playerInfo", (data) => {
   localPlayerNumber = data.localPlayerNumber;
-  roomID = data.roomID;
   gameWorldWidth = data.gameWorldWidth;
   gameWorldHeight = data.gameWorldHeight;
 
@@ -312,44 +310,7 @@ function render() {
 }
 
 socket.on("playerDisconnected", (localPlayerNumber) => {
-  // Reset client-side variables
-  localPlayerNumber = null;
-  roomID = null;
-  currentGameState = GameState.LOBBY;
-  drawingHistory = {
-    [PLAYER_ONE]: [],
-    [PLAYER_TWO]: [],
-  };
-
-  // Clear the canvas
-  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
-
-  // Reset game entities
-  tanks = [];
-  reactors = [];
-  fortresses = [];
-  turrets = [];
-  3;
-  shells = [];
-  noDrawZones = [];
-  renderingStarted = false;
-
-  // Reset UI elements
-  landingPage.style.display = "block";
-  gameAndPowerContainer.style.display = "none";
-
-  joinButton.disabled = false;
-  passcodeInput.disabled = false;
-  passcodeInput.value = "";
-
-  gameWorldWidth = null;
-  gameWorldHeight = null;
-  scaleX = 1;
-  scaleY = 1;
-
-  stopWobble();
-
-  updateButtonVisibility();
+  window.location.reload();
 });
 
 socket.on("gameFull", () => {
