@@ -477,6 +477,10 @@ socket.on("gameOver", (data) => {
   const { winner, reason } = data;
   alert(`Player ${winner} wins! Reason: ${reason}`);
 
+  // Clear the timer display
+  const timerElement = document.getElementById("Timer");
+  timerElement.textContent = "";
+
   // Optionally, reset the game state or redirect to a lobby
   location.reload(); // Simple way to restart the game
 });
@@ -1339,18 +1343,28 @@ let isMyTurn = false;
 
 socket.on("turnChanged", (data) => {
   isMyTurn = data.currentTurn === localPlayerNumber;
+
+  updateTimerDisplay(30, data.currentTurn, "TURN"); // Assuming 30 seconds per turn
 });
 
 // Client-side code
 socket.on("updateTimer", (data) => {
-  const { timeLeft } = data;
-  // Update the timer display in the client
-  updateTimerDisplay(timeLeft);
+  const { timeLeft, currentTurn, phase } = data;
+  updateTimerDisplay(timeLeft, currentTurn, phase);
 });
 
-function updateTimerDisplay(timeLeft) {
+function updateTimerDisplay(timeLeft, currentTurn, phase) {
   const timerElement = document.getElementById("Timer");
-  timerElement.textContent = `${timeLeft}`;
+
+  if (phase === "DRAWING") {
+    timerElement.textContent = `Drawing Time Left: ${timeLeft}s`;
+  } else if (phase === "TURN") {
+    if (currentTurn === localPlayerNumber) {
+      timerElement.textContent = `Your Turn: ${timeLeft}s`;
+    } else {
+      timerElement.textContent = `Opponent's Turn: ${timeLeft}s`;
+    }
+  }
 }
 
 function setColorFullOpacity(color) {
@@ -1371,18 +1385,3 @@ function setColorFullOpacity(color) {
     return color;
   }
 }
-
-socket.on("updateTurnTimer", (data) => {
-  const { timeLeft, currentTurn } = data;
-  updateTurnTimerDisplay(timeLeft, currentTurn);
-});
-
-function updateTurnTimerDisplay(timeLeft, currentTurn) {
-  const timerElement = document.getElementById("Timer");
-  timerElement.textContent = `Player ${currentTurn}'s Turn: ${timeLeft}s`;
-}
-
-socket.on("turnChanged", (data) => {
-  isMyTurn = data.currentTurn === localPlayerNumber;
-  updateButtonVisibility();
-});

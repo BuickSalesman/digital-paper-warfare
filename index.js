@@ -78,11 +78,12 @@ const PORT = process.env.PORT || 3000;
 
 // Timer class used for drawing and battle phases. Drawing phase is 60 seconds, battle phase turns should be 30 seconds each.
 class Timer {
-  constructor(duration, onTick, onEnd) {
+  constructor(duration, onTick, onEnd, phase) {
     this.duration = duration; // Total duration of the timer in seconds.
     this.timeLeft = duration; // Remaining time left in the countdown.
     this.onTick = onTick; // Function to call every second with the remaining time.
     this.onEnd = onEnd; // Function to call when timer reaches zero.
+    this.phase = phase; // 'DRAWING' or 'TURN'
     this.intervalId = null; // ID used to clear setInterval.
   }
 
@@ -250,7 +251,8 @@ io.on("connection", (socket) => {
               });
 
               startTurnTimer(room);
-            }
+            },
+            "DRAWING"
           );
 
           // Start the drawing timer.
@@ -309,7 +311,7 @@ io.on("connection", (socket) => {
           delete socket.mouseDownData;
         }
 
-        if (room.turnTimer) {
+        if (room && room.turnTimer) {
           room.turnTimer.stop();
           delete room.turnTimer;
         }
@@ -1923,7 +1925,7 @@ function startTurnTimer(room) {
     30, // 30 seconds per turn
     (timeLeft) => {
       // Send remaining time to clients
-      io.to(room.roomID).emit("updateTurnTimer", { timeLeft, currentTurn: room.currentTurn });
+      io.to(room.roomID).emit("updateTimer", { timeLeft, currentTurn: room.currentTurn, phase: "TURN" });
     },
     () => {
       // OnEnd: Switch turn to other player and restart timer
@@ -1934,7 +1936,8 @@ function startTurnTimer(room) {
 
       // Start a new timer for the next player's turn
       startTurnTimer(room);
-    }
+    },
+    "TURN"
   );
 
   // Start the timer
