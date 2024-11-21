@@ -248,6 +248,8 @@ io.on("connection", (socket) => {
                 message: "Drawing phase has ended. The game is now running.",
                 currentTurn: room.currentTurn,
               });
+
+              startTurnTimer(room);
             }
           );
 
@@ -305,6 +307,11 @@ io.on("connection", (socket) => {
           clearTimeout(socket.mouseDownTimer);
           delete socket.mouseDownTimer;
           delete socket.mouseDownData;
+        }
+
+        if (room.turnTimer) {
+          room.turnTimer.stop();
+          delete room.turnTimer;
         }
 
         // Delete the room completely
@@ -1781,6 +1788,12 @@ function endGame(roomID) {
     Matter.Engine.clear(room.roomEngine);
     clearInterval(roomIntervals[roomID]);
     delete roomIntervals[roomID];
+
+    if (room.turnTimer) {
+      room.turnTimer.stop();
+      delete room.turnTimer;
+    }
+
     delete gameRooms[roomID];
     console.log(`Game in room ${roomID} has ended.`);
   }
@@ -1893,9 +1906,39 @@ function processMouseUp(socket, data, isForced = false) {
 
         // Notify both players about the turn change
         io.to(room.roomID).emit("turnChanged", { currentTurn: room.currentTurn });
+
+        startTurnTimer(room);
       }
     }
   }
+}
+
+function startTurnTimer(room) {
+  // Stop any existing turn timer
+  if (room.turnTimer) {
+    room.turnTimer.stop();
+  }
+
+  room.turnTimer = new Timer(
+    30, // 30 seconds per turn
+    (timeLeft) => {
+      // Send remaining time to clients
+      io.to(room.roomID).emit("updateTurnTimer", { timeLeft, currentTurn: room.currentTurn });
+    },
+    () => {
+      // OnEnd: Switch turn to other player and restart timer
+      console.log(`Turn timer ended for room ${room.roomID}. Switching turns.`);
+
+      room.currentTurn = room.currentTurn === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+      io.to(room.roomID).emit("turnChanged", { currentTurn: room.currentTurn });
+
+      // Start a new timer for the next player's turn
+      startTurnTimer(room);
+    }
+  );
+
+  // Start the timer
+  room.turnTimer.start();
 }
 
 //#endregion FUNCTIONS

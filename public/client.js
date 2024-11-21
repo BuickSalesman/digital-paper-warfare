@@ -1371,3 +1371,18 @@ function setColorFullOpacity(color) {
     return color;
   }
 }
+
+socket.on("updateTurnTimer", (data) => {
+  const { timeLeft, currentTurn } = data;
+  updateTurnTimerDisplay(timeLeft, currentTurn);
+});
+
+function updateTurnTimerDisplay(timeLeft, currentTurn) {
+  const timerElement = document.getElementById("Timer");
+  timerElement.textContent = `Player ${currentTurn}'s Turn: ${timeLeft}s`;
+}
+
+socket.on("turnChanged", (data) => {
+  isMyTurn = data.currentTurn === localPlayerNumber;
+  updateButtonVisibility();
+});
