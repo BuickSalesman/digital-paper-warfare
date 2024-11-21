@@ -1361,6 +1361,7 @@ function updateTimerDisplay(timeLeft, currentTurn, phase) {
   } else if (phase === "TURN") {
     if (currentTurn === localPlayerNumber) {
       timerElement.textContent = `${timeLeft}`;
+      timerElement.style.fontSize = "3.2rem"; // Set to smaller size
     } else {
       timerElement.textContent = `opponents turn`;
       timerElement.style.fontSize = "2vw"; // Set to smaller size
