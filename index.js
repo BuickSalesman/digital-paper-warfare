@@ -90,10 +90,10 @@ class Timer {
   // Starts timer countdown.
   start() {
     this.timeLeft = this.duration;
-    this.onTick(this.timeLeft);
+    this.onTick(this.timeLeft, this.phase);
     this.intervalId = setInterval(() => {
       this.timeLeft--;
-      this.onTick(this.timeLeft);
+      this.onTick(this.timeLeft, this.phase);
       if (this.timeLeft <= 0) {
         this.stop();
         this.onEnd();
@@ -225,9 +225,9 @@ io.on("connection", (socket) => {
           // Start the drawing timer.
           room.drawingTimer = new Timer(
             60, // Duration in seconds
-            (timeLeft) => {
+            (timeLeft, phase) => {
               // OnTick: Send remaining time to clients
-              io.to(roomID).emit("updateTimer", { timeLeft });
+              io.to(roomID).emit("updateTimer", { timeLeft, phase });
             },
             () => {
               // OnEnd: Transition to GAME_RUNNING
@@ -1923,9 +1923,9 @@ function startTurnTimer(room) {
 
   room.turnTimer = new Timer(
     30, // 30 seconds per turn
-    (timeLeft) => {
+    (timeLeft, phase) => {
       // Send remaining time to clients
-      io.to(room.roomID).emit("updateTimer", { timeLeft, currentTurn: room.currentTurn, phase: "TURN" });
+      io.to(room.roomID).emit("updateTimer", { timeLeft, currentTurn: room.currentTurn, phase });
     },
     () => {
       // OnEnd: Switch turn to other player and restart timer
