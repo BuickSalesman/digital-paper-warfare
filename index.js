@@ -118,27 +118,18 @@ class Timer {
 }
 
 // Start the server, listen for incoming connections.
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+server.listen(PORT, () => {});
 
 io.on("connection", (socket) => {
-  console.log(`New connection: ${socket.id}`);
-
   // Handle 'joinGame' event.
   socket.on("joinGame", (data) => {
-    console.log(`Received 'joinGame' from socket ${socket.id}`);
-
     // Check if data is truthy. If passcode exists in data, assign it to the passcode variable, else null.
     const passcode = data && data.passcode ? data.passcode : null;
 
     // If passcode exists, validate passcode and start creation/joining of passcode room.
     if (passcode) {
-      console.log(`Player wants to join room with passcode: ${passcode}`);
-
       // Validate passcode (ensure it's 6 digits).
       if (!/^[A-Za-z0-9]{6}$/.test(passcode)) {
-        console.log(`Invalid passcode: ${passcode}`);
         socket.emit("invalidPasscode", { message: "Passcode must be exactly 6 letters and numbers." });
         return;
       }
@@ -151,11 +142,9 @@ io.on("connection", (socket) => {
       // Determine whether to create or join room.
       if (!room) {
         // No room with this passcode exists, create a new one.
-        console.log(`Creating new passcode room ${roomID}`);
         createNewRoom(roomID, socket, true);
       } else {
         // Room exists, try to join it.
-        console.log(`Joining existing passcode room ${roomID}`);
         joinRoom(socket, room);
       }
     } else {
@@ -175,7 +164,6 @@ io.on("connection", (socket) => {
         ) {
           // Join first available room found, if a room is found.
           roomFound = true;
-          console.log(`Joining existing room ${roomID}`);
           joinRoom(socket, room);
           break;
         }
@@ -185,7 +173,6 @@ io.on("connection", (socket) => {
         // Create a new room.
         const newRoomID = `room${nextRoomNumber}`;
         nextRoomNumber += 1;
-        console.log(`Creating new room ${newRoomID}`);
         createNewRoom(newRoomID, socket);
       }
     }
@@ -193,8 +180,6 @@ io.on("connection", (socket) => {
 
   // Listen for "ready" event from the client.
   socket.on("ready", () => {
-    console.log(`Received 'ready' from socket ${socket.id} in room ${socket.roomID}`);
-
     // Retrieve the room ID from the socket.
     const roomID = socket.roomID;
 
@@ -207,7 +192,6 @@ io.on("connection", (socket) => {
       if (room) {
         // Increment count of ready players in the room.
         room.readyPlayers += 1;
-        console.log(`Room ${roomID} has ${room.readyPlayers} ready player(s).`);
 
         // Determine the total number of players in the room.
         const totalPlayers = room.players.player1 && room.players.player2 ? 2 : 1;
@@ -231,7 +215,6 @@ io.on("connection", (socket) => {
             },
             () => {
               // OnEnd: Transition to GAME_RUNNING
-              console.log(`Drawing phase ended for room ${roomID}`);
 
               // Coin flip!
               room.currentTurn = Math.random() < 0.5 ? PLAYER_ONE : PLAYER_TWO;
@@ -264,7 +247,6 @@ io.on("connection", (socket) => {
 
   // Handle disconnections
   socket.on("disconnect", () => {
-    console.log(`Socket disconnected: ${socket.id}`);
     const roomID = socket.roomID;
     const localPlayerNumber = socket.localPlayerNumber;
 
@@ -275,10 +257,8 @@ io.on("connection", (socket) => {
 
         if (localPlayerNumber === PLAYER_ONE && room.players.player1 === socket.id) {
           room.players.player1 = null;
-          console.log(`Player 1 (${socket.id}) disconnected from ${roomID}`);
         } else if (localPlayerNumber === PLAYER_TWO && room.players.player2 === socket.id) {
           room.players.player2 = null;
-          console.log(`Player 2 (${socket.id}) disconnected from ${roomID}`);
         }
 
         // Reset the localPlayerNumber and roomID of the remaining player
@@ -288,13 +268,11 @@ io.on("connection", (socket) => {
           if (remainingPlayerSocket) {
             remainingPlayerSocket.localPlayerNumber = null;
             remainingPlayerSocket.roomID = null;
-            console.log(`Reset localPlayerNumber and roomID for remaining player ${remainingPlayerSocketId}`);
           }
         }
 
         // Emit 'playerDisconnected' to all clients in the room
         io.to(roomID).emit("playerDisconnected", disconnectedPlayer);
-        console.log(`Notified room ${roomID} about disconnection of Player ${disconnectedPlayer}`);
 
         // Properly remove all bodies from the Matter.js world
         Matter.World.clear(room.roomWorld, false);
@@ -318,7 +296,6 @@ io.on("connection", (socket) => {
 
         // Delete the room completely
         delete gameRooms[roomID];
-        console.log(`Room ${roomID} has been deleted due to player disconnection.`);
       }
     }
   });
@@ -364,8 +341,7 @@ io.on("connection", (socket) => {
     const roomID = socket.roomID;
     const localPlayerNumber = socket.localPlayerNumber;
     const room = gameRooms[roomID];
-    console.log(data);
-    console.log(socket.id);
+
     if (!room) {
       return;
     }
@@ -392,13 +368,11 @@ io.on("connection", (socket) => {
 
     // Validate coordinates
     if (!isValidCoordinate(from) || !isValidCoordinate(to)) {
-      console.log(`Invalid coordinates received from player ${localPlayerNumber}`);
       return;
     }
 
     // Validate that drawing is within player's area
     if (!isWithinPlayerArea(from.y, localPlayerNumber, room) || !isWithinPlayerArea(to.y, localPlayerNumber, room)) {
-      console.log(`Player ${localPlayerNumber} attempted to draw outside their area.`);
       session.isLegal = false;
       socket.emit("drawingIllegally", {});
       return;
@@ -463,7 +437,6 @@ io.on("connection", (socket) => {
           if (doLineSegmentsIntersect(newLine[0], newLine[1], segment.from, segment.to)) {
             session.isLegal = false;
             becameIllegal = true;
-            console.log(`New line segment intersects with existing shape.`);
             break;
           }
         }
@@ -480,7 +453,6 @@ io.on("connection", (socket) => {
             if (doLineSegmentsIntersect(newLine[0], newLine[1], edge[0], edge[1])) {
               session.isLegal = false;
               becameIllegal = true;
-              console.log(`New line segment intersects with no-draw zone.`);
               break;
             }
           }
@@ -542,7 +514,7 @@ io.on("connection", (socket) => {
       socket.emit("eraseDrawingSession", { drawingSessionId: session.id, localPlayerNumber });
       socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, localPlayerNumber });
       delete room.drawingSessions[localPlayerNumber];
-      console.log(`Player ${localPlayerNumber}'s drawing exceeded pixel limit after closing and was erased.`);
+
       return;
     }
 
@@ -571,23 +543,18 @@ io.on("connection", (socket) => {
 
       if (doPolygonsIntersect(newShapeCoordinates, existingShapeCoordinates)) {
         isIllegalShape = true;
-        console.log(`New shape intersects with existing shape drawn by Player ${existingShape.localPlayerNumber}.`);
         break;
       }
 
       if (isPolygonContained(newShapeCoordinates, existingShapeCoordinates)) {
         isIllegalShape = true;
-        console.log(
-          `New shape is contained within an existing shape drawn by Player ${existingShape.localPlayerNumber}.`
-        );
+
         break;
       }
 
       if (isPolygonContained(existingShapeCoordinates, newShapeCoordinates)) {
         isIllegalShape = true;
-        console.log(
-          `Existing shape drawn by Player ${existingShape.localPlayerNumber} is contained within the new shape.`
-        );
+
         break;
       }
     }
@@ -606,7 +573,6 @@ io.on("connection", (socket) => {
 
         if (doPolygonsIntersect(newShapeCoordinates, noDrawZoneCoordinates)) {
           isIllegalShape = true;
-          console.log(`New shape intersects with no-draw zone.`);
           break;
         }
       }
@@ -617,7 +583,6 @@ io.on("connection", (socket) => {
       socket.emit("eraseDrawingSession", { drawingSessionId: session.id, localPlayerNumber });
       socket.to(roomID).emit("eraseDrawingSession", { drawingSessionId: session.id, localPlayerNumber });
       delete room.drawingSessions[localPlayerNumber];
-      console.log(`Player ${localPlayerNumber}'s drawing was illegal and was erased.`);
     } else {
       // Shape is legal, send 'shapeClosed' event
       io.to(roomID).emit("shapeClosed", {
@@ -674,7 +639,6 @@ io.on("connection", (socket) => {
 
       // Remove the drawing session
       delete room.drawingSessions[localPlayerNumber];
-      console.log(`Player ${localPlayerNumber}'s drawing was legal and added to allPaths.`);
     }
   });
 
@@ -771,8 +735,6 @@ io.on("connection", (socket) => {
       localPlayerNumber,
     });
 
-    console.log(`Player ${localPlayerNumber} erased a drawing.`);
-
     // Re-enable drawing for the player if they are below the shape limit
     if (room.shapeCounts[localPlayerNumber] < 5) {
       const playerSocketId = room.players[`player${localPlayerNumber}`];
@@ -817,7 +779,6 @@ io.on("connection", (socket) => {
       if (room) {
         // Prevent multiple mouseDown events without mouseUp
         if (socket.mouseDownData) {
-          console.log(`Socket ${socket.id} is already holding mouse down.`);
           return;
         }
 
@@ -833,10 +794,8 @@ io.on("connection", (socket) => {
               actionMode: actionMode,
             };
             socket.emit("validClick");
-            console.log(`Player ${localPlayerNumber} started moving tank ${tank.id}`);
 
             socket.mouseDownTimer = setTimeout(() => {
-              console.log(`Auto-triggering mouseUp for socket ${socket.id} after 1.2 seconds`);
               processMouseUp(socket, { x, y }, true); // isForced = true
             }, 450);
           } else {
@@ -852,11 +811,9 @@ io.on("connection", (socket) => {
               actionMode: actionMode,
             };
             socket.emit("validClick");
-            console.log(`Player ${localPlayerNumber} started shooting with unit ${unit.id}`);
 
             // Start the 1.2-second timer
             socket.mouseDownTimer = setTimeout(() => {
-              console.log(`Auto-triggering mouseUp for socket ${socket.id} after 1.2 seconds`);
               processMouseUp(socket, { x, y }, true); // isForced = true
             }, 450);
           } else {
@@ -871,7 +828,6 @@ io.on("connection", (socket) => {
 
   // Handle 'mouseUp' event
   socket.on("mouseUp", (data) => {
-    console.log(`Received 'mouseUp' from socket ${socket.id}`);
     processMouseUp(socket, data, false); // isForced = false
   });
 
@@ -979,7 +935,6 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
 
   // Add the newly created room to the gameRooms object, using roomID as the key.
   gameRooms[roomID] = room;
-  console.log(`Created room ${roomID}`);
 
   // Adds the player's socket to the Socket.IO room identified by roomID.
   socket.join(roomID);
@@ -995,7 +950,6 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     gameWorldWidth: GAME_WORLD_WIDTH,
     gameWorldHeight: GAME_WORLD_HEIGHT,
   });
-  console.log(`Socket ${socket.id} created and joined ${roomID} as Player ${PLAYER_ONE}`);
 }
 
 // Handles assigning player (socket) ro a specified room. Called in the joinGame event handler.
@@ -1006,16 +960,13 @@ function joinRoom(socket, room) {
   if (!room.players.player1) {
     room.players.player1 = socket.id;
     localPlayerNumber = PLAYER_ONE;
-    console.log(`Assigned Player 1 to socket ${socket.id} in room ${room.roomID}`);
   } // If player1 already assigned, check if player2 available.
   else if (!room.players.player2) {
     // Assign socket.id to player2.
     room.players.player2 = socket.id;
     localPlayerNumber = PLAYER_TWO;
-    console.log(`Assigned Player 2 to socket ${socket.id} in room ${room.roomID}`);
   } else {
     // Room is full.
-    console.log(`Room ${room.roomID} is full. Emitting 'gameFull' to socket ${socket.id}`);
     socket.emit("gameFull");
     return;
   }
@@ -1033,7 +984,6 @@ function joinRoom(socket, room) {
     gameWorldWidth: GAME_WORLD_WIDTH,
     gameWorldHeight: GAME_WORLD_HEIGHT,
   });
-  console.log(`Socket ${socket.id} joined ${room.roomID} as Player ${localPlayerNumber}`);
 
   // Check if room now has two players.
   if (room.players.player1 && room.players.player2) {
@@ -1801,7 +1751,6 @@ function endGame(roomID) {
     }
 
     delete gameRooms[roomID];
-    console.log(`Game in room ${roomID} has ended.`);
   }
 
   // Inform clients to reset their state
@@ -1842,7 +1791,6 @@ function processMouseUp(socket, data, isForced = false) {
           delete socket.mouseDownTimer;
         }
 
-        console.log(`Ignored action from socket ${socket.id} due to insufficient drag distance.`);
         return;
       }
 
@@ -1933,7 +1881,6 @@ function startTurnTimer(room) {
     },
     () => {
       // OnEnd: Switch turn to other player and restart timer
-      console.log(`Turn timer ended for room ${room.roomID}. Switching turns.`);
 
       room.currentTurn = room.currentTurn === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
       io.to(room.roomID).emit("turnChanged", { currentTurn: room.currentTurn });
