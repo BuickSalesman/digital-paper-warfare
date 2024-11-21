@@ -668,6 +668,8 @@ io.on("connection", (socket) => {
           message: "Both players have completed their shapes. The game is now running.",
           currentTurn: room.currentTurn,
         });
+
+        startTurnTimer(room);
       }
 
       // Remove the drawing session
@@ -724,6 +726,8 @@ io.on("connection", (socket) => {
         message: "Both players have completed their shapes. The game is now running.",
         currentTurn: room.currentTurn,
       });
+
+      startTurnTimer(room);
     }
   });
 

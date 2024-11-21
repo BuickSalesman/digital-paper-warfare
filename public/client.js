@@ -1357,12 +1357,12 @@ function updateTimerDisplay(timeLeft, currentTurn, phase) {
   const timerElement = document.getElementById("Timer");
 
   if (phase === "DRAWING") {
-    timerElement.textContent = `Drawing Time Left: ${timeLeft}s`;
+    timerElement.textContent = `${timeLeft}`;
   } else if (phase === "TURN") {
     if (currentTurn === localPlayerNumber) {
-      timerElement.textContent = `Your Turn: ${timeLeft}s`;
+      timerElement.textContent = `${timeLeft}`;
     } else {
-      timerElement.textContent = `Opponent's Turn: ${timeLeft}s`;
+      timerElement.textContent = `opponents turn`;
     }
   }
 }
