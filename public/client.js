@@ -1363,6 +1363,7 @@ function updateTimerDisplay(timeLeft, currentTurn, phase) {
       timerElement.textContent = `${timeLeft}`;
     } else {
       timerElement.textContent = `opponents turn`;
+      timerElement.style.fontSize = "2vw"; // Set to smaller size
     }
   }
 }
