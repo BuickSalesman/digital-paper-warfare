@@ -1483,7 +1483,7 @@ function calculateForceFromPowerLevel(powerLevel, isForced = false) {
   // **Punishment Zone: 95-99%**
   if (powerLevel >= 95 && powerLevel <= 99) {
     const punishmentPoints = powerLevel - 94; // 1 at 95%, ..., 5 at 99%
-    modifier -= punishmentPoints * 0.015; // -1.5% per point
+    modifier -= punishmentPoints * 0.03; // -1.5% per point
     console.log(`Punishment Zone: Power Level = ${powerLevel}% | Modifier = -${(punishmentPoints * 1.5).toFixed(1)}%`);
   }
 
