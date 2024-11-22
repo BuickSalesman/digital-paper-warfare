@@ -73,6 +73,10 @@ const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
 // Limit in pixels for how long a line a player can draw as a shape before it snaps closed.
 const inkLimit = 2000;
 
+const POWER_INCREMENT_INTERVAL = 100; // in ms
+const POWER_INCREMENT_VALUE = 1; // per interval
+const MAX_POWER_LEVEL = 100;
+
 // Server ish. Idk man I'm not Bill Gates. Port 3000 if not defined.
 const PORT = process.env.PORT || 3000;
 
@@ -755,19 +759,12 @@ io.on("connection", (socket) => {
     const localPlayerNumber = socket.localPlayerNumber;
     const actionMode = data.actionMode;
 
-    // if (!roomID || !localPlayerNumber) {
-    //   return;
-    // }
-
-    // if (!room) {
-    //   return;
-    // }
-
-    // if (room.currentGameState !== GameState.GAME_RUNNING) {
-    //   return;
-    // }
-
     const room = gameRooms[roomID];
+
+    if (!room) {
+      socket.emit("error", { message: "Room not found." });
+      return;
+    }
 
     if (room.currentTurn !== localPlayerNumber) {
       socket.emit("notYourTurn");
@@ -775,53 +772,47 @@ io.on("connection", (socket) => {
     }
 
     if (roomID && localPlayerNumber) {
-      const room = gameRooms[roomID];
-      if (room) {
-        // Prevent multiple mouseDown events without mouseUp
-        if (socket.mouseDownData) {
-          return;
-        }
+      // Prevent multiple mouseDown events without mouseUp
+      if (socket.mouseDownData) {
+        return;
+      }
 
-        const { x, y } = data;
+      const { x, y } = data;
 
-        if (actionMode === "move") {
-          const tank = validateClickOnTank(room, localPlayerNumber, x, y);
-          if (tank) {
-            socket.mouseDownData = {
-              startTime: Date.now(),
-              startPosition: { x, y },
-              tankId: tank.id,
-              actionMode: actionMode,
-            };
-            socket.emit("validClick");
+      if (actionMode === "move") {
+        const tank = validateClickOnTank(room, localPlayerNumber, x, y);
+        if (tank) {
+          socket.mouseDownData = {
+            startTime: Date.now(),
+            startPosition: { x, y },
+            tankId: tank.id,
+            actionMode: actionMode,
+          };
+          socket.emit("validClick");
 
-            socket.mouseDownTimer = setTimeout(() => {
-              processMouseUp(socket, { x, y }, true); // isForced = true
-            }, 450);
-          } else {
-            socket.emit("invalidClick");
-          }
-        } else if (actionMode === "shoot") {
-          const unit = validateClickOnShootingUnit(room, localPlayerNumber, x, y);
-          if (unit) {
-            socket.mouseDownData = {
-              startTime: Date.now(),
-              startPosition: { x, y },
-              unitId: unit.id,
-              actionMode: actionMode,
-            };
-            socket.emit("validClick");
-
-            // Start the 1.2-second timer
-            socket.mouseDownTimer = setTimeout(() => {
-              processMouseUp(socket, { x, y }, true); // isForced = true
-            }, 450);
-          } else {
-            socket.emit("invalidClick");
-          }
+          // Start power level increment for 'move' action
+          startPowerIncrement(room, localPlayerNumber, tank.id, actionMode, socket);
         } else {
-          socket.emit("invalidActionMode");
+          socket.emit("invalidClick");
         }
+      } else if (actionMode === "shoot") {
+        const unit = validateClickOnShootingUnit(room, localPlayerNumber, x, y);
+        if (unit) {
+          socket.mouseDownData = {
+            startTime: Date.now(),
+            startPosition: { x, y },
+            unitId: unit.id,
+            actionMode: actionMode,
+          };
+          socket.emit("validClick");
+
+          // Start power level increment for 'shoot' action
+          startPowerIncrement(room, localPlayerNumber, unit.id, actionMode, socket);
+        } else {
+          socket.emit("invalidClick");
+        }
+      } else {
+        socket.emit("invalidActionMode");
       }
     }
   });
@@ -870,6 +861,18 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     shapeCounts: {
       [PLAYER_ONE]: 0,
       [PLAYER_TWO]: 0,
+    },
+    powerLevels: {
+      [PLAYER_ONE]: 0,
+      [PLAYER_TWO]: 0,
+    },
+    powerIntervals: {
+      [PLAYER_ONE]: null,
+      [PLAYER_TWO]: null,
+    },
+    currentActionUnit: {
+      [PLAYER_ONE]: null,
+      [PLAYER_TWO]: null,
     },
     noDrawZones: [], // Initialize no-draw zones.
     currentGameState: GameState.LOBBY, // Start with LOBBY.
@@ -1464,30 +1467,11 @@ function validateClickOnTank(room, localPlayerNumber, x, y) {
   return null;
 }
 
-function calculateForceFromDuration(duration) {
-  // Map duration to force
-  const minDuration = 100; // 0.1 second
-  const maxDuration = 450; // 0.45 seconds
-
-  const minForce = 0.005; // Adjust as needed
-  const maxForce = 5; // Adjust as needed
-
-  // Linear interpolation
-  const normalizedDuration = (duration - minDuration) / (maxDuration - minDuration);
-  const clampedNormalized = Math.max(0, Math.min(normalizedDuration, 1));
-  let force = minForce + clampedNormalized * (maxForce - minForce);
-
-  // Calculate corresponding velocity (assuming mass = 1 for simplicity)
-  // Velocity = Force * deltaTime (simplified)
-  // Adjust the relation based on your game's physics settings
-  const estimatedVelocity = force * 100; // Example multiplier
-
-  if (estimatedVelocity < minimumInitialVelocity) {
-    // Adjust force to meet minimum velocity requirement
-    force = minimumInitialVelocity / 100; // Reverse the estimation
-  }
-
-  return force;
+function calculateForceFromPowerLevel(powerLevel) {
+  // Define the relationship between power level and force magnitude
+  // Adjust the multiplier based on your game's physics
+  const forceMultiplier = 0.05; // Example multiplier
+  return powerLevel * forceMultiplier;
 }
 
 function calculateVector(start, end) {
@@ -1764,39 +1748,34 @@ function processMouseUp(socket, data, isForced = false) {
   if (roomID && localPlayerNumber) {
     const room = gameRooms[roomID];
     if (room && socket.mouseDownData) {
-      const { startTime, startPosition, tankId, unitId, actionMode, endPosition } = socket.mouseDownData;
-      let duration;
-      let finalEndPosition;
+      const { startPosition, tankId, unitId, actionMode } = socket.mouseDownData;
+      let finalPowerLevel;
 
       if (isForced) {
-        duration = 450; // Forced duration of 450 ms
-        finalEndPosition = endPosition || startPosition; // Ensure finalEndPosition is defined
+        finalPowerLevel = MAX_POWER_LEVEL; // Forced to maximum power
       } else {
-        duration = Date.now() - startTime;
-        finalEndPosition = { x: data.x, y: data.y };
+        // Retrieve the power level from the room's powerLevels
+        finalPowerLevel = room.powerLevels[localPlayerNumber] || 0;
       }
 
-      const deltaX = finalEndPosition.x - startPosition.x;
-      const deltaY = finalEndPosition.y - startPosition.y;
-      const dragDistance = Math.hypot(deltaX, deltaY);
+      // Reset the power level for the player
+      room.powerLevels[localPlayerNumber] = 0;
 
-      if (dragDistance < minimumDragDistance) {
-        // Drag distance is too small; ignore the action
-        socket.emit("actionTooSmall", { message: "Drag distance too short. Action ignored." });
-
-        // Clean up mouseDownData and timer
-        delete socket.mouseDownData;
-        if (socket.mouseDownTimer) {
-          clearTimeout(socket.mouseDownTimer);
-          delete socket.mouseDownTimer;
-        }
-
-        return;
+      // Stop the power increment interval if it's still running
+      if (room.powerIntervals[localPlayerNumber]) {
+        clearInterval(room.powerIntervals[localPlayerNumber]);
+        room.powerIntervals[localPlayerNumber] = null;
       }
 
-      const clampedDuration = Math.max(100, Math.min(duration, 450)); // Clamp duration to [100, 450] ms
-      const force = calculateForceFromDuration(clampedDuration);
-      const vector = calculateVector(startPosition, finalEndPosition);
+      // Emit the final power level to the client
+      socket.emit("powerLevelUpdate", {
+        playerNumber: localPlayerNumber,
+        powerLevel: finalPowerLevel,
+      });
+
+      // Calculate the force based on the finalPowerLevel
+      const force = calculateForceFromPowerLevel(finalPowerLevel); // Implement this function based on your game's mechanics
+      const vector = calculateVector(startPosition, data); // Modify as needed
 
       if (actionMode === "move") {
         const tank = room.tanks.find((t) => t.id === tankId);
@@ -1808,7 +1787,7 @@ function processMouseUp(socket, data, isForced = false) {
             startingAngle: tank.angle,
           });
 
-          // Manage tank tracks (existing logic)
+          // Manage tank tracks
           if (!tank.tracks) {
             tank.tracks = [];
           }
@@ -1843,24 +1822,22 @@ function processMouseUp(socket, data, isForced = false) {
         }
       }
 
-      // Clean up mouseDownData and timer
+      // Clean up mouseDownData
       delete socket.mouseDownData;
-      if (socket.mouseDownTimer) {
-        clearTimeout(socket.mouseDownTimer);
-        delete socket.mouseDownTimer;
-      }
 
-      // If the mouseUp was forced, inform the client
+      // Emit 'powerCapped' if the action was forced
       if (isForced) {
-        socket.emit("powerCapped", { duration: clampedDuration });
+        socket.emit("powerCapped", { powerLevel: finalPowerLevel });
       }
 
+      // Switch turn to the other player
       if (room) {
         room.currentTurn = room.currentTurn === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
 
         // Notify both players about the turn change
         io.to(room.roomID).emit("turnChanged", { currentTurn: room.currentTurn });
 
+        // Start turn timer for the next player
         startTurnTimer(room);
       }
     }
@@ -1893,6 +1870,39 @@ function startTurnTimer(room) {
 
   // Start the timer
   room.turnTimer.start();
+}
+
+function startPowerIncrement(room, playerNumber, unitId, actionMode, socket) {
+  // Store the current action unit
+  room.currentActionUnit[playerNumber] = {
+    unitId: unitId,
+    actionMode: actionMode,
+  };
+
+  // Prevent multiple intervals
+  if (room.powerIntervals[playerNumber]) {
+    clearInterval(room.powerIntervals[playerNumber]);
+  }
+
+  // Start the power increment interval
+  room.powerIntervals[playerNumber] = setInterval(() => {
+    if (room.powerLevels[playerNumber] < MAX_POWER_LEVEL) {
+      room.powerLevels[playerNumber] += POWER_INCREMENT_VALUE;
+
+      // Emit the updated power level to the specific client
+      socket.emit("powerLevelUpdate", {
+        playerNumber: playerNumber,
+        powerLevel: room.powerLevels[playerNumber],
+      });
+    } else {
+      // Power level has reached the maximum, force mouseUp
+      clearInterval(room.powerIntervals[playerNumber]);
+      room.powerIntervals[playerNumber] = null;
+
+      // Force mouseUp with MAX_POWER_LEVEL
+      processMouseUp(socket, {}, true);
+    }
+  }, POWER_INCREMENT_INTERVAL);
 }
 
 //#endregion FUNCTIONS

@@ -91,15 +91,6 @@ let shells = [];
 // Boolean to track whether or not the mouse is currently pressed. Initialized to false as the mouse is initially not pressed. Used in virtually every aspect of the game. May need a sister state to track mouse state on server to prevent unitended and malcious actions. ChatGPT suggested throttling mouse events?
 let isMouseDown = false;
 
-// Initialize current power level of the power meter to 0. Power level is used to chaneg the CSS of the power meter to reflect increases in power as the mouse is held down. As of right now, this power meter is only affected locally, as power is handled exclusively on the server. The consequence of this is that the power meter CSS is not completely synced to the server side power incrementation.
-let powerLevel = 0;
-
-// Maximum power level, increments be 1 in increasePower().
-const maxPowerLevel = 100;
-
-// Initialize variable to change the rate of incrementation of the power level. This is set to 1 upon receiving a validated click from the server. Potential refactor.
-let powerInterval = null;
-
 // initialize variable to represent the current action mode of the local client. String of either "move", or "shoot". Might not want to initialize as null, as I keep forgetting that this means you HAVE to click and action button before taking any action. May want to implement validation on server tied to the button clicks.
 let actionMode = null;
 
@@ -234,7 +225,6 @@ drawCanvas.addEventListener("pointercancel", handlePointerCancel, false);
 drawCanvas.addEventListener("mousedown", handleMouseDown, false);
 drawCanvas.addEventListener("mousemove", handleMouseMove, false);
 drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
-drawCanvas.addEventListener("contextmenu", handleContextMenu, false);
 
 // Socket Events - all data sent to and rec'd from the server is handled here.
 // Recieves player info from server side. Uses this data to initialize the canvas, and update button visibility.
@@ -401,13 +391,14 @@ socket.on("gameRunning", (data) => {
   updateButtonVisibility();
 });
 
-socket.on("validClick", () => {
-  if (!isMouseDown) {
-    isMouseDown = true; // Ensure the state is consistent
-  }
+// Add the following listener for power level updates
+socket.on("powerLevelUpdate", (data) => {
+  const { playerNumber, powerLevel } = data;
 
-  // Start increasing the power meter
-  powerInterval = setInterval(increasePower, 1);
+  if (playerNumber === localPlayerNumber) {
+    // Update the power meter's CSS to reflect the server's power level
+    powerMeterFill.style.height = `${powerLevel}%`;
+  }
 });
 
 socket.on("invalidClick", () => {
@@ -665,7 +656,6 @@ function handleMouseDown(evt) {
       handleGameMouseDown(evt);
       break;
     default:
-      console.log(`Unhandled game state: ${currentGameState}`);
   }
 }
 
@@ -749,8 +739,7 @@ function handleMouseMove(evt) {
       handleGameMouseMove(evt);
       break;
     default:
-      // Optionally handle other game states or do nothing
-      console.log(`Unhandled game state: ${currentGameState}`);
+    // Optionally handle other game states or do nothing
   }
 }
 
@@ -833,8 +822,7 @@ function handleMouseUpOut(evt) {
       handleGameMouseUpOut(evt);
       break;
     default:
-      // Optionally handle other game states or do nothing
-      console.log(`Unhandled game state: ${currentGameState}`);
+    // Optionally handle other game states or do nothing
   }
 }
 
@@ -862,26 +850,10 @@ function handleGameMouseUpOut(evt) {
       actionMode: actionMode,
     });
 
-    resetPower(); // Reset the power meter
-    if (powerInterval) {
-      clearInterval(powerInterval);
-      powerInterval = null;
-    }
-
     // Stop wobble after force is applied
     if (isWobbling) {
       stopWobble();
     }
-  }
-}
-
-function handleContextMenu(evt) {
-  // Reset power meter
-  if (isMouseDown) {
-    isMouseDown = false;
-    resetPower();
-    clearInterval(powerInterval);
-    powerInterval = null;
   }
 }
 
@@ -1155,22 +1127,6 @@ function drawNoDrawZones() {
   });
 }
 
-function increasePower() {
-  if (powerLevel >= maxPowerLevel) {
-    powerLevel = maxPowerLevel;
-    clearInterval(powerInterval); // Stop increasing power
-    powerInterval = null;
-  } else {
-    powerLevel += 1; // Adjust increment as needed
-  }
-  powerMeterFill.style.height = `${powerLevel}%`;
-}
-
-function resetPower() {
-  powerLevel = 0;
-  powerMeterFill.style.height = "0%";
-}
-
 function drawImageRotated(ctx, img, x, y, width, height, rotation = 0) {
   ctx.save();
   ctx.translate(x, y);
@@ -1295,18 +1251,6 @@ function drawTankCurrentLine(tank, invertPlayerIds) {
   drawCtx.lineTo(tankX, tankY);
   drawCtx.stroke();
 }
-
-socket.on("powerCapped", (data) => {
-  console.log(`Power was automatically capped after ${data.duration} ms.`);
-  // alert("Power level has been automatically capped at 1.2 seconds.");
-  resetPower(); // Reset the power meter
-
-  if (powerInterval) {
-    clearInterval(powerInterval); // Stop increasing power
-    powerInterval = null;
-  }
-  isMouseDown = false; // Ensure the client recognizes that the mouse is no longer effectively held down
-});
 
 function updateButtonVisibility() {
   if (currentGameState === GameState.PRE_GAME) {
