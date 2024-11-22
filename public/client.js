@@ -990,43 +990,37 @@ function drawTank(tank, invertPlayerIds) {
   drawCtx.rotate(tank.angle + wobbleAngle); // Apply wobble to the rotation
 
   // Determine the tank's color based on hitPoints first
-  if (tank.hitPoints < 2) {
-    drawCtx.strokeStyle = "#FF4500"; // Critical hitpoints
-  } else {
-    // Adjust the player ID based on the invertPlayerIds flag
-    let tankPlayerId = tank.playerId;
-    if (invertPlayerIds) {
-      tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
-    }
+  let tankPlayerId = tank.playerId;
+  if (invertPlayerIds) {
+    tankPlayerId = tank.playerId === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+  }
 
-    if (tankPlayerId === localPlayerNumber) {
-      drawCtx.strokeStyle = "blue"; // Own tank
-    } else {
-      drawCtx.strokeStyle = "red"; // Opponent's tank
-    }
+  if (tankPlayerId === localPlayerNumber) {
+    drawCtx.strokeStyle = "blue"; // Own tank
+  } else {
+    drawCtx.strokeStyle = "red"; // Opponent's tank
   }
 
   drawCtx.lineWidth = 2;
   drawCtx.strokeRect(-scaledSize / 2, -scaledSize / 2, scaledSize, scaledSize);
 
-  // Current HP
-  const hpColor = tank.hitPoints < 2 ? "#FF4500" : "#FF4500";
-  drawCtx.fillStyle = hpColor;
-
   drawCtx.restore();
 
-  if (tank.hitPoints < 2 && !tank.isSmoking) {
-    tank.isSmoking = true; // Flag to prevent multiple animations
-    activeSmokeAnimations.push({
-      tankId: tank.id,
-      frameIndex: 0,
-      lastFrameTime: Date.now(),
-    });
-  }
+  // Handle smoke animation without relying on tank.isSmoking
+  if (tank.hitPoints < 2) {
+    // Check if an animation for this tank already exists
+    const existingAnimation = activeSmokeAnimations.find((anim) => anim.tankId === tank.id);
 
-  // **Reset Smoke Animation if Tank is Destroyed**
-  if (tank.hitPoints <= 0 && tank.isSmoking) {
-    tank.isSmoking = false;
+    if (!existingAnimation) {
+      // Add new smoke animation for this tank
+      activeSmokeAnimations.push({
+        tankId: tank.id,
+        frameIndex: 0,
+        lastFrameTime: Date.now(),
+      });
+    }
+  } else {
+    // If the tank's hitPoints are 2 or more, remove any existing smoke animation
     activeSmokeAnimations = activeSmokeAnimations.filter((anim) => anim.tankId !== tank.id);
   }
 }
