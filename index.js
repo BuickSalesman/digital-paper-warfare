@@ -1775,7 +1775,17 @@ function processMouseUp(socket, data, isForced = false) {
 
       // Calculate the force based on the finalPowerLevel
       const force = calculateForceFromPowerLevel(finalPowerLevel); // Implement this function based on your game's mechanics
-      const vector = calculateVector(startPosition, data); // Modify as needed
+      let endData;
+
+      if (isForced) {
+        if (socket.mouseDownData.endPosition) {
+          endData = socket.mouseDownData.endPosition;
+        }
+      } else {
+        endData = data;
+      }
+
+      const vector = calculateVector(startPosition, endData); // Modify as needed
 
       if (actionMode === "move") {
         const tank = room.tanks.find((t) => t.id === tankId);
