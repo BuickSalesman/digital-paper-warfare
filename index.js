@@ -1467,11 +1467,37 @@ function validateClickOnTank(room, localPlayerNumber, x, y) {
   return null;
 }
 
-function calculateForceFromPowerLevel(powerLevel) {
-  // Define the relationship between power level and force magnitude
-  // Adjust the multiplier based on your game's physics
-  const forceMultiplier = 0.05; // Example multiplier
-  return powerLevel * forceMultiplier;
+function calculateForceFromPowerLevel(powerLevel, isForced = false) {
+  const forceMultiplier = 0.05; // Base force multiplier
+  let force = powerLevel * forceMultiplier; // Base force calculation
+
+  let modifier = 0; // Initialize modifier
+
+  // **Reward Zone: 85-94%**
+  if (powerLevel >= 85 && powerLevel <= 94) {
+    const rewardPoints = powerLevel - 84; // 1 at 85%, 2 at 86%, ..., 10 at 94%
+    modifier += rewardPoints * 0.03; // 1.5% per point
+    console.log(`Reward Zone: Power Level = ${powerLevel}% | Modifier = +${(rewardPoints * 1.5).toFixed(1)}%`);
+  }
+
+  // **Punishment Zone: 95-99%**
+  if (powerLevel >= 95 && powerLevel <= 99) {
+    const punishmentPoints = powerLevel - 94; // 1 at 95%, ..., 5 at 99%
+    modifier -= punishmentPoints * 0.015; // -1.5% per point
+    console.log(`Punishment Zone: Power Level = ${powerLevel}% | Modifier = -${(punishmentPoints * 1.5).toFixed(1)}%`);
+  }
+
+  // **At 100% Power (Forced Action)**
+  if (powerLevel === 100 && isForced) {
+    modifier -= 0.2; // -20%
+    console.log(`Forced Action: Power Level = 100% | Modifier = -20%`);
+  }
+
+  // **Final Force Calculation with Modifiers**
+  const finalForce = force * (1 + modifier);
+
+  // **Ensure Force is Non-Negative**
+  return Math.max(finalForce, 0);
 }
 
 function calculateVector(start, end) {
@@ -1546,7 +1572,7 @@ function createAndLaunchShell(unit, vector, forceMagnitude, room) {
   const unitSize = unit.size || Math.max(unit.width, unit.height);
   const shellOffset = unitSize / 2 + shellSize / 2 + 1; // Added 1 unit to ensure separation
 
-  // Invert the vector for opposite direction
+  // **Invert the vector for opposite direction**
   const invertedVector = {
     x: -vector.x,
     y: -vector.y,
@@ -1558,16 +1584,16 @@ function createAndLaunchShell(unit, vector, forceMagnitude, room) {
     y: unit.position.y + invertedVector.y * shellOffset,
   };
 
-  // Calculate initial velocity
+  // Calculate initial velocity based on the force magnitude and inverted vector
   let initialVelocity = {
-    x: invertedVector.x * forceMagnitude * 10,
-    y: invertedVector.y * forceMagnitude * 10,
+    x: invertedVector.x * forceMagnitude * 7, // Adjust the multiplier as needed
+    y: invertedVector.y * forceMagnitude * 7,
   };
 
   // Ensure the initial velocity meets the minimum requirement
   const velocityMagnitude = Math.hypot(initialVelocity.x, initialVelocity.y);
   if (velocityMagnitude < minimumInitialVelocity) {
-    // Normalize the vector and apply minimum velocity
+    // Normalize the inverted vector and apply minimum velocity
     const normalizedVector = {
       x: invertedVector.x / Math.hypot(invertedVector.x, invertedVector.y),
       y: invertedVector.y / Math.hypot(invertedVector.x, invertedVector.y),
@@ -1773,8 +1799,9 @@ function processMouseUp(socket, data, isForced = false) {
         powerLevel: finalPowerLevel,
       });
 
-      // Calculate the force based on the finalPowerLevel
-      const force = calculateForceFromPowerLevel(finalPowerLevel); // Implement this function based on your game's mechanics
+      // Calculate the force based on the finalPowerLevel and whether the action was forced
+      const force = calculateForceFromPowerLevel(finalPowerLevel, isForced);
+
       let endData;
 
       if (isForced) {
@@ -1784,8 +1811,8 @@ function processMouseUp(socket, data, isForced = false) {
       } else {
         endData = data;
       }
-
-      const vector = calculateVector(startPosition, endData); // Modify as needed
+      // Calculate the vector for force application
+      const vector = calculateVector(startPosition, endData); // Ensure this function is defined correctly
 
       if (actionMode === "move") {
         const tank = room.tanks.find((t) => t.id === tankId);
