@@ -97,12 +97,25 @@ let actionMode = null;
 // Array of active explosions on the canvas. No security risks.
 let activeExplosions = [];
 
+// Array to track active smoke animations
+let activeSmokeAnimations = [];
+
+const SMOKE_ANIMATION_FRAME_DURATION = 100; // Duration of each frame in milliseconds
+const SMOKE_ANIMATION_BASE_SIZE = 100; // Base size in game world units
+
 const EXPLOSION_BASE_SIZE = 500; // Base size in game world units
 
 // Load explosion frames
 const explosionFrames = Array.from({ length: 25 }, (_, i) => {
   const img = new Image();
   img.src = `assets/EXPLOSION/explosion4/${i + 1}.png`; // Adjust path as necessary
+  return img;
+});
+
+// Load smoke animation frames
+const smokeFrames = Array.from({ length: 8 }, (_, i) => {
+  const img = new Image();
+  img.src = `assets/smoke/smoke${i + 1}.png`; // Ensure the path is correct
   return img;
 });
 
@@ -273,6 +286,7 @@ socket.on("gameUpdate", (data) => {
     ...tank,
     hitPoints: tank.hitPoints, // Ensure hitPoints are present
     tracks: tank.tracks || [], // Initialize tracks if not present
+    isSmoking: false,
   }));
   reactors = data.reactors.map((reactor) => ({
     ...reactor,
@@ -572,6 +586,51 @@ function redrawCanvas() {
       // Remove explosion from activeExplosions array
       activeExplosions.splice(index, 1);
     }
+  });
+
+  // Draw active smoke animations
+  const currentTime = Date.now();
+
+  activeSmokeAnimations.forEach((animation, index) => {
+    const elapsed = currentTime - animation.lastFrameTime;
+
+    if (elapsed >= SMOKE_ANIMATION_FRAME_DURATION) {
+      animation.frameIndex = (animation.frameIndex + 1) % smokeFrames.length;
+      animation.lastFrameTime = currentTime;
+    }
+
+    // Retrieve the current tank's position
+    const tank = tanks.find((t) => t.id === animation.tankId);
+    if (!tank) {
+      // If the tank no longer exists (destroyed), remove the animation
+      activeSmokeAnimations.splice(index, 1);
+      return;
+    }
+
+    const gwX = tank.position.x;
+    const gwY = tank.position.y;
+    const canvasPos = gameWorldToCanvas(gwX, gwY);
+    const scale = (scaleX + scaleY) / 2;
+    const size = SMOKE_ANIMATION_BASE_SIZE * scale;
+
+    // Do not adjust positions for PLAYER_TWO
+    const drawX = canvasPos.x;
+    const drawY = canvasPos.y;
+
+    // Adjust rotation for PLAYER_TWO
+    const rotation = localPlayerNumber === PLAYER_TWO ? Math.PI : 0;
+
+    // Draw the current smoke frame
+    const frame = smokeFrames[animation.frameIndex];
+    drawImageRotated(
+      drawCtx,
+      frame,
+      drawX,
+      drawY,
+      size, // Scaled width
+      size, // Scaled height
+      rotation // Rotation in radians
+    );
   });
 
   drawCtx.restore();
@@ -955,6 +1014,21 @@ function drawTank(tank, invertPlayerIds) {
   drawCtx.fillStyle = hpColor;
 
   drawCtx.restore();
+
+  if (tank.hitPoints < 2 && !tank.isSmoking) {
+    tank.isSmoking = true; // Flag to prevent multiple animations
+    activeSmokeAnimations.push({
+      tankId: tank.id,
+      frameIndex: 0,
+      lastFrameTime: Date.now(),
+    });
+  }
+
+  // **Reset Smoke Animation if Tank is Destroyed**
+  if (tank.hitPoints <= 0 && tank.isSmoking) {
+    tank.isSmoking = false;
+    activeSmokeAnimations = activeSmokeAnimations.filter((anim) => anim.tankId !== tank.id);
+  }
 }
 
 function drawReactor(reactor, invertPlayerIds) {
