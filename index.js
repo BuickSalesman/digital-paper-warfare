@@ -1489,7 +1489,7 @@ function calculateForceFromPowerLevel(powerLevel, isForced = false) {
 
   // **At 100% Power (Forced Action)**
   if (powerLevel === 100 && isForced) {
-    modifier -= 0.2; // -20%
+    modifier -= 0.25; // -25%
     console.log(`Forced Action: Power Level = 100% | Modifier = -20%`);
   }
 
