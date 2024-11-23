@@ -471,6 +471,23 @@ io.on("connection", (socket) => {
         becameIllegal = true;
       }
 
+      // Check intersection with margin zones
+      if (session.isLegal) {
+        for (let marginZone of room.marginZones) {
+          const marginZoneEdges = getEdgesFromCoordinates(marginZone.map((point) => [point.x, point.y]));
+          for (let edge of marginZoneEdges) {
+            if (doLineSegmentsIntersect(newLine[0], newLine[1], edge[0], edge[1])) {
+              session.isLegal = false;
+              becameIllegal = true;
+              break;
+            }
+          }
+          if (!session.isLegal) {
+            break;
+          }
+        }
+      }
+
       if (becameIllegal) {
         socket.emit("drawingIllegally", {});
       }
@@ -576,6 +593,17 @@ io.on("connection", (socket) => {
         }
 
         if (doPolygonsIntersect(newShapeCoordinates, noDrawZoneCoordinates)) {
+          isIllegalShape = true;
+          break;
+        }
+      }
+    }
+
+    if (!isIllegalShape) {
+      for (let marginZone of room.marginZones) {
+        const marginZoneCoordinates = marginZone.map((point) => [point.x, point.y]);
+
+        if (doPolygonsIntersect(newShapeCoordinates, marginZoneCoordinates)) {
           isIllegalShape = true;
           break;
         }
@@ -841,6 +869,9 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
   const roomEngine = Matter.Engine.create();
   const roomWorld = roomEngine.world;
 
+  const tankSize = GAME_WORLD_WIDTH * 0.02;
+  const marginSize = tankSize * 1.5;
+
   // Remove gravity to fascilitate top-down gameplay.
   roomEngine.world.gravity.y = 0;
   roomEngine.world.gravity.x = 0;
@@ -886,6 +917,8 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
 
     shells: [],
   };
+
+  room.marginZones = createMarginZones(GAME_WORLD_WIDTH, GAME_WORLD_HEIGHT, marginSize);
 
   // Listens for Matter collisions. May need additional logic here to prevent shells from colliding with the tanks that they are shot from.
   Matter.Events.on(roomEngine, "collisionStart", (event) => {
@@ -1059,6 +1092,42 @@ function startRoomInterval(roomID) {
       delete roomIntervals[roomID];
     }
   }, deltaTime);
+}
+
+function createMarginZones(width, height, marginSize) {
+  const leftMargin = [
+    { x: 0, y: 0 },
+    { x: marginSize, y: 0 },
+    { x: marginSize, y: height },
+    { x: 0, y: height },
+    { x: 0, y: 0 },
+  ];
+
+  const rightMargin = [
+    { x: width - marginSize, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: width - marginSize, y: height },
+    { x: width - marginSize, y: 0 },
+  ];
+
+  const topMargin = [
+    { x: marginSize, y: 0 },
+    { x: width - marginSize, y: 0 },
+    { x: width - marginSize, y: marginSize },
+    { x: marginSize, y: marginSize },
+    { x: marginSize, y: 0 },
+  ];
+
+  const bottomMargin = [
+    { x: marginSize, y: height - marginSize },
+    { x: width - marginSize, y: height - marginSize },
+    { x: width - marginSize, y: height },
+    { x: marginSize, y: height },
+    { x: marginSize, y: height - marginSize },
+  ];
+
+  return [leftMargin, rightMargin, topMargin, bottomMargin];
 }
 
 // Converts the drawing path to an array of coordinates suitable for polygon-clipping

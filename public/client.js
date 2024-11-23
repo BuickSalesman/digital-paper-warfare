@@ -190,7 +190,7 @@ window.addEventListener("keydown", (event) => {
 
 // On click, send request to server to join next available room.
 joinButton.addEventListener("click", () => {
-  const passcode = passcodeInput.value.trim();
+  const passcode = passcodeInput.value.trim().toUpperCase();
   if (passcode) {
     if (/^[A-Za-z0-9]{6}$/.test(passcode)) {
       socket.emit("joinGame", { passcode });
