@@ -92,7 +92,7 @@ let shells = [];
 let isMouseDown = false;
 
 // initialize variable to represent the current action mode of the local client. String of either "move", or "shoot". Might not want to initialize as null, as I keep forgetting that this means you HAVE to click and action button before taking any action. May want to implement validation on server tied to the button clicks.
-let actionMode = null;
+let actionMode = "move";
 
 // Array of active explosions on the canvas. No security risks.
 let activeExplosions = [];
