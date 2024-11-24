@@ -73,7 +73,7 @@ const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
 // Limit in pixels for how long a line a player can draw as a shape before it snaps closed.
 const inkLimit = 2000;
 
-const POWER_INCREMENT_INTERVAL = 10; // in ms
+const POWER_INCREMENT_INTERVAL = 5; // in ms
 const POWER_INCREMENT_VALUE = 1; // per interval
 const MAX_POWER_LEVEL = 100;
 
