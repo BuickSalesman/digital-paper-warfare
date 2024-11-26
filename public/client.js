@@ -412,6 +412,7 @@ socket.on("gameRunning", (data) => {
 });
 
 socket.on("validClick", () => {
+  isMouseDown = true;
   startPowerIncrement();
 });
 
@@ -758,7 +759,6 @@ function handleGameMouseDown(evt) {
   if (evt.button === 0) {
     // Mouse is already held down; prevent duplicate actions
 
-    isMouseDown = true; // Mark that the mouse is now held down
     lastMouseEvent = evt;
 
     const mousePos = getMousePos(evt);
@@ -1406,33 +1406,37 @@ function setColorFullOpacity(color) {
   }
 }
 
+let powerStartTime = 0;
+const powerDuration = 500; // Duration to reach 100%
+
+function incrementPower() {
+  if (!isMouseDown) {
+    stopPowerIncrement();
+    return;
+  }
+
+  const elapsedTime = Date.now() - powerStartTime;
+  powerLevel = Math.min(100, (elapsedTime / powerDuration) * 100);
+  powerMeterFill.style.height = `${powerLevel}%`;
+
+  if (powerLevel < 100) {
+    requestAnimationFrame(incrementPower);
+  } else {
+    handleGameMouseUpOut();
+  }
+}
+
 function startPowerIncrement() {
   if (isPowerIncrementing) {
     return;
   }
   isPowerIncrementing = true;
   powerLevel = 0;
-  powerMeterFill.style.height = `${powerLevel}`;
-  const startTime = Date.now();
-  const duration = 3000; // tweak this later
+  powerMeterFill.style.height = `${powerLevel}%`;
+  powerStartTime = Date.now();
 
-  function incrementPower() {
-    if (!isMouseDown) {
-      return;
-    }
-
-    const elapsedTime = Date.now() - startTime;
-    powerLevel = Math.min(100, (elapsedTime / duration) * 100);
-    powerMeterFill.style.height = `${powerLevel}`;
-
-    if (powerLevel < 100) {
-      requestAnimationFrame(incrementPower());
-    } else {
-      handleGameMouseUpOut();
-    }
-
-    requestAnimationFrame(incrementPower);
-  }
+  // Start the increment
+  requestAnimationFrame(incrementPower);
 }
 
 function stopPowerIncrement() {
