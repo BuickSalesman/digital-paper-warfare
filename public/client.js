@@ -85,6 +85,10 @@ let reactors = [];
 let fortresses = [];
 let turrets = [];
 
+let powerLevel = 0;
+let powerIncrementInterval = null;
+let isPowerIncrementing = false;
+
 // This array is slightly different as only one shell should be able to exist in the game world at a time. Exists solely to manage creation and deletion of the single shell.
 let shells = [];
 
