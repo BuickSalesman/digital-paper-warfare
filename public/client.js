@@ -17,6 +17,8 @@ let gameWorldWidth = null;
 let scaleX = 1;
 let scaleY = 1;
 
+let lastMouseEvent = null;
+
 //NEED TO DELETE AND REFACTOR THIS AND VALIDATE EVERY GAME STATE AND GAME STATE RELATED LOGIC ON THE SERVER SIDE.
 const GameState = {
   LOBBY: "LOBBY",
@@ -409,14 +411,8 @@ socket.on("gameRunning", (data) => {
   updateButtonVisibility();
 });
 
-// Add the following listener for power level updates
-socket.on("powerLevelUpdate", (data) => {
-  const { playerNumber, powerLevel } = data;
-
-  if (playerNumber === localPlayerNumber) {
-    // Update the power meter's CSS to reflect the server's power level
-    powerMeterFill.style.height = `${powerLevel}%`;
-  }
+socket.on("validClick", () => {
+  startPowerIncrement();
 });
 
 socket.on("invalidClick", () => {
@@ -763,6 +759,7 @@ function handleGameMouseDown(evt) {
     // Mouse is already held down; prevent duplicate actions
 
     isMouseDown = true; // Mark that the mouse is now held down
+    lastMouseEvent = evt;
 
     const mousePos = getMousePos(evt);
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
@@ -844,6 +841,8 @@ function handleGameMouseMove(evt) {
   const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
 
   if (isMouseDown) {
+    lastMouseEvent = evt;
+
     socket.emit("mouseMove", {
       x: gameWorldPos.x,
       y: gameWorldPos.y,
@@ -911,7 +910,10 @@ function handleGameMouseUpOut(evt) {
       x: gameWorldPos.x,
       y: gameWorldPos.y,
       actionMode: actionMode,
+      powerLevel: powerLevel,
     });
+
+    stopPowerIncrement();
 
     // Stop wobble after force is applied
     if (isWobbling) {
@@ -1402,4 +1404,39 @@ function setColorFullOpacity(color) {
     // Other color format, return as is
     return color;
   }
+}
+
+function startPowerIncrement() {
+  if (isPowerIncrementing) {
+    return;
+  }
+  isPowerIncrementing = true;
+  powerLevel = 0;
+  powerMeterFill.style.height = `${powerLevel}`;
+  const startTime = Date.now();
+  const duration = 3000; // tweak this later
+
+  function incrementPower() {
+    if (!isMouseDown) {
+      return;
+    }
+
+    const elapsedTime = Date.now() - startTime;
+    powerLevel = Math.min(100, (elapsedTime / duration) * 100);
+    powerMeterFill.style.height = `${powerLevel}`;
+
+    if (powerLevel < 100) {
+      requestAnimationFrame(incrementPower());
+    } else {
+      handleGameMouseUpOut();
+    }
+
+    requestAnimationFrame(incrementPower);
+  }
+}
+
+function stopPowerIncrement() {
+  isPowerIncrementing = false;
+  powerLevel = 0;
+  powerMeterFill.style.height = `0%`;
 }

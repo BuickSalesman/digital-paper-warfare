@@ -817,9 +817,6 @@ io.on("connection", (socket) => {
             actionMode: actionMode,
           };
           socket.emit("validClick");
-
-          // Start power level increment for 'move' action
-          startPowerIncrement(room, localPlayerNumber, tank.id, actionMode, socket);
         } else {
           socket.emit("invalidClick");
         }
@@ -833,9 +830,6 @@ io.on("connection", (socket) => {
             actionMode: actionMode,
           };
           socket.emit("validClick");
-
-          // Start power level increment for 'shoot' action
-          startPowerIncrement(room, localPlayerNumber, unit.id, actionMode, socket);
         } else {
           socket.emit("invalidClick");
         }
@@ -890,10 +884,6 @@ function createNewRoom(roomID, socket, isPasscodeRoom = false) {
     allPaths: [], // Store all valid drawing paths.
     drawingSessions: {}, // Store ongoing drawing sessions.
     shapeCounts: {
-      [PLAYER_ONE]: 0,
-      [PLAYER_TWO]: 0,
-    },
-    powerLevels: {
       [PLAYER_ONE]: 0,
       [PLAYER_TWO]: 0,
     },
@@ -1844,34 +1834,16 @@ function processMouseUp(socket, data, isForced = false) {
     const room = gameRooms[roomID];
     if (room && socket.mouseDownData) {
       const { startPosition, tankId, unitId, actionMode } = socket.mouseDownData;
-      let finalPowerLevel;
+      let finalPowerLevel = parseInt(data.powerLevel, 10);
 
-      if (isForced) {
-        finalPowerLevel = MAX_POWER_LEVEL; // Forced to maximum power
-      } else {
-        // Retrieve the power level from the room's powerLevels
-        finalPowerLevel = room.powerLevels[localPlayerNumber] || 0;
+      if (isNaN(finalPowerLevel) || finalPowerLevel < 0 || finalPowerLevel > 100) {
+        finalPowerLevel = isForced ? 100 : 0;
       }
-
-      // Reset the power level for the player
-      room.powerLevels[localPlayerNumber] = 0;
-
-      // Stop the power increment interval if it's still running
-      if (room.powerIntervals[localPlayerNumber]) {
-        clearInterval(room.powerIntervals[localPlayerNumber]);
-        room.powerIntervals[localPlayerNumber] = null;
-      }
-
-      // Emit the final power level to the client
-      socket.emit("powerLevelUpdate", {
-        playerNumber: localPlayerNumber,
-        powerLevel: finalPowerLevel,
-      });
 
       // Calculate the force based on the finalPowerLevel and whether the action was forced
       const force = calculateForceFromPowerLevel(finalPowerLevel, isForced);
 
-      let endData;
+      let endData = data;
 
       if (isForced) {
         if (socket.mouseDownData.endPosition) {
@@ -1965,6 +1937,13 @@ function startTurnTimer(room) {
     () => {
       // OnEnd: Switch turn to other player and restart timer
 
+      const socketId = room.players[`player${room.currentTurn}`];
+      const playerSocket = io.sockets.sockets.get(socketId);
+      if (playerSocket && playerSocket.mouseDownData) {
+        // Force mouseUp with isForced = true
+        processMouseUp(playerSocket, {}, true);
+      }
+
       room.currentTurn = room.currentTurn === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
       io.to(room.roomID).emit("turnChanged", { currentTurn: room.currentTurn });
 
@@ -1976,39 +1955,6 @@ function startTurnTimer(room) {
 
   // Start the timer
   room.turnTimer.start();
-}
-
-function startPowerIncrement(room, playerNumber, unitId, actionMode, socket) {
-  // Store the current action unit
-  room.currentActionUnit[playerNumber] = {
-    unitId: unitId,
-    actionMode: actionMode,
-  };
-
-  // Prevent multiple intervals
-  if (room.powerIntervals[playerNumber]) {
-    clearInterval(room.powerIntervals[playerNumber]);
-  }
-
-  // Start the power increment interval
-  room.powerIntervals[playerNumber] = setInterval(() => {
-    if (room.powerLevels[playerNumber] < MAX_POWER_LEVEL) {
-      room.powerLevels[playerNumber] += POWER_INCREMENT_VALUE;
-
-      // Emit the updated power level to the specific client
-      socket.emit("powerLevelUpdate", {
-        playerNumber: playerNumber,
-        powerLevel: room.powerLevels[playerNumber],
-      });
-    } else {
-      // Power level has reached the maximum, force mouseUp
-      clearInterval(room.powerIntervals[playerNumber]);
-      room.powerIntervals[playerNumber] = null;
-
-      // Force mouseUp with MAX_POWER_LEVEL
-      processMouseUp(socket, {}, true);
-    }
-  }, POWER_INCREMENT_INTERVAL);
 }
 
 //#endregion FUNCTIONS
