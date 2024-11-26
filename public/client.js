@@ -1442,5 +1442,4 @@ function startPowerIncrement() {
 function stopPowerIncrement() {
   isPowerIncrementing = false;
   powerLevel = 0;
-  powerMeterFill.style.height = `0%`;
 }
