@@ -1407,7 +1407,7 @@ function setColorFullOpacity(color) {
 }
 
 let powerStartTime = 0;
-const powerDuration = 3000; // Duration to reach 100%
+const powerDuration = 650; // Duration to reach 100%
 
 function incrementPower() {
   if (!isMouseDown) {
