@@ -1827,13 +1827,28 @@ function endGame(roomID) {
 }
 
 function processMouseUp(socket, data, isForced = false) {
+  console.log(`Processing mouseUp for player ${socket.localPlayerNumber}, isForced: ${isForced}`);
   const roomID = socket.roomID;
   const localPlayerNumber = socket.localPlayerNumber;
 
   if (roomID && localPlayerNumber) {
     const room = gameRooms[roomID];
-    if (room && socket.mouseDownData) {
-      const { startPosition, tankId, unitId, actionMode } = socket.mouseDownData;
+
+    if (room) {
+      // Retrieve or initialize mouseDownData
+      let mouseDownData = socket.mouseDownData || {};
+
+      // Attempt to reconstruct missing data
+      if (!mouseDownData.startPosition) {
+        mouseDownData.startPosition = data.startPosition || { x: data.x, y: data.y };
+      }
+
+      if (!mouseDownData.actionMode) {
+        mouseDownData.actionMode = data.actionMode;
+      }
+
+      const { startPosition, tankId, unitId, actionMode } = mouseDownData;
+
       let finalPowerLevel = parseInt(data.powerLevel, 10);
 
       if (isNaN(finalPowerLevel) || finalPowerLevel < 0 || finalPowerLevel > 100) {
@@ -1846,14 +1861,17 @@ function processMouseUp(socket, data, isForced = false) {
       let endData = data;
 
       if (isForced) {
-        if (socket.mouseDownData.endPosition) {
+        if (socket.mouseDownData && socket.mouseDownData.endPosition) {
           endData = socket.mouseDownData.endPosition;
+        } else {
+          endData = data;
         }
       } else {
         endData = data;
       }
+
       // Calculate the vector for force application
-      const vector = calculateVector(startPosition, endData); // Ensure this function is defined correctly
+      const vector = calculateVector(startPosition, endData);
 
       if (actionMode === "move") {
         const tank = room.tanks.find((t) => t.id === tankId);
@@ -1909,15 +1927,13 @@ function processMouseUp(socket, data, isForced = false) {
       }
 
       // Switch turn to the other player
-      if (room) {
-        room.currentTurn = room.currentTurn === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
+      room.currentTurn = room.currentTurn === PLAYER_ONE ? PLAYER_TWO : PLAYER_ONE;
 
-        // Notify both players about the turn change
-        io.to(room.roomID).emit("turnChanged", { currentTurn: room.currentTurn });
+      // Notify both players about the turn change
+      io.to(room.roomID).emit("turnChanged", { currentTurn: room.currentTurn });
 
-        // Start turn timer for the next player
-        startTurnTimer(room);
-      }
+      // Start turn timer for the next player
+      startTurnTimer(room);
     }
   }
 }

@@ -900,9 +900,7 @@ function handleDrawingMouseUpOut() {
 
 function handleGameMouseUpOut(evt) {
   if (isMouseDown) {
-    isMouseDown = false; // Mouse is no longer held down
-
-    const mousePos = getMousePos(evt);
+    const mousePos = getMousePos(evt || lastMouseEvent);
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
 
     // Emit mouseUp event to the server
@@ -919,6 +917,8 @@ function handleGameMouseUpOut(evt) {
     if (isWobbling) {
       stopWobble();
     }
+
+    isMouseDown = false; // Mouse is no longer held down
   }
 }
 
@@ -1407,7 +1407,7 @@ function setColorFullOpacity(color) {
 }
 
 let powerStartTime = 0;
-const powerDuration = 500; // Duration to reach 100%
+const powerDuration = 3000; // Duration to reach 100%
 
 function incrementPower() {
   if (!isMouseDown) {
