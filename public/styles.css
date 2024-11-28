@@ -51,6 +51,7 @@ h1 {
   border-top-right-radius: 15px 225px;
   border-bottom-right-radius: 225px 15px;
   border-bottom-left-radius: 15px 255px;
+  color: black;
 }
 
 #status {
