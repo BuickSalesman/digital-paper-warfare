@@ -253,6 +253,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     const roomID = socket.roomID;
     const localPlayerNumber = socket.localPlayerNumber;
+    io.to(roomID).emit("playerDisconnected");
 
     if (roomID && localPlayerNumber) {
       const room = gameRooms[roomID];
