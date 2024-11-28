@@ -9,6 +9,7 @@
 html,
 body {
   font-family: "DeskScratch";
+  -webkit-text-stroke: 0.005rem rgba(200, 200, 200, 0.9);
   text-align: center;
   margin: 0;
   padding: 0;
@@ -20,6 +21,15 @@ body {
   justify-content: center;
   background-color: white;
   flex-direction: column;
+}
+
+/* Styles for h1 */
+h1 {
+  font-family: "DeskScratch";
+  font-size: 2rem; /* Adjust the size as needed */
+  font-weight: normal; /* Ensure consistent font weight */
+  color: black; /* Explicitly set text color */
+  -webkit-text-stroke: 0.005rem rgba(200, 200, 200, 0.9); /* Reduced stroke width */
 }
 
 #landing-page {
