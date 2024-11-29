@@ -645,12 +645,12 @@ function initializeCanvas() {
   }
 
   const aspectRatio = gameWorldWidth / gameWorldHeight;
-  const baseWidth = Math.min(window.innerWidth * 0.95, 1885);
+  const baseWidth = Math.min(window.innerWidth * 0.9, 800); // Adjusted width
   let canvasWidth = baseWidth;
   let canvasHeight = canvasWidth / aspectRatio;
 
-  if (canvasHeight > window.innerHeight * 0.95) {
-    canvasHeight = window.innerHeight * 0.95;
+  if (canvasHeight > window.innerHeight * 0.8) {
+    canvasHeight = window.innerHeight * 0.8;
     canvasWidth = canvasHeight * aspectRatio;
   }
 
