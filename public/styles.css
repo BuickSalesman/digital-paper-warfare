@@ -95,6 +95,7 @@ h1 {
   background-image: url("assets/paper.jpg");
   background-size: cover;
   background-position: center;
+  flex: 1 1 auto;
 }
 
 #game-canvas {
@@ -356,4 +357,13 @@ button.dashed.thin {
     width: 95%;
     padding: 10px;
   }
+}
+
+/* Ensure text in modal content is entirely black */
+.modal-content h2,
+.modal-content h3,
+.modal-content p,
+.modal-content li {
+  -webkit-text-stroke: 0; /* Remove the text stroke */
+  color: black; /* Set text color to black */
 }
