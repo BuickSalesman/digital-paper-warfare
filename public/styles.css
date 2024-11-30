@@ -43,7 +43,7 @@ h1 {
   padding: 0.5rem 0.5rem;
   background-color: rgba(15, 15, 15, 0);
   border: none;
-  margin: 0 0.5 rem;
+  margin: 0 0.5rem;
   border-radius: 0.5rem;
   cursor: pointer;
   transition: transform 0.1s, box-shadow 0.1s;
@@ -52,6 +52,20 @@ h1 {
   border-bottom-right-radius: 225px 15px;
   border-bottom-left-radius: 15px 255px;
   color: black;
+}
+
+/* Add this block to make the Join Game button look pressed when clicked */
+#join-button:active {
+  transform: scale(0.98); /* Slightly reduce size to give pressed look */
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5); /* Create inset shadow for pressed effect */
+  background-color: rgba(15, 15, 15, 0.3); /* Slightly darker background on press */
+}
+
+/* Styles when the button is pressed */
+#join-button.pressed {
+  transform: scale(0.98);
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+  background-color: rgba(15, 15, 15, 0.3);
 }
 
 #status {

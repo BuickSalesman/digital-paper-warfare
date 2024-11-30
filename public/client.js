@@ -208,6 +208,9 @@ joinButton.addEventListener("click", () => {
   } else {
     socket.emit("joinGame");
   }
+
+  joinButton.classList.add("pressed");
+
   // Since the disabled button and input field are malleble through dev tools, make sure to ignore extra button presses server side.
   joinButton.disabled = true;
   passcodeInput.disabled = true;
@@ -638,7 +641,6 @@ function redrawCanvas() {
   drawCtx.restore();
 }
 
-// Initialize Canvas
 function initializeCanvas() {
   if (!gameWorldWidth || !gameWorldHeight) {
     console.error("Game world dimensions are not set.");
@@ -646,14 +648,23 @@ function initializeCanvas() {
   }
 
   const aspectRatio = gameWorldWidth / gameWorldHeight;
-  const baseWidth = Math.min(window.innerWidth * 0.9, 800); // Adjusted width
-  let canvasWidth = baseWidth;
+
+  // Increase the scaling factors by 20%
+  const widthScaleFactor = 0.9 * 1.2; // Original was 0.9
+  const maxCanvasWidth = 800 * 1.2; // Increase max width by 20%
+
+  let canvasWidth = Math.min(window.innerWidth * widthScaleFactor, maxCanvasWidth);
   let canvasHeight = canvasWidth / aspectRatio;
 
-  if (canvasHeight > window.innerHeight * 0.8) {
-    canvasHeight = window.innerHeight * 0.8;
+  // Adjust the height check to account for the increased size
+  if (canvasHeight > window.innerHeight * 0.8 * 1.2) {
+    canvasHeight = window.innerHeight * 0.8 * 1.2;
     canvasWidth = canvasHeight * aspectRatio;
   }
+
+  // Ensure the canvas doesn't exceed the window dimensions
+  canvasWidth = Math.min(canvasWidth, window.innerWidth);
+  canvasHeight = Math.min(canvasHeight, window.innerHeight);
 
   gameContainer.style.width = `${canvasWidth}px`;
   gameContainer.style.height = `${canvasHeight}px`;
