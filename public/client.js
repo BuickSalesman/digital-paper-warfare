@@ -661,6 +661,9 @@ function initializeCanvas() {
   drawCanvas.width = canvasWidth;
   drawCanvas.height = canvasHeight;
 
+  document.documentElement.style.setProperty("--canvas-width-px", `${canvasWidth}px`);
+  document.documentElement.style.setProperty("--canvas-height-px", `${canvasHeight}px`);
+
   width = canvasWidth;
   height = canvasHeight;
 

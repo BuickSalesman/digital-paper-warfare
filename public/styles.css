@@ -63,149 +63,27 @@ h1 {
   background-color: rgba(15, 15, 15, 0);
 }
 
-/* Body Container */
-#bodyContainer {
-  background-image: url("assets/desk.jpg");
-  background-size: cover;
-  background-position: center;
-}
-
-/* Game and Power Container */
-#gameAndPowerContainer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: flex-start;
-}
-
-/* Game Container */
-#gameContainer {
-  position: relative;
-  --aspect-ratio: 0.7071; /* A4 paper ratio */
-  width: 90vw; /* Use viewport width for responsiveness */
-  max-width: 800px; /* Set a max-width to prevent over-expansion */
-  height: auto;
-  aspect-ratio: var(--aspect-ratio);
-  background-color: white;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border: 2px solid #000;
-  margin: 1rem;
-  background-image: url("assets/paper.jpg");
-  background-size: cover;
-  background-position: center;
-  flex: 1 1 auto;
-}
-
-#game-canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: inline-block;
-  border: 1px solid #000;
-  background-color: transparent; /* Ensure the background is transparent */
-  cursor: crosshair;
-}
-
-/* Side Container */
-#sideContainer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  max-width: 90vw; /* Prevent overflow on small screens */
-  flex: 1 1 auto; /* Allow it to shrink and grow as needed */
-}
-
-/* Power Meter */
-#powerMeterContainer {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  width: 3rem;
-  height: 60vh;
-  border: 2px solid #000;
-  margin-bottom: 1rem;
-  overflow: hidden;
-}
-
-#powerMeterFill {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  background-color: red;
-  height: 0%;
-  z-index: 1;
-}
-
-#rewardZone {
-  position: absolute;
-  bottom: 85%;
-  width: 100%;
-  height: 10%;
-  background-color: rgba(0, 255, 0, 0.5);
-  z-index: 2;
-}
-
-#punishmentZone {
-  position: absolute;
-  bottom: 95%;
-  width: 100%;
-  height: 5%;
-  background-color: rgba(255, 0, 0, 0.5);
-  z-index: 2;
-}
-
-/* Buttons */
-.button-container {
-  display: flex;
-  flex-direction: column;
-}
-
-.button {
+/* Updated Passcode Input Field Styles */
+#passcode-input {
   font-family: "DeskScratch";
-  font-size: 1.5rem;
-  -webkit-text-stroke: 0.005rem rgba(200, 200, 200, 0.9);
-  padding: 0.5rem 0.5rem;
-  background-color: rgba(15, 15, 15, 0);
-  border: none;
-  margin: 0 0.5 rem;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: transform 0.1s, box-shadow 0.1s;
-  border-top-left-radius: 255px 15px;
-  border-top-right-radius: 15px 225px;
-  border-bottom-right-radius: 225px 15px;
-  border-bottom-left-radius: 15px 255px;
-  color: black;
+  font-size: 3rem;
+  color: rgba(15, 15, 15, 0.9);
+  background-color: transparent; /* Make background transparent */
+  border: none; /* Remove border */
+  margin: 1rem 0;
+  width: 80vw;
+  text-align: center;
+  outline: none;
+  transition: border-bottom 0.2s;
 }
 
-.button:hover {
-  background-color: rgba(15, 15, 15, 0.2);
-}
-button.lined.thick {
-  border: solid 3px #41403e;
-}
-button.dotted.thick {
-  border: dotted 3px #41403e;
-}
-button.dashed.thick {
-  border: dashed 3px #41403e;
-}
-button.lined.thin {
-  border: solid 2px #41403e;
-}
-button.dotted.thin {
-  border: dotted 2px #41403e;
-}
-button.dashed.thin {
-  border: dashed 2px #41403e;
+#passcode-input::placeholder {
+  color: rgba(15, 15, 15, 0.7);
+  font-style: italic;
 }
 
-.button:active {
-  transform: scale(0.98); /* Slightly reduce size to give pressed look */
-  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5); /* Create inset shadow for pressed effect */
-  background-color: rgba(15, 15, 15, 0.3); /* Slightly darker background on press */
+#passcode-input:disabled {
+  color: #666;
 }
 
 /* Rules Button on Landing Page */
@@ -222,8 +100,181 @@ button.dashed.thin {
   transition: transform 0.1s, box-shadow 0.1s;
 }
 
-/* Hover Effect for Landing Page Rulz Button */
+/* Hover Effect for Landing Page Rules Button */
 #landingRulzButton:hover {
+  background-color: rgba(15, 15, 15, 0.3);
+}
+
+/* Body Container */
+#bodyContainer {
+  background-image: url("assets/desk.jpg");
+  background-size: cover;
+  background-position: center;
+}
+
+/* Game and Power Container */
+#gameAndPowerContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Game Container */
+#gameContainer {
+  position: relative;
+  --aspect-ratio: 0.7071; /* A4 paper ratio */
+  width: calc(var(--canvas-width-px)); /* Use canvas width */
+  height: calc(var(--canvas-height-px)); /* Use canvas height */
+  background-color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 2px solid #000;
+  margin: 1rem;
+  background-image: url("assets/paper.jpg");
+  background-size: cover;
+  background-position: center;
+}
+
+#drawCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-block;
+  border: 1px solid #000;
+  background-color: transparent; /* Ensure the background is transparent */
+  cursor: crosshair;
+}
+
+/* Side Container */
+#sideContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: calc(var(--canvas-width-px) * 0.3); /* Adjust as needed */
+  height: calc(var(--canvas-height-px)); /* Match canvas height */
+}
+
+/* Power Meter */
+#powerMeterContainer {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  width: calc(var(--canvas-width-px) * 0.05); /* Adjust as needed */
+  height: calc(var(--canvas-height-px) * 0.6); /* Adjust as needed */
+  border: calc(var(--canvas-width-px) * 0.002) solid #000;
+  margin-bottom: calc(var(--canvas-height-px) * 0.02);
+  overflow: hidden;
+}
+
+#powerMeterFill,
+#rewardZone,
+#punishmentZone {
+  width: 100%;
+}
+
+#powerMeterFill {
+  position: absolute;
+  bottom: 0;
+  background-color: red;
+  height: 0%;
+  z-index: 1;
+}
+
+#rewardZone {
+  position: absolute;
+  bottom: 85%;
+  height: 10%;
+  background-color: rgba(0, 255, 0, 0.5);
+  z-index: 2;
+}
+
+#punishmentZone {
+  position: absolute;
+  bottom: 95%;
+  height: 5%;
+  background-color: rgba(255, 0, 0, 0.5);
+  z-index: 2;
+}
+
+/* Buttons within Game and Power Container */
+#gameAndPowerContainer .button-container {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--canvas-height-px) * 0.01); /* Adjust as needed */
+  margin-bottom: calc(var(--canvas-height-px) * 0.02); /* Adjust as needed */
+}
+
+#gameAndPowerContainer .button {
+  font-family: "DeskScratch";
+  font-size: calc(var(--canvas-width-px) * 0.015); /* Adjust as needed */
+  -webkit-text-stroke: calc(var(--canvas-width-px) * 0.0005) rgba(200, 200, 200, 0.9);
+  padding: calc(var(--canvas-width-px) * 0.005) calc(var(--canvas-width-px) * 0.005);
+  background-color: rgba(15, 15, 15, 0);
+  border: none;
+  margin: calc(var(--canvas-width-px) * 0.005);
+  border-radius: calc(var(--canvas-width-px) * 0.005);
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  border-top-left-radius: calc(var(--canvas-width-px) * 0.255) calc(var(--canvas-width-px) * 0.015);
+  border-top-right-radius: calc(var(--canvas-width-px) * 0.015) calc(var(--canvas-width-px) * 0.225);
+  border-bottom-right-radius: calc(var(--canvas-width-px) * 0.225) calc(var(--canvas-width-px) * 0.015);
+  border-bottom-left-radius: calc(var(--canvas-width-px) * 0.015) calc(var(--canvas-width-px) * 0.255);
+  color: black;
+}
+
+#gameAndPowerContainer .button:hover {
+  background-color: rgba(15, 15, 15, 0.2);
+}
+
+#gameAndPowerContainer .button:active {
+  transform: scale(0.98); /* Slightly reduce size to give pressed look */
+  box-shadow: inset 0 0 calc(var(--canvas-width-px) * 0.005) rgba(0, 0, 0, 0.5); /* Create inset shadow for pressed effect */
+  background-color: rgba(15, 15, 15, 0.3); /* Slightly darker background on press */
+}
+
+#gameAndPowerContainer button.lined.thick {
+  border: solid calc(var(--canvas-width-px) * 0.003) #41403e;
+}
+
+#gameAndPowerContainer button.dotted.thick {
+  border: dotted calc(var(--canvas-width-px) * 0.003) #41403e;
+}
+
+#gameAndPowerContainer button.dashed.thick {
+  border: dashed calc(var(--canvas-width-px) * 0.003) #41403e;
+}
+
+#gameAndPowerContainer button.lined.thin {
+  border: solid calc(var(--canvas-width-px) * 0.002) #41403e;
+}
+
+#gameAndPowerContainer button.dotted.thin {
+  border: dotted calc(var(--canvas-width-px) * 0.002) #41403e;
+}
+
+#gameAndPowerContainer button.dashed.thin {
+  border: dashed calc(var(--canvas-width-px) * 0.002) #41403e;
+}
+
+/* Rules Button within Game and Power Container */
+#gameAndPowerContainer .rulzButtonContainer {
+  margin-top: calc(var(--canvas-height-px) * 0.01);
+}
+
+#gameAndPowerContainer .rulzButton {
+  font-family: "DeskScratch";
+  font-size: calc(var(--canvas-width-px) * 0.015);
+  padding: calc(var(--canvas-width-px) * 0.005) calc(var(--canvas-width-px) * 0.01);
+  background-color: rgba(15, 15, 15, 0);
+  -webkit-text-stroke: calc(var(--canvas-width-px) * 0.0005) rgba(200, 200, 200, 0.9);
+  border: none;
+  border-radius: calc(var(--canvas-width-px) * 0.005);
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+#gameAndPowerContainer .rulzButton:hover {
   background-color: rgba(15, 15, 15, 0.3);
 }
 
@@ -236,7 +287,7 @@ button.dashed.thin {
 
 #Timer {
   font-family: "DeskScratch", Arial, sans-serif;
-  font-size: 3.2rem;
+  font-size: calc(var(--canvas-width-px) * 0.032); /* Adjust as needed */
   color: rgba(15, 15, 15, 0.9);
   text-align: center;
   margin-top: 0px;
@@ -310,73 +361,6 @@ button.dashed.thin {
   }
 }
 
-/* Rules Button */
-#rulzButton {
-  margin-top: 1rem;
-  font-family: "DeskScratch";
-  font-size: 1.5rem;
-  padding: 0.5rem 1rem;
-  background-color: rgba(15, 15, 15, 0);
-  -webkit-text-stroke: 0.005rem rgba(200, 200, 200, 0.9);
-  border: none;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: transform 0.1s, box-shadow 0.1s;
-}
-
-#rulzButton:hover {
-  background-color: rgba(15, 15, 15, 0.3);
-}
-
-/* Updated Passcode Input Field Styles */
-#passcode-input {
-  font-family: "DeskScratch";
-  font-size: 3rem;
-  color: rgba(15, 15, 15, 0.9);
-  background-color: transparent; /* Make background transparent */
-  border: none; /* Remove border */
-  margin: 1rem 0;
-  width: 80vw;
-  text-align: center;
-  outline: none;
-  transition: border-bottom 0.2s;
-}
-
-#passcode-input::placeholder {
-  color: rgba(15, 15, 15, 0.7);
-  font-style: italic;
-}
-
-#passcode-input:disabled {
-  color: #666;
-}
-
-@media (max-width: 768px) {
-  /* Adjust font sizes */
-  h1 {
-    font-size: 1.5rem;
-  }
-
-  .button {
-    font-size: 1rem;
-  }
-
-  #Timer {
-    font-size: 2rem;
-  }
-
-  /* Reduce margins and padding */
-  #gameContainer {
-    margin: 0.5rem;
-  }
-
-  /* Adjust modal content size */
-  .modal-content {
-    width: 95%;
-    padding: 10px;
-  }
-}
-
 /* Ensure text in modal content is entirely black */
 .modal-content h2,
 .modal-content h3,
@@ -384,4 +368,31 @@ button.dashed.thin {
 .modal-content li {
   -webkit-text-stroke: 0; /* Remove the text stroke */
   color: black; /* Set text color to black */
+}
+
+/* @media query for small screens */
+@media (max-width: 768px) {
+  /* Adjust font sizes within Game and Power Container */
+  #gameAndPowerContainer h1 {
+    font-size: calc(var(--canvas-width-px) * 0.015);
+  }
+
+  #gameAndPowerContainer .button {
+    font-size: calc(var(--canvas-width-px) * 0.01);
+  }
+
+  #gameAndPowerContainer #Timer {
+    font-size: calc(var(--canvas-width-px) * 0.02);
+  }
+
+  /* Reduce margins and padding within Game and Power Container */
+  #gameAndPowerContainer #gameContainer {
+    margin: calc(var(--canvas-width-px) * 0.005);
+  }
+
+  /* Adjust modal content size */
+  .modal-content {
+    width: 95%;
+    padding: 10px;
+  }
 }
