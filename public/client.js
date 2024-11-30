@@ -48,7 +48,8 @@ const powerMeterFill = document.getElementById("powerMeterFill");
 const moveButton = document.getElementById("moveButton");
 const shootButton = document.getElementById("shootButton");
 const removeDrawingButton = document.getElementById("removePreviousDrawingButton");
-const rulesButtons = document.querySelectorAll(".rulzButton");
+const rulesButton = document.getElementById("rulzButton");
+const landingRulesButton = document.getElementById("landingRulzButton");
 const closeButton = document.querySelector(".close-button");
 const rulesModal = document.getElementById("rulesModal");
 const endDrawButton = document.getElementById("endDrawButton");
@@ -173,9 +174,9 @@ drawCanvas.addEventListener(
 );
 
 // Event listener for the Rulz button to open the modal.
-rulesButtons.forEach((button) => {
-  button.addEventListener("click", openModal);
-});
+rulesButton.addEventListener("click", openModal);
+
+landingRulesButton.addEventListener("click", openModal);
 
 // Event listener for the Close button to close the modal.
 closeButton.addEventListener("click", closeModal);

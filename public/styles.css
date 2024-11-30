@@ -160,8 +160,6 @@ h1 {
 .button-container {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
 }
 
 .button {
@@ -210,6 +208,25 @@ button.dashed.thin {
   background-color: rgba(15, 15, 15, 0.3); /* Slightly darker background on press */
 }
 
+/* Rules Button on Landing Page */
+#landingRulzButton {
+  margin-top: 1rem;
+  font-family: "DeskScratch";
+  font-size: 4rem; /* Make this larger */
+  padding: 1rem 2rem; /* Larger padding for a bigger button */
+  background-color: rgba(15, 15, 15, 0);
+  -webkit-text-stroke: 0.01rem rgba(200, 200, 200, 0.9); /* Slightly thicker stroke */
+  border: none;
+  border-radius: 1rem; /* Larger border radius */
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+/* Hover Effect for Landing Page Rulz Button */
+#landingRulzButton:hover {
+  background-color: rgba(15, 15, 15, 0.3);
+}
+
 /* Timer */
 #turnTimerContainer {
   display: flex;
@@ -222,6 +239,7 @@ button.dashed.thin {
   font-size: 3.2rem;
   color: rgba(15, 15, 15, 0.9);
   text-align: center;
+  margin-top: 0px;
 }
 
 /* Modal */
