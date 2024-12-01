@@ -643,7 +643,29 @@ function redrawCanvas() {
 
 // Tablet detection
 function isTabletDevice() {
-  return true;
+  const ua = navigator.userAgent.toLowerCase();
+
+  // iPad detection for iPadOS 13+
+  if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) {
+    return true;
+  }
+
+  // iPad detection for older versions
+  if (ua.includes("ipad")) {
+    return true;
+  }
+
+  // Android tablet detection
+  if (ua.includes("android") && !ua.includes("mobile")) {
+    return true;
+  }
+
+  // Other tablet detection
+  if (ua.includes("tablet") || ua.includes("kindle") || ua.includes("silk") || ua.includes("playbook")) {
+    return true;
+  }
+
+  return false;
 }
 
 if (isTabletDevice()) {
