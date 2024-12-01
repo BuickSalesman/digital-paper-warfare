@@ -421,61 +421,73 @@ h1 {
 
 /* Tablet-specific styles */
 body.tablet #gameAndPowerContainer {
-  flex-direction: column;
+  flex-direction: row; /* Ensure elements are side by side */
   align-items: center;
+  justify-content: center;
   max-width: 100vw;
   overflow: hidden;
-  /* Center vertically */
   height: 100vh;
-  justify-content: center;
 }
 
-body.tablet #gameContainer,
-body.tablet #sideContainer {
-  width: 100%;
-  max-width: 100%;
+body.tablet #gameContainer {
+  width: calc(var(--canvas-width-px)); /* Use canvas width */
+  height: calc(var(--canvas-height-px)); /* Use canvas height */
   margin: 0;
 }
 
+body.tablet #sideContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: calc(var(--canvas-width-px) * 0.2); /* Adjust as needed */
+  height: calc(var(--canvas-height-px)); /* Match canvas height */
+  margin: 0;
+}
+
+/* Ensure the canvas scales correctly */
 body.tablet #drawCanvas {
   width: 100% !important;
   height: auto !important;
 }
 
-body.tablet #sideContainer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 1rem;
-}
-
+/* Adjust the power meter */
 body.tablet #powerMeterContainer {
-  width: 50px !important;
-  height: 200px !important;
-  border: 1px solid #000;
-  margin-bottom: 1rem;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  width: calc(var(--canvas-width-px) * 0.075); /* Same as desktop */
+  height: calc(var(--canvas-height-px) * 0.75); /* Same as desktop */
+  border: calc(var(--canvas-width-px) * 0.002) solid #000;
+  margin-bottom: calc(var(--canvas-height-px) * 0.02);
+  overflow: hidden;
 }
 
-body.tablet .button-container .button {
-  flex: 1 1 45%;
-  margin: 0.5rem;
-  font-size: 1rem !important;
-  padding: 0.5rem 1rem;
+/* Adjust buttons */
+body.tablet #gameAndPowerContainer .button {
+  font-size: calc(var(--canvas-width-px) * 0.05); /* Same scaling as desktop */
+  padding: calc(var(--canvas-width-px) * 0.005);
+  margin: calc(var(--canvas-width-px) * 0.005);
+  border-radius: calc(var(--canvas-width-px) * 0.005);
+  -webkit-text-stroke: calc(var(--canvas-width-px) * 0.00025) rgba(200, 200, 200, 0.9);
+  border-top-left-radius: calc(var(--canvas-width-px) * 0.255) calc(var(--canvas-width-px) * 0.015);
+  border-top-right-radius: calc(var(--canvas-width-px) * 0.015) calc(var(--canvas-width-px) * 0.225);
+  border-bottom-right-radius: calc(var(--canvas-width-px) * 0.225) calc(var(--canvas-width-px) * 0.015);
+  border-bottom-left-radius: calc(var(--canvas-width-px) * 0.015) calc(var(--canvas-width-px) * 0.255);
 }
 
-body.tablet #turnTimerContainer {
-  margin-top: 1rem;
-}
-
+/* Adjust the timer */
 body.tablet #Timer {
-  font-size: 2rem !important;
+  font-size: calc(var(--canvas-width-px) * 0.09); /* Same scaling as desktop */
 }
 
-body.tablet #rulzButtonContainer {
-  margin-top: 1rem;
+body.tablet #Timer.enemy-turn {
+  font-size: 3vh;
 }
 
-body.tablet .modal-content {
-  width: 95%;
-  padding: 10px;
+/* Adjust the rules button */
+body.tablet #gameAndPowerContainer .rulzButton {
+  font-size: calc(var(--canvas-width-px) * 0.015);
+  padding: calc(var(--canvas-width-px) * 0.005) calc(var(--canvas-width-px) * 0.01);
+  -webkit-text-stroke: calc(var(--canvas-width-px) * 0.0005) rgba(200, 200, 200, 0.9);
+  border-radius: calc(var(--canvas-width-px) * 0.005);
 }
