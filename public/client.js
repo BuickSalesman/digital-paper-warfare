@@ -157,11 +157,13 @@ const closeModal = () => {
 // Event listerner for click on the move button. This changes the action state to move. Refactor to send the click to the server side for validation and action state change.
 moveButton.addEventListener("click", () => {
   actionMode = "move";
+  updateActionModeIndicator();
 });
 
 // Event listener for click on the shoot button. This changes the action state to shoot. Refactor to send the click to the server side for validation and action state change.
 shootButton.addEventListener("click", () => {
   actionMode = "shoot";
+  updateActionModeIndicator();
 });
 
 // Prevents right clicks on the draw canvas, which can have unitended effects during drawing or move/shoot actions. To fix, obfuscate this code so that it is difficult to interact with on the client side, and reject all right clicks incoming to the server side, on the server side.
@@ -1497,4 +1499,17 @@ function startPowerIncrement() {
 function stopPowerIncrement() {
   isPowerIncrementing = false;
   powerLevel = 0;
+}
+
+function updateActionModeIndicator() {
+  // Remove bullet from both buttons
+  moveButton.textContent = moveButton.textContent.replace("•", "").trim();
+  shootButton.textContent = shootButton.textContent.replace("•", "").trim();
+
+  // Add bullet to the appropriate button
+  if (actionMode === "move") {
+    moveButton.textContent += "•";
+  } else if (actionMode === "shoot") {
+    shootButton.textContent += "•";
+  }
 }
