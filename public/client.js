@@ -954,7 +954,7 @@ function handleDrawingMouseUpOut() {
   socket.emit("endDrawing");
 }
 
-function handleGameMouseUpOut(evt) {
+function handleGameMouseUpOut(evt, forced = false) {
   if (isMouseDown) {
     const mousePos = getMousePos(evt || lastMouseEvent);
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
@@ -965,6 +965,7 @@ function handleGameMouseUpOut(evt) {
       y: gameWorldPos.y,
       actionMode: actionMode,
       powerLevel: powerLevel,
+      forced: forced,
     });
 
     stopPowerIncrement();
@@ -1479,7 +1480,7 @@ function incrementPower() {
   if (powerLevel < 100) {
     requestAnimationFrame(incrementPower);
   } else {
-    handleGameMouseUpOut();
+    handleGameMouseUpOut(null, true);
   }
 }
 

@@ -842,7 +842,8 @@ io.on("connection", (socket) => {
 
   // Handle 'mouseUp' event
   socket.on("mouseUp", (data) => {
-    processMouseUp(socket, data, false); // isForced = false
+    const isForced = data.forced === true;
+    processMouseUp(socket, data, isForced); // isForced = false
   });
 
   socket.on("mouseMove", (data) => {
@@ -1836,10 +1837,8 @@ function processMouseUp(socket, data, isForced = false) {
     const room = gameRooms[roomID];
 
     if (room) {
-      // Retrieve or initialize mouseDownData
-      let mouseDownData = socket.mouseDownData || {};
+      const mouseDownData = socket.mouseDownData || {};
 
-      // Attempt to reconstruct missing data
       if (!mouseDownData.startPosition) {
         mouseDownData.startPosition = data.startPosition || { x: data.x, y: data.y };
       }
@@ -1849,14 +1848,16 @@ function processMouseUp(socket, data, isForced = false) {
       }
 
       const { startPosition, tankId, unitId, actionMode } = mouseDownData;
+      const elapsedTime = Date.now() - mouseDownData.startTime;
+      const powerDuration = 650; // Duration to reach 100%
 
-      let finalPowerLevel = parseInt(data.powerLevel, 10);
+      let finalPowerLevel = (elapsedTime / powerDuration) * 100;
+      finalPowerLevel = Math.min(finalPowerLevel, 100);
 
-      if (isNaN(finalPowerLevel) || finalPowerLevel < 0 || finalPowerLevel > 100) {
-        finalPowerLevel = isForced ? 100 : 0;
-      }
+      // Determine if action was forced
+      isForced = finalPowerLevel >= 100;
 
-      // Calculate the force based on the finalPowerLevel and whether the action was forced
+      // Now calculate the force based on the finalPowerLevel and whether the action was forced
       const force = calculateForceFromPowerLevel(finalPowerLevel, isForced);
 
       let endData = data;
