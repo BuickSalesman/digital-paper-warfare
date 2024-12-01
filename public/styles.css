@@ -26,7 +26,7 @@ body {
 /* Styles for h1 */
 h1 {
   font-family: "DeskScratch";
-  font-size: 2rem; /* Adjust the size as needed */
+  font-size: 3rem; /* Adjust the size as needed */
   font-weight: normal; /* Ensure consistent font weight */
   color: black; /* Explicitly set text color */
   -webkit-text-stroke: 0.005rem rgba(200, 200, 200, 0.9); /* Reduced stroke width */
@@ -107,6 +107,7 @@ h1 {
   font-size: 4rem; /* Make this larger */
   padding: 1rem 2rem; /* Larger padding for a bigger button */
   background-color: rgba(15, 15, 15, 0);
+  color: black;
   -webkit-text-stroke: 0.01rem rgba(200, 200, 200, 0.9); /* Slightly thicker stroke */
   border: none;
   border-radius: 1rem; /* Larger border radius */
@@ -116,6 +117,10 @@ h1 {
 
 /* Hover Effect for Landing Page Rules Button */
 #landingRulzButton:hover {
+  background-color: rgba(15, 15, 15, 0.3);
+}
+
+#join-button:hover {
   background-color: rgba(15, 15, 15, 0.3);
 }
 
@@ -165,7 +170,7 @@ h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: calc(var(--canvas-width-px) * 0.3); /* Adjust as needed */
+  width: calc(var(--canvas-width-px) * 0.2); /* Adjust as needed */
   height: calc(var(--canvas-height-px)); /* Match canvas height */
 }
 
@@ -174,8 +179,8 @@ h1 {
   position: relative;
   display: flex;
   align-items: flex-end;
-  width: calc(var(--canvas-width-px) * 0.05); /* Adjust as needed */
-  height: calc(var(--canvas-height-px) * 0.6); /* Adjust as needed */
+  width: calc(var(--canvas-width-px) * 0.075); /* Adjust as needed */
+  height: calc(var(--canvas-height-px) * 0.75); /* Adjust as needed */
   border: calc(var(--canvas-width-px) * 0.002) solid #000;
   margin-bottom: calc(var(--canvas-height-px) * 0.02);
   overflow: hidden;
@@ -215,14 +220,12 @@ h1 {
 #gameAndPowerContainer .button-container {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--canvas-height-px) * 0.01); /* Adjust as needed */
-  margin-bottom: calc(var(--canvas-height-px) * 0.02); /* Adjust as needed */
 }
 
 #gameAndPowerContainer .button {
   font-family: "DeskScratch";
-  font-size: calc(var(--canvas-width-px) * 0.015); /* Adjust as needed */
-  -webkit-text-stroke: calc(var(--canvas-width-px) * 0.0005) rgba(200, 200, 200, 0.9);
+  font-size: calc(var(--canvas-width-px) * 0.05); /* Adjust as needed */
+  -webkit-text-stroke: calc(var(--canvas-width-px) * 0.00025) rgba(200, 200, 200, 0.9);
   padding: calc(var(--canvas-width-px) * 0.005) calc(var(--canvas-width-px) * 0.005);
   background-color: rgba(15, 15, 15, 0);
   border: none;
@@ -301,10 +304,15 @@ h1 {
 
 #Timer {
   font-family: "DeskScratch", Arial, sans-serif;
-  font-size: calc(var(--canvas-width-px) * 0.032); /* Adjust as needed */
-  color: rgba(15, 15, 15, 0.9);
+  font-size: calc(var(--canvas-width-px) * 0.09); /* Adjust as needed */
+  color: rgba(200, 200, 200 0.9);
+  -webkit-text-stroke: calc(var(--canvas-width-px) * 0.00025) rgba(200, 200, 200, 0.9);
   text-align: center;
   margin-top: 0px;
+}
+
+#Timer.enemy-turn {
+  font-size: 3vh;
 }
 
 /* Modal */

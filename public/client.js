@@ -1391,13 +1391,14 @@ function updateTimerDisplay(timeLeft, currentTurn, phase) {
 
   if (phase === "DRAWING") {
     timerElement.textContent = `${timeLeft}`;
+    timerElement.classList.remove("enemy-turn");
   } else if (phase === "TURN") {
     if (currentTurn === localPlayerNumber) {
       timerElement.textContent = `${timeLeft}`;
-      timerElement.style.fontSize = "3.2rem"; // Set to smaller size
+      timerElement.classList.remove("enemy-turn");
     } else {
-      timerElement.textContent = `opponent turn`;
-      timerElement.style.fontSize = "2vw"; // Set to smaller size
+      timerElement.textContent = `enemy turn`;
+      timerElement.classList.add("enemy-turn");
     }
   }
 }
