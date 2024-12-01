@@ -641,6 +641,20 @@ function redrawCanvas() {
   drawCtx.restore();
 }
 
+// Tablet detection
+function isTabletDevice() {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isTabletUA = /(ipad|tablet|(android(?!.*mobile))|kindle|silk|playbook)/i.test(userAgent);
+  const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
+  const isMobileUA = /(mobile)/i.test(userAgent);
+
+  return isTabletUA && !isMobileUA && isTouchDevice;
+}
+
+if (isTabletDevice()) {
+  document.body.classList.add("tablet");
+}
+
 function initializeCanvas() {
   if (!gameWorldWidth || !gameWorldHeight) {
     console.error("Game world dimensions are not set.");
@@ -649,40 +663,90 @@ function initializeCanvas() {
 
   const aspectRatio = gameWorldWidth / gameWorldHeight;
 
-  // Increase the scaling factors by 20%
-  const widthScaleFactor = 0.9 * 1.2; // Original was 0.9
-  const maxCanvasWidth = 800 * 1.2; // Increase max width by 20%
+  // Check if the device is a tablet
+  const isTablet = document.body.classList.contains("tablet");
 
-  let canvasWidth = Math.min(window.innerWidth * widthScaleFactor, maxCanvasWidth);
-  let canvasHeight = canvasWidth / aspectRatio;
+  if (isTablet) {
+    if (!gameWorldWidth || !gameWorldHeight) {
+      console.error("Game world dimensions are not set.");
+      return;
+    }
 
-  // Adjust the height check to account for the increased size
-  if (canvasHeight > window.innerHeight * 0.8 * 1.2) {
-    canvasHeight = window.innerHeight * 0.8 * 1.2;
-    canvasWidth = canvasHeight * aspectRatio;
+    const aspectRatio = gameWorldWidth / gameWorldHeight;
+
+    // Check if the device is a tablet
+    const isTablet = document.body.classList.contains("tablet");
+
+    // Adjust scaling factors based on device type
+    let widthScaleFactor = isTablet ? 0.95 : 0.9;
+    let maxCanvasWidth = isTablet ? window.innerWidth * 0.95 : 800;
+
+    let canvasWidth = Math.min(window.innerWidth * widthScaleFactor, maxCanvasWidth);
+    let canvasHeight = canvasWidth / aspectRatio;
+
+    // Limit canvas height on tablets to prevent overflow
+    if (isTablet && canvasHeight > window.innerHeight * 0.4) {
+      canvasHeight = window.innerHeight * 0.4;
+      canvasWidth = canvasHeight * aspectRatio;
+    } else if (!isTablet && canvasHeight > window.innerHeight * 0.8) {
+      canvasHeight = window.innerHeight * 0.8;
+      canvasWidth = canvasHeight * aspectRatio;
+    }
+
+    gameContainer.style.width = `${canvasWidth}px`;
+    gameContainer.style.height = `${canvasHeight}px`;
+
+    drawCanvas.width = canvasWidth;
+    drawCanvas.height = canvasHeight;
+
+    document.documentElement.style.setProperty("--canvas-width-px", `${canvasWidth}px`);
+    document.documentElement.style.setProperty("--canvas-height-px", `${canvasHeight}px`);
+
+    width = canvasWidth;
+    height = canvasHeight;
+
+    dividingLine = drawCanvas.height / 2;
+
+    updateScalingFactors();
+    redrawCanvas();
+    drawDividingLine();
+  } else {
+    // Desktop-specific canvas sizing (use your original code)
+    // Increase the scaling factors by 20%
+    const widthScaleFactor = 0.9 * 1.2; // Original was 0.9
+    const maxCanvasWidth = 800 * 1.2; // Increase max width by 20%
+
+    let canvasWidth = Math.min(window.innerWidth * widthScaleFactor, maxCanvasWidth);
+    let canvasHeight = canvasWidth / aspectRatio;
+
+    // Adjust the height check to account for the increased size
+    if (canvasHeight > window.innerHeight * 0.8 * 1.2) {
+      canvasHeight = window.innerHeight * 0.8 * 1.2;
+      canvasWidth = canvasHeight * aspectRatio;
+    }
+
+    // Ensure the canvas doesn't exceed the window dimensions
+    canvasWidth = Math.min(canvasWidth, window.innerWidth);
+    canvasHeight = Math.min(canvasHeight, window.innerHeight);
+
+    gameContainer.style.width = `${canvasWidth}px`;
+    gameContainer.style.height = `${canvasHeight}px`;
+
+    drawCanvas.width = canvasWidth;
+    drawCanvas.height = canvasHeight;
+
+    document.documentElement.style.setProperty("--canvas-width-px", `${canvasWidth}px`);
+    document.documentElement.style.setProperty("--canvas-height-px", `${canvasHeight}px`);
+
+    width = canvasWidth;
+    height = canvasHeight;
+
+    dividingLine = drawCanvas.height / 2;
+
+    updateScalingFactors();
+    redrawCanvas();
+    drawDividingLine();
   }
-
-  // Ensure the canvas doesn't exceed the window dimensions
-  canvasWidth = Math.min(canvasWidth, window.innerWidth);
-  canvasHeight = Math.min(canvasHeight, window.innerHeight);
-
-  gameContainer.style.width = `${canvasWidth}px`;
-  gameContainer.style.height = `${canvasHeight}px`;
-
-  drawCanvas.width = canvasWidth;
-  drawCanvas.height = canvasHeight;
-
-  document.documentElement.style.setProperty("--canvas-width-px", `${canvasWidth}px`);
-  document.documentElement.style.setProperty("--canvas-height-px", `${canvasHeight}px`);
-
-  width = canvasWidth;
-  height = canvasHeight;
-
-  dividingLine = drawCanvas.height / 2;
-
-  updateScalingFactors();
-  redrawCanvas();
-  drawDividingLine();
 }
 
 function updateScalingFactors() {
