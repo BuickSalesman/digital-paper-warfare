@@ -217,6 +217,8 @@ joinButton.addEventListener("click", () => {
   joinButton.disabled = true;
   passcodeInput.disabled = true;
 
+  statusText.textContent = "Waiting for other player...";
+
   // Prime example of something that shouldn't exist on the server, validate entirely on server.
   currentGameState = GameState.LOBBY;
 });
