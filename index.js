@@ -1535,16 +1535,16 @@ function calculateForceFromPowerLevel(powerLevel, isForced = false) {
   let modifier = 0; // Initialize modifier
 
   // **Reward Zone: 85-94%**
-  if (powerLevel >= 85 && powerLevel <= 94) {
+  if (powerLevel >= 85 && powerLevel < 95) {
     const rewardPoints = powerLevel - 84; // 1 at 85%, 2 at 86%, ..., 10 at 94%
-    modifier += rewardPoints * 0.03; // 1.5% per point
+    modifier += rewardPoints * 0.03; // 3% per point
     console.log(`Reward Zone: Power Level = ${powerLevel}% | Modifier = +${(rewardPoints * 1.5).toFixed(1)}%`);
   }
 
   // **Punishment Zone: 95-99%**
-  if (powerLevel >= 95 && powerLevel <= 99) {
+  if (powerLevel >= 95 && powerLevel < 100) {
     const punishmentPoints = powerLevel - 94; // 1 at 95%, ..., 5 at 99%
-    modifier -= punishmentPoints * 0.03; // -1.5% per point
+    modifier -= punishmentPoints * 0.03; // -3% per point
     console.log(`Punishment Zone: Power Level = ${powerLevel}% | Modifier = -${(punishmentPoints * 1.5).toFixed(1)}%`);
   }
 
@@ -1910,6 +1910,8 @@ function processMouseUp(socket, data, isForced = false) {
 
           // Apply force to the tank
           applyForceToTank(tank, vector, force, room.roomWorld);
+          console.log(force);
+          console.log(vector);
         }
       } else if (actionMode === "shoot") {
         const unit = room.tanks.find((t) => t.id === unitId) || room.turrets.find((t) => t.id === unitId);
