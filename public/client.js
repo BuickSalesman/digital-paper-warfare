@@ -9,11 +9,11 @@ let localPlayerNumber = null;
 // Flag to determine when the rendering loop should be called. Does not start until both players are out of the landing page. Reset on player disconnection.
 let renderingStarted = false;
 
-// Initialize height and width for the drawing canvas (game world). Set to null until window size gives a relative value for these fields. Initial data rec'd from server. Used to determine aspect ratio of battlefield, fortres no drawing zones, and scaling factors. Reset on disconnection.
+// Initialize height and width for the drawing canvas (game world). Set to null until window size gives a relative value for these fields. Initial data rec'd from server. Used to determine aspect ratio of battlefield, fortress no drawing zones, and scaling factors. Reset on disconnection.
 let gameWorldHeight = null;
 let gameWorldWidth = null;
 
-// Initialize scaling factors. Used in coordinate conversion, maintaining aspect ratio, and allows game to be responsive to different screen sizes and resolutions. Also used in game object rendering and animations. Helps convert pixel values into game world coords. Setting the value of these scaling factors to 1 initially ensures coordinatetransformations behave predictably.
+// Initialize scaling factors. Used in coordinate conversion, maintaining aspect ratio, and allows game to be responsive to different screen sizes and resolutions. Also used in game object rendering and animations. Helps convert pixel values into game world coords. Setting the value of these scaling factors to 1 initially ensures coordinate transformations behave predictably.
 let scaleX = 1;
 let scaleY = 1;
 
@@ -67,22 +67,22 @@ let dividingLine;
 // Acts as a unique identifier for the current local individual shape drawing session. Set to null initially and assigned a unique string when a drawing session begins. Essential for managing drawing history and synchronizing drawing data with the server. Assigned unique string in handleDrawingMouseDown().
 let currentDrawingSessionId = null;
 
-// Client side boolean flag that represents if a user is currently enaged in a drawing session. Poses security risks, need more robust validation of this flag in the server side. Could lead to inconsistent state management.
+// Client side boolean flag that represents if a user is currently engaged in a drawing session. Poses security risks, need more robust validation of this flag in the server side. Could lead to inconsistent state management.
 let isDrawing = false;
 
 // Flag to indicate whether the local player is allowed to draw on the game canvas. Needs robust server side validation to prevent drawing when it should be disabled.
 let drawingEnabled = true;
 
-// Initialize empty array for the drawing history of both players locally, since both players shapes should be rendered  locally, for both players. Data for both rec'd from server. Used whenever the canvas needs to be redrawn, or when drawings need to be added or deleted form the game. This could potentially be a security issue and may require additional validation on the client side, as currently there is none.
+// Initialize empty array for the drawing history of both players locally, since both players' shapes should be rendered locally, for both players. Data for both rec'd from server. Used whenever the canvas needs to be redrawn, or when drawings need to be added or deleted from the game. This could potentially be a security issue and may require additional validation on the client side, as currently there is none.
 let drawingHistory = { [PLAYER_ONE]: [], [PLAYER_TWO]: [] };
 
-// Initialize empty array for no draw zones. Used to restrict drawing around fortresses. Scalable with game world to ensure consistent ratios of restriced areas to game world. Reset on disconnect, cleared on end of drawing phase. May need additional management on server, or be exclusive to the server, to prevent malicious clients from changing thr available drawing zones.
+// Initialize empty array for no draw zones. Used to restrict drawing around fortresses. Scalable with game world to ensure consistent ratios of restricted areas to game world. Reset on disconnect, cleared on end of drawing phase. May need additional management on server, or be exclusive to the server, to prevent malicious clients from changing the available drawing zones.
 let noDrawZones = [];
 
 // Defines the ratio of padding relative to the game world height to ensure consistent scaling and size.
 const NO_DRAW_ZONE_PADDING_RATIO = 0.05;
 
-// Initialize empty arrays for game bodies, facilitating organized management and interaction. These arrays are populated with data rec'd directly from the server, so should be fairly safe from malicious clients. Need to consider if the data in these arrays can be maniuplated after the fact. Reset on disconnection.
+// Initialize empty arrays for game bodies, facilitating organized management and interaction. These arrays are populated with data rec'd directly from the server, so should be fairly safe from malicious clients. Need to consider if the data in these arrays can be manipulated after the fact. Reset on disconnection.
 let tanks = [];
 let reactors = [];
 let fortresses = [];
@@ -95,10 +95,10 @@ let isPowerIncrementing = false;
 // This array is slightly different as only one shell should be able to exist in the game world at a time. Exists solely to manage creation and deletion of the single shell.
 let shells = [];
 
-// Boolean to track whether or not the mouse is currently pressed. Initialized to false as the mouse is initially not pressed. Used in virtually every aspect of the game. May need a sister state to track mouse state on server to prevent unitended and malcious actions. ChatGPT suggested throttling mouse events?
+// Boolean to track whether or not the mouse is currently pressed. Initialized to false as the mouse is initially not pressed. Used in virtually every aspect of the game. May need a sister state to track mouse state on server to prevent unintended and malicious actions.
 let isMouseDown = false;
 
-// initialize variable to represent the current action mode of the local client. String of either "move", or "shoot". Might not want to initialize as null, as I keep forgetting that this means you HAVE to click and action button before taking any action. May want to implement validation on server tied to the button clicks.
+// Initialize variable to represent the current action mode of the local client. String of either "move", or "shoot". Might not want to initialize as null, as I keep forgetting that this means you HAVE to click an action button before taking any action. May want to implement validation on server tied to the button clicks.
 let actionMode = "move";
 
 // Array of active explosions on the canvas. No security risks.
@@ -141,7 +141,7 @@ window.addEventListener("load", () => {
   updateButtonVisibility();
 });
 
-// Adds event listener to the local client window for actions on resize. Calls initiaze canvas.
+// Adds event listener to the local client window for actions on resize. Calls initialize canvas.
 window.addEventListener("resize", initializeCanvas);
 
 // Function to open the modal.
@@ -154,7 +154,7 @@ const closeModal = () => {
   rulesModal.style.display = "none";
 };
 
-// Event listerner for click on the move button. This changes the action state to move. Refactor to send the click to the server side for validation and action state change.
+// Event listener for click on the move button. This changes the action state to move. Refactor to send the click to the server side for validation and action state change.
 moveButton.addEventListener("click", () => {
   actionMode = "move";
   updateActionModeIndicator();
@@ -166,7 +166,7 @@ shootButton.addEventListener("click", () => {
   updateActionModeIndicator();
 });
 
-// Prevents right clicks on the draw canvas, which can have unitended effects during drawing or move/shoot actions. To fix, obfuscate this code so that it is difficult to interact with on the client side, and reject all right clicks incoming to the server side, on the server side.
+// Prevents right clicks on the draw canvas, which can have unintended effects during drawing or move/shoot actions.
 drawCanvas.addEventListener(
   "contextmenu",
   function (e) {
@@ -213,7 +213,7 @@ joinButton.addEventListener("click", () => {
 
   joinButton.classList.add("pressed");
 
-  // Since the disabled button and input field are malleble through dev tools, make sure to ignore extra button presses server side.
+  // Since the disabled button and input field are malleable through dev tools, make sure to ignore extra button presses server side.
   joinButton.disabled = true;
   passcodeInput.disabled = true;
 
@@ -235,10 +235,10 @@ endDrawButton.addEventListener("click", () => {
   // Disable drawing locally. This needs to be enforced on the server.
   drawingEnabled = true;
 
-  // Disable the erasePreviousDrawingButton. Since the disabled button and input field are malleble through dev tools, make sure to ignore extra button presses server side.
+  // Disable the erasePreviousDrawingButton. Since the disabled button and input field are malleable through dev tools, make sure to ignore extra button presses server side.
   removeDrawingButton.disabled = true;
 
-  // Disable the endDrawButton. Since the disabled button and input field are malleble through dev tools, make sure to ignore extra button presses server side.
+  // Disable the endDrawButton. Since the disabled button and input field are malleable through dev tools, make sure to ignore extra button presses server side.
   endDrawButton.disabled = true;
 });
 
@@ -254,7 +254,7 @@ drawCanvas.addEventListener("mousemove", handleMouseMove, false);
 drawCanvas.addEventListener("mouseup", handleMouseUpOut, false);
 
 // Socket Events - all data sent to and rec'd from the server is handled here.
-// Recieves player info from server side. Uses this data to initialize the canvas, and update button visibility.
+// Receives player info from server side. Uses this data to initialize the canvas, and update button visibility.
 socket.on("playerInfo", (data) => {
   localPlayerNumber = data.localPlayerNumber;
   gameWorldWidth = data.gameWorldWidth;
@@ -275,7 +275,7 @@ socket.on("startPreGame", () => {
   // Definitely need to remove the state changes here and handle on the server.
   currentGameState = GameState.PRE_GAME;
 
-  // It also seems like this can be moved somehwere else. ChatGPT says that it
+  // It also seems like this can be moved somewhere else.
   updateButtonVisibility();
 });
 
@@ -421,7 +421,8 @@ socket.on("gameRunning", (data) => {
 
 socket.on("validClick", () => {
   isMouseDown = true;
-  startPowerIncrement();
+  // Record the timestamp when mouseDown occurs
+  mouseDownStartTime = Date.now();
 });
 
 socket.on("invalidClick", () => {
@@ -761,6 +762,8 @@ function getMousePos(evt) {
   return { x, y };
 }
 
+let mouseDownStartTime = 0; // Add this variable at the top
+
 function handleMouseDown(evt) {
   if (evt.button !== 0) {
     return;
@@ -933,13 +936,13 @@ function handleGameMouseMove(evt) {
   }
 }
 
-function handleMouseUpOut(evt) {
+function handleMouseUpOut(evt, forced = false) {
   switch (currentGameState) {
     case GameState.PRE_GAME:
       handleDrawingMouseUpOut(evt);
       break;
     case GameState.GAME_RUNNING:
-      handleGameMouseUpOut(evt);
+      handleGameMouseUpOut(evt, forced);
       break;
     default:
     // Optionally handle other game states or do nothing
@@ -961,7 +964,16 @@ function handleGameMouseUpOut(evt, forced = false) {
     const mousePos = getMousePos(evt || lastMouseEvent);
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
 
-    // Emit mouseUp event to the server
+    // Calculate powerLevel based on the time between mouseDown and mouseUp
+    const elapsedTime = Date.now() - mouseDownStartTime;
+    const powerDuration = 650; // Duration to reach 100%
+    let powerLevel = (elapsedTime / powerDuration) * 100;
+    powerLevel = Math.min(powerLevel, 100);
+
+    // Determine if action was forced
+    forced = powerLevel >= 100;
+
+    // Emit mouseUp event to the server with powerLevel
     socket.emit("mouseUp", {
       x: gameWorldPos.x,
       y: gameWorldPos.y,
@@ -970,7 +982,8 @@ function handleGameMouseUpOut(evt, forced = false) {
       forced: forced,
     });
 
-    stopPowerIncrement();
+    // Reset power meter display
+    powerMeterFill.style.height = `0%`;
 
     // Stop wobble after force is applied
     if (isWobbling) {
@@ -1464,44 +1477,6 @@ function setColorFullOpacity(color) {
     // Other color format, return as is
     return color;
   }
-}
-
-let powerStartTime = 0;
-const powerDuration = 650; // Duration to reach 100%
-
-function incrementPower() {
-  if (!isMouseDown) {
-    stopPowerIncrement();
-    return;
-  }
-
-  const elapsedTime = Date.now() - powerStartTime;
-  powerLevel = Math.min(100, (elapsedTime / powerDuration) * 100);
-  powerMeterFill.style.height = `${powerLevel}%`;
-
-  if (powerLevel < 100) {
-    requestAnimationFrame(incrementPower);
-  } else {
-    handleGameMouseUpOut(null, true);
-  }
-}
-
-function startPowerIncrement() {
-  if (isPowerIncrementing) {
-    return;
-  }
-  isPowerIncrementing = true;
-  powerLevel = 0;
-  powerMeterFill.style.height = `${powerLevel}%`;
-  powerStartTime = Date.now();
-
-  // Start the increment
-  requestAnimationFrame(incrementPower);
-}
-
-function stopPowerIncrement() {
-  isPowerIncrementing = false;
-  powerLevel = 0;
 }
 
 function updateActionModeIndicator() {
