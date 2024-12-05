@@ -1515,7 +1515,7 @@ function startPowerIncrement() {
   isPowerIncrementing = true;
   powerLevel = 0;
   powerMeterFill.style.height = `${powerLevel}%`;
-  powerStartTime = Date.now();
+  powerStartTime = performance.now();
 
   // Start the increment
   requestAnimationFrame(incrementPower);
