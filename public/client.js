@@ -1502,14 +1502,8 @@ function incrementPower() {
   powerMeterFill.style.height = `${powerLevel}%`;
 
   if (powerLevel < 100) {
-    // Schedule the next update
-    if (window.requestAnimationFrame) {
-      requestAnimationFrame(incrementPower);
-    } else {
-      setTimeout(incrementPower, 16); // Approximate 60 FPS
-    }
+    requestAnimationFrame(incrementPower);
   } else {
-    // Auto-release the action if power reaches 100%
     handleGameMouseUpOut(null, true);
   }
 }
