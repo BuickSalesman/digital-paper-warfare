@@ -1525,15 +1525,15 @@ function calculateForceFromPowerLevel(powerLevel, isForced = false) {
   let modifier = 0; // Initialize modifier
 
   // **Reward Zone: 85-94%**
-  if (powerLevel >= 85 && powerLevel < 95) {
+  if (powerLevel >= 85 && powerLevel < 96) {
     const rewardPoints = powerLevel - 84; // 1 at 85%, 2 at 86%, ..., 10 at 94%
     modifier += rewardPoints * 0.03; // 3% per point
     console.log(`Reward Zone: Power Level = ${powerLevel}% | Modifier = +${(rewardPoints * 1.5).toFixed(1)}%`);
   }
 
   // **Punishment Zone: 95-99%**
-  if (powerLevel >= 95 && powerLevel < 100) {
-    const punishmentPoints = powerLevel - 94; // 1 at 95%, ..., 5 at 99%
+  if (powerLevel >= 96 && powerLevel < 100) {
+    const punishmentPoints = powerLevel - 95; // 1 at 95%, ..., 5 at 99%
     modifier -= punishmentPoints * 0.05; // -3% per point
     console.log(`Punishment Zone: Power Level = ${powerLevel}% | Modifier = -${(punishmentPoints * 1.5).toFixed(1)}%`);
   }

@@ -1491,23 +1491,6 @@ function setColorFullOpacity(color) {
 let powerStartTime = 0;
 const powerDuration = 650; // Duration to reach 100%
 
-function incrementPower() {
-  if (!isMouseDown) {
-    stopPowerIncrement();
-    return;
-  }
-
-  const elapsedTime = performance.now() - powerStartTime;
-  powerLevel = Math.min(100, (elapsedTime / powerDuration) * 100);
-  powerMeterFill.style.height = `${powerLevel}%`;
-
-  if (powerLevel < 100) {
-    requestAnimationFrame(incrementPower);
-  } else {
-    handleGameMouseUpOut(null, true);
-  }
-}
-
 function startPowerIncrement() {
   if (isPowerIncrementing) {
     return;
@@ -1517,13 +1500,28 @@ function startPowerIncrement() {
   powerMeterFill.style.height = `${powerLevel}%`;
   powerStartTime = performance.now();
 
-  // Start the increment
-  requestAnimationFrame(incrementPower);
+  // Start the increment using setInterval
+  powerIncrementInterval = setInterval(() => {
+    if (!isMouseDown) {
+      stopPowerIncrement();
+      return;
+    }
+
+    const elapsedTime = performance.now() - powerStartTime;
+    powerLevel = Math.min(100, (elapsedTime / powerDuration) * 100);
+    powerMeterFill.style.height = `${powerLevel}%`;
+
+    if (powerLevel >= 100) {
+      handleGameMouseUpOut(null, true);
+      stopPowerIncrement();
+    }
+  }, 0.5); // Update every .5 milliseconds
 }
 
 function stopPowerIncrement() {
   isPowerIncrementing = false;
   powerLevel = 0;
+  clearInterval(powerIncrementInterval);
 }
 
 function updateActionModeIndicator() {
