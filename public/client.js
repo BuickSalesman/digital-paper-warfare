@@ -813,6 +813,8 @@ function handleDrawingMouseDown(evt) {
   socket.emit("startDrawing", { position: gwPos, drawingSessionId: currentDrawingSessionId });
 }
 
+let mouseDownTime = 0;
+
 function handleGameMouseDown(evt) {
   if (evt.button === 0) {
     // Mouse is already held down; prevent duplicate actions
@@ -821,6 +823,8 @@ function handleGameMouseDown(evt) {
 
     const mousePos = getMousePos(evt);
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
+
+    mouseDownTime = Date.now();
 
     // Emit mouseDown event to the server
     socket.emit("mouseDown", {
@@ -960,6 +964,14 @@ function handleGameMouseUpOut(evt, forced = false) {
   if (isMouseDown) {
     const mousePos = getMousePos(evt || lastMouseEvent);
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
+
+    // Calculate powerLevel
+    const elapsedTime = Date.now() - mouseDownTime;
+    const powerDuration = 650; // Duration to reach 100%
+    let powerLevel = (elapsedTime / powerDuration) * 100;
+    powerLevel = Math.min(powerLevel, 100);
+
+    forced = powerLevel >= 100;
 
     // Emit mouseUp event to the server
     socket.emit("mouseUp", {
@@ -1516,3 +1528,8 @@ function updateActionModeIndicator() {
     shootButton.textContent += "•";
   }
 }
+
+socket.on("powerCapped", (data) => {
+  isMouseDown = false;
+  stopPowerIncrement();
+});

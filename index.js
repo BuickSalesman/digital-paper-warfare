@@ -783,6 +783,7 @@ io.on("connection", (socket) => {
   });
 
   // Handle 'mouseDown' event
+  // Handle 'mouseDown' event
   socket.on("mouseDown", (data) => {
     const roomID = socket.roomID;
     const localPlayerNumber = socket.localPlayerNumber;
@@ -808,34 +809,25 @@ io.on("connection", (socket) => {
 
       const { x, y } = data;
 
+      let unit;
       if (actionMode === "move") {
-        const tank = validateClickOnTank(room, localPlayerNumber, x, y);
-        if (tank) {
-          socket.mouseDownData = {
-            startTime: Date.now(),
-            startPosition: { x, y },
-            tankId: tank.id,
-            actionMode: actionMode,
-          };
-          socket.emit("validClick");
-        } else {
-          socket.emit("invalidClick");
-        }
+        unit = validateClickOnTank(room, localPlayerNumber, x, y);
       } else if (actionMode === "shoot") {
-        const unit = validateClickOnShootingUnit(room, localPlayerNumber, x, y);
-        if (unit) {
-          socket.mouseDownData = {
-            startTime: Date.now(),
-            startPosition: { x, y },
-            unitId: unit.id,
-            actionMode: actionMode,
-          };
-          socket.emit("validClick");
-        } else {
-          socket.emit("invalidClick");
-        }
+        unit = validateClickOnShootingUnit(room, localPlayerNumber, x, y);
       } else {
         socket.emit("invalidActionMode");
+        return;
+      }
+
+      if (unit) {
+        socket.mouseDownData = {
+          startPosition: { x, y },
+          unitId: unit.id,
+          actionMode: actionMode,
+        };
+        socket.emit("validClick");
+      } else {
+        socket.emit("invalidClick");
       }
     }
   });
@@ -1544,7 +1536,7 @@ function calculateForceFromPowerLevel(powerLevel, isForced = false) {
   // **Punishment Zone: 95-99%**
   if (powerLevel >= 95 && powerLevel < 100) {
     const punishmentPoints = powerLevel - 94; // 1 at 95%, ..., 5 at 99%
-    modifier -= punishmentPoints * 0.03; // -3% per point
+    modifier -= punishmentPoints * 0.05; // -3% per point
     console.log(`Punishment Zone: Power Level = ${powerLevel}% | Modifier = -${(punishmentPoints * 1.5).toFixed(1)}%`);
   }
 
@@ -1828,8 +1820,7 @@ function endGame(roomID) {
   io.to(roomID).emit("resetGame");
 }
 
-function processMouseUp(socket, data, isForced = false) {
-  console.log(`Processing mouseUp for player ${socket.localPlayerNumber}, isForced: ${isForced}`);
+function processMouseUp(socket, data) {
   const roomID = socket.roomID;
   const localPlayerNumber = socket.localPlayerNumber;
 
@@ -1837,46 +1828,42 @@ function processMouseUp(socket, data, isForced = false) {
     const room = gameRooms[roomID];
 
     if (room) {
-      const mouseDownData = socket.mouseDownData || {};
+      const mouseDownData = socket.mouseDownData;
 
-      if (!mouseDownData.startPosition) {
-        mouseDownData.startPosition = data.startPosition || { x: data.x, y: data.y };
+      if (!mouseDownData) {
+        // No mouseDownData recorded, ignore
+        return;
       }
 
-      if (!mouseDownData.actionMode) {
-        mouseDownData.actionMode = data.actionMode;
+      const { startPosition, unitId, actionMode } = mouseDownData;
+
+      const powerLevel = data.powerLevel;
+
+      // Validate powerLevel
+      if (typeof powerLevel !== "number" || powerLevel < 0 || powerLevel > 100) {
+        socket.emit("invalidPowerLevel", { message: "Invalid power level." });
+        return;
       }
-
-      const { startPosition, tankId, unitId, actionMode } = mouseDownData;
-      const elapsedTime = Date.now() - mouseDownData.startTime;
-      const powerDuration = 650; // Duration to reach 100%
-
-      let finalPowerLevel = (elapsedTime / powerDuration) * 100;
-      finalPowerLevel = Math.min(finalPowerLevel, 100);
 
       // Determine if action was forced
-      isForced = finalPowerLevel >= 100;
+      const isForced = data.forced === true || powerLevel >= 100;
 
-      // Now calculate the force based on the finalPowerLevel and whether the action was forced
-      const force = calculateForceFromPowerLevel(finalPowerLevel, isForced);
+      // Now calculate the force based on the powerLevel and whether the action was forced
+      const force = calculateForceFromPowerLevel(powerLevel, isForced);
 
-      let endData = data;
-
-      if (isForced) {
-        if (socket.mouseDownData && socket.mouseDownData.endPosition) {
-          endData = socket.mouseDownData.endPosition;
-        } else {
-          endData = data;
-        }
+      // Get end position
+      let endPosition = data;
+      if (mouseDownData.endPosition) {
+        endPosition = mouseDownData.endPosition;
       } else {
-        endData = data;
+        endPosition = data;
       }
 
       // Calculate the vector for force application
-      const vector = calculateVector(startPosition, endData);
+      const vector = calculateVector(startPosition, endPosition);
 
       if (actionMode === "move") {
-        const tank = room.tanks.find((t) => t.id === tankId);
+        const tank = room.tanks.find((t) => t.id === unitId);
         if (tank) {
           // Emit the tankMoved event
           io.to(room.roomID).emit("tankMoved", {
@@ -1910,8 +1897,6 @@ function processMouseUp(socket, data, isForced = false) {
 
           // Apply force to the tank
           applyForceToTank(tank, vector, force, room.roomWorld);
-          console.log(force);
-          console.log(vector);
         }
       } else if (actionMode === "shoot") {
         const unit = room.tanks.find((t) => t.id === unitId) || room.turrets.find((t) => t.id === unitId);
@@ -1927,7 +1912,7 @@ function processMouseUp(socket, data, isForced = false) {
 
       // Emit 'powerCapped' if the action was forced
       if (isForced) {
-        socket.emit("powerCapped", { powerLevel: finalPowerLevel });
+        socket.emit("powerCapped");
       }
 
       // Switch turn to the other player
