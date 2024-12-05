@@ -1828,6 +1828,8 @@ function processMouseUp(socket, data) {
     if (room) {
       const { startX, startY, endX, endY, actionMode, powerLevel, forced } = data;
 
+      console.log(`Received powerLevel: ${powerLevel}, from player: ${localPlayerNumber}`);
+
       // Validate powerLevel
       if (typeof powerLevel !== "number" || powerLevel < 0 || powerLevel > 100) {
         socket.emit("invalidPowerLevel", { message: "Invalid power level." });

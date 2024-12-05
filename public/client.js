@@ -828,7 +828,7 @@ function handleGameMouseDown(evt) {
     const mousePos = getMousePos(evt);
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
 
-    mouseDownTime = Date.now();
+    mouseDownTime = performance.now();
     startPosition = { x: gameWorldPos.x, y: gameWorldPos.y };
 
     // Emit mouseDown event to the server
@@ -971,7 +971,7 @@ function handleGameMouseUpOut(evt, forced = false) {
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
 
     // Calculate powerLevel
-    const elapsedTime = Date.now() - mouseDownTime;
+    const elapsedTime = performance.now() - mouseDownTime;
     const powerDuration = 650; // Duration to reach 100%
     let powerLevel = (elapsedTime / powerDuration) * 100;
     powerLevel = Math.min(powerLevel, 100);
@@ -1497,7 +1497,7 @@ function incrementPower() {
     return;
   }
 
-  const elapsedTime = Date.now() - powerStartTime;
+  const elapsedTime = performance.now() - powerStartTime;
   powerLevel = Math.min(100, (elapsedTime / powerDuration) * 100);
   powerMeterFill.style.height = `${powerLevel}%`;
 
