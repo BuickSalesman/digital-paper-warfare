@@ -419,9 +419,12 @@ socket.on("gameRunning", (data) => {
   updateButtonVisibility();
 });
 
-socket.on("validClick", () => {
+let selectedUnitId = null;
+
+socket.on("validClick", (data) => {
   isMouseDown = true;
   startPowerIncrement();
+  selectedUnitId = data.unitId;
 });
 
 socket.on("invalidClick", () => {
@@ -814,6 +817,7 @@ function handleDrawingMouseDown(evt) {
 }
 
 let mouseDownTime = 0;
+let startPosition = null;
 
 function handleGameMouseDown(evt) {
   if (evt.button === 0) {
@@ -825,6 +829,7 @@ function handleGameMouseDown(evt) {
     const gameWorldPos = canvasToGameWorld(mousePos.x, mousePos.y);
 
     mouseDownTime = Date.now();
+    startPosition = { x: gameWorldPos.x, y: gameWorldPos.y };
 
     // Emit mouseDown event to the server
     socket.emit("mouseDown", {
@@ -975,11 +980,14 @@ function handleGameMouseUpOut(evt, forced = false) {
 
     // Emit mouseUp event to the server
     socket.emit("mouseUp", {
-      x: gameWorldPos.x,
-      y: gameWorldPos.y,
+      startX: startPosition.x,
+      startY: startPosition.y,
+      endX: gameWorldPos.x,
+      endY: gameWorldPos.y,
       actionMode: actionMode,
       powerLevel: powerLevel,
       forced: forced,
+      unitId: selectedUnitId, // Include the unitId
     });
 
     stopPowerIncrement();
@@ -990,6 +998,8 @@ function handleGameMouseUpOut(evt, forced = false) {
     }
 
     isMouseDown = false; // Mouse is no longer held down
+    startPosition = null;
+    selectedUnitId = null; // Reset after action
   }
 }
 

@@ -783,7 +783,6 @@ io.on("connection", (socket) => {
   });
 
   // Handle 'mouseDown' event
-  // Handle 'mouseDown' event
   socket.on("mouseDown", (data) => {
     const roomID = socket.roomID;
     const localPlayerNumber = socket.localPlayerNumber;
@@ -821,11 +820,10 @@ io.on("connection", (socket) => {
 
       if (unit) {
         socket.mouseDownData = {
-          startPosition: { x, y },
           unitId: unit.id,
           actionMode: actionMode,
         };
-        socket.emit("validClick");
+        socket.emit("validClick", { unitId: unit.id });
       } else {
         socket.emit("invalidClick");
       }
@@ -1828,16 +1826,7 @@ function processMouseUp(socket, data) {
     const room = gameRooms[roomID];
 
     if (room) {
-      const mouseDownData = socket.mouseDownData;
-
-      if (!mouseDownData) {
-        // No mouseDownData recorded, ignore
-        return;
-      }
-
-      const { startPosition, unitId, actionMode } = mouseDownData;
-
-      const powerLevel = data.powerLevel;
+      const { startX, startY, endX, endY, actionMode, powerLevel, forced } = data;
 
       // Validate powerLevel
       if (typeof powerLevel !== "number" || powerLevel < 0 || powerLevel > 100) {
@@ -1845,25 +1834,31 @@ function processMouseUp(socket, data) {
         return;
       }
 
-      // Determine if action was forced
-      const isForced = data.forced === true || powerLevel >= 100;
+      // Validate positions
+      if (
+        typeof startX !== "number" ||
+        typeof startY !== "number" ||
+        typeof endX !== "number" ||
+        typeof endY !== "number"
+      ) {
+        socket.emit("invalidPosition", { message: "Invalid position data." });
+        return;
+      }
+
+      const isForced = forced === true || powerLevel >= 100;
 
       // Now calculate the force based on the powerLevel and whether the action was forced
       const force = calculateForceFromPowerLevel(powerLevel, isForced);
 
-      // Get end position
-      let endPosition = data;
-      if (mouseDownData.endPosition) {
-        endPosition = mouseDownData.endPosition;
-      } else {
-        endPosition = data;
-      }
-
-      // Calculate the vector for force application
+      // Calculate the vector for force application using client-provided positions
+      const startPosition = { x: startX, y: startY };
+      const endPosition = { x: endX, y: endY };
       const vector = calculateVector(startPosition, endPosition);
 
+      const unitId = socket.mouseDownData ? socket.mouseDownData.unitId : data.unitId;
+
       if (actionMode === "move") {
-        const tank = room.tanks.find((t) => t.id === unitId);
+        const tank = room.tanks.find((t) => t.id === data.unitId);
         if (tank) {
           // Emit the tankMoved event
           io.to(room.roomID).emit("tankMoved", {
