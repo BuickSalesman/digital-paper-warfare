@@ -492,14 +492,23 @@ socket.on("reactorDestroyed", (data) => {
 
 socket.on("gameOver", (data) => {
   const { winner, reason } = data;
-  alert(`Player ${winner} wins! Reason: ${reason}`);
 
-  // Clear the timer display
+  // Clear the timer display immediately
   const timerElement = document.getElementById("Timer");
-  timerElement.textContent = "";
+  if (timerElement) {
+    timerElement.textContent = "";
+  }
 
-  // Optionally, reset the game state or redirect to a lobby
-  location.reload(); // Simple way to restart the game
+  // Delay before showing the alert (e.g., 1 second)
+  setTimeout(() => {
+    alert(`Player ${winner} wins! Reason: ${reason}`);
+
+    // Delay before reloading the page (e.g., 2 seconds after alert is dismissed)
+    setTimeout(() => {
+      // Optionally, you can perform additional cleanup here before reloading
+      location.reload(); // Reload the page to restart the game
+    }, 2000); // 2000 milliseconds = 2 seconds
+  }, 1000); // 1000 milliseconds = 1 second
 });
 
 function redrawCanvas() {
