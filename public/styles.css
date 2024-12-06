@@ -392,7 +392,7 @@ body {
 
 .modal-content p,
 .modal-content li {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   line-height: 1.6;
 }
 
@@ -401,6 +401,9 @@ body {
 .modal-content h3,
 .modal-content p,
 .modal-content li {
+  font-family: "ReenieBeanie", Arial, Helvetica, sans-serif; /* Ensure font is applied */
+  color: #0080ff; /* Blue color */
+  -webkit-text-stroke: 0;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.1), /* Slight dark shadow for depth */ -1px -1px 0 rgba(255, 255, 255, 0.1); /* Slight light highlight */
 }
 
@@ -428,15 +431,6 @@ body {
   to {
     opacity: 1;
   }
-}
-
-/* Ensure text in modal content is entirely black */
-.modal-content h2,
-.modal-content h3,
-.modal-content p,
-.modal-content li {
-  -webkit-text-stroke: 0;
-  color: black;
 }
 
 /* @media query for small screens */
