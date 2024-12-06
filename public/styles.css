@@ -367,7 +367,7 @@ body {
 }
 
 .modal-content {
-  background-image: url("assets/paper.jpg");
+  background-color: white;
   font-family: "ReenieBeanie", cursive;
   background-size: cover;
   background-position: center;
@@ -379,6 +379,7 @@ body {
   border-radius: 10px;
   position: relative;
   animation: fadeIn 0.3s;
+  color: #1e90ff;
 }
 
 .modal-content h2 {
@@ -393,6 +394,14 @@ body {
 .modal-content li {
   font-size: 1.5rem;
   line-height: 1.6;
+}
+
+/* Add text shadow to mimic marker texture */
+.modal-content h2,
+.modal-content h3,
+.modal-content p,
+.modal-content li {
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.1), /* Slight dark shadow for depth */ -1px -1px 0 rgba(255, 255, 255, 0.1); /* Slight light highlight */
 }
 
 .close-button {
@@ -520,4 +529,30 @@ body.tablet #gameAndPowerContainer .rulzButton {
   padding: calc(var(--canvas-width-px) * 0.005) calc(var(--canvas-width-px) * 0.01);
   -webkit-text-stroke: calc(var(--canvas-width-px) * 0.0005) rgba(200, 200, 200, 0.9);
   border-radius: calc(var(--canvas-width-px) * 0.005);
+}
+
+.rules-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.rules-block-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rules-block {
+  flex: 1;
+  box-sizing: border-box;
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.rules-block img {
+  max-width: 100%;
+  height: auto;
 }
