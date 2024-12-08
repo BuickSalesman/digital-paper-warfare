@@ -1544,3 +1544,33 @@ socket.on("powerCapped", (data) => {
   isMouseDown = false;
   stopPowerIncrement();
 });
+
+// Attach 'mouseleave' event for mouse interactions
+drawCanvas.addEventListener("mouseleave", handleDrawingEnd, false);
+
+// Attach 'pointerleave' event for pointer interactions (mouse, touch, pen)
+drawCanvas.addEventListener("pointerleave", handleDrawingEnd, false);
+
+// Attach 'touchcancel' event specifically for touch interactions
+drawCanvas.addEventListener("touchcancel", handleDrawingEnd, false);
+
+function handleDrawingEnd(evt) {
+  if (isDrawing) {
+    // Reset drawing state variables
+    isDrawing = false;
+    currentDrawingSessionId = null;
+    lastX = null;
+    lastY = null;
+    drawingLegally = true;
+    color = "#000000"; // Reset to default color
+
+    // Emit 'endDrawing' event to the server
+    socket.emit("endDrawing", {
+      // Optionally, you can include additional data if required
+      message: "Drawing session ended due to pointer leaving the canvas.",
+    });
+
+    // Optionally, provide visual feedback to the user
+    // For example, you could flash the canvas border or show a notification
+  }
+}
