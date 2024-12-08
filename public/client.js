@@ -1565,10 +1565,7 @@ function handleDrawingEnd(evt) {
     color = "#000000"; // Reset to default color
 
     // Emit 'endDrawing' event to the server
-    socket.emit("endDrawing", {
-      // Optionally, you can include additional data if required
-      message: "Drawing session ended due to pointer leaving the canvas.",
-    });
+    socket.emit("endDrawing", {});
 
     // Optionally, provide visual feedback to the user
     // For example, you could flash the canvas border or show a notification
