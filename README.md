@@ -56,3 +56,24 @@ If you’d like to run or contribute to the project locally, follow these steps:
 ```bash
 git clone https://github.com/your-username/digital-paper-warfare.git
 cd digital-paper-warfare
+```
+
+### Install Dependencies 
+```bash
+npm install
+```
+
+### Run the Application
+```bash
+npm start
+```
+
+Then, open http://localhost:3000 in your browser to start playing.
+
+## Feedback & Contributions
+
+We welcome any feedback or contributions! If you have suggestions, improvements, or bug reports, please open an issue or submit a pull request on our [GitHub repository](https://github.com/your-username/digital-paper-warfare).
+
+---
+
+**Enjoy the game — there’s nothing special you need to do to play! Just visit [Digital Paper Warfare](https://digital-paper-warfare.onrender.com/), read the rules, and jump into the action. May the best strategist win!**
