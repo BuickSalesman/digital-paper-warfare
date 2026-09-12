@@ -51,7 +51,7 @@ let nextRoomNumber = 1;
 
 // FPS and deltaTime for Matter.js engine
 const FPS = 60;
-const deltaTime = 1000 / FPS; // Time per frame in ms. Physics engine update interval.
+const deltaTime = 1000 / FPS; // Time per frame in ms. This is the physics engine update interval.
 
 // roomIntervals is an object that keeps track of the interval IDs returned by setInterval for each game room. This allows for management for update loops for each room individually.
 let roomIntervals = {};
